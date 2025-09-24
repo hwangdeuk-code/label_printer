@@ -88,7 +88,7 @@ class _PainterPageState extends State<PainterPage> {
   Offset? dragFixedCorner;
   double? startAngle;
 
-  // ?�들 ?�더
+  // ?�들 ?�띔
   final double handleSize = 10.0;
   final double handleTouchRadius = 16.0;
   final double rotateHandleOffset = 28.0;
@@ -131,9 +131,9 @@ class _PainterPageState extends State<PainterPage> {
 
   // 좌표 변??
   Offset _sceneFromGlobal(Offset global) {
-    final box = _painterKey.currentContext?.findRenderObject() as RenderBox?;
-    if (box == null) return global;
-    final local = box.globalToLocal(global);
+    final renderObject = _painterKey.currentContext?.findRenderObject();
+    if (renderObject is! RenderBox) return global;
+    final local = renderObject.globalToLocal(global);
     return controller.transformationController.toScene(local);
   }
 
@@ -144,7 +144,7 @@ class _PainterPageState extends State<PainterPage> {
     ..strokeWidth = w;
   Paint _fillPaint(Color c) => Paint()..color = c..style = PaintingStyle.fill;
 
-  // ?�인 ?�퍼/바운�?
+  // ?�인 ?�흼/바운�?
   Offset _lineStart(dynamic d) {
     final center = (d as ObjectDrawable).position;
     final len = (d is LineDrawable) ? d.length : (d as ArrowDrawable).length;
@@ -329,7 +329,7 @@ class _PainterPageState extends State<PainterPage> {
         return OvalDrawable(
           position: center,
           size: Size(w, h),
-          paint: fillColor.opacity == 0
+          paint: fillColor.a == 0
               ? _strokePaint(strokeColor, strokeWidth)
               : _fillPaint(fillColor),
         );
@@ -582,29 +582,29 @@ class _PainterPageState extends State<PainterPage> {
         replaced = RectangleDrawable(
           position: startRect.center + delta,
           size: startRect.size,
-          paint: (d0 as RectangleDrawable).paint,
-          borderRadius: (d0 as RectangleDrawable).borderRadius,
+          paint: d0.paint,
+          borderRadius: d0.borderRadius,
         );
       } else if (d0 is OvalDrawable) {
         replaced = OvalDrawable(
           position: startRect.center + delta,
           size: startRect.size,
-          paint: (d0 as OvalDrawable).paint,
+          paint: d0.paint,
         );
       } else if (d0 is LineDrawable) {
         replaced = LineDrawable(
           position: startRect.center + delta,
-          length: (d0 as LineDrawable).length,
-          rotationAngle: (d0 as LineDrawable).rotationAngle,
-          paint: (d0 as LineDrawable).paint,
+          length: d0.length,
+          rotationAngle: d0.rotationAngle,
+          paint: d0.paint,
         );
       } else if (d0 is ArrowDrawable) {
         replaced = ArrowDrawable(
           position: startRect.center + delta,
-          length: (d0 as ArrowDrawable).length,
-          rotationAngle: (d0 as ArrowDrawable).rotationAngle,
-          arrowHeadSize: (d0 as ArrowDrawable).arrowHeadSize,
-          paint: (d0 as ArrowDrawable).paint,
+          length: d0.length,
+          rotationAngle: d0.rotationAngle,
+          arrowHeadSize: d0.arrowHeadSize,
+          paint: d0.paint,
         );
       } else if (d0 is ConstrainedTextDrawable) {
         replaced = d0.copyWith(position: startRect.center + delta);
@@ -612,17 +612,18 @@ class _PainterPageState extends State<PainterPage> {
         replaced = d0.copyWith(position: startRect.center + delta);
       }
     } else if (dragAction == DragAction.rotate) {
-      final center = (d0 as ObjectDrawable).position;
+      if (d0 is! ObjectDrawable) return;
+      final center = d0.position;
       var ang = math.atan2((localScene - center).dy, (localScene - center).dx);
       ang = _snapAngle(ang);
       if (d0 is LineDrawable) {
-        replaced = (d0 as LineDrawable).copyWith(rotation: ang);
+        replaced = d0.copyWith(rotation: ang);
       } else if (d0 is ArrowDrawable) {
-        replaced = (d0 as ArrowDrawable).copyWith(rotation: ang);
+        replaced = d0.copyWith(rotation: ang);
       } else if (d0 is ConstrainedTextDrawable) {
-        replaced = (d0 as ConstrainedTextDrawable).copyWith(rotation: ang);
+        replaced = d0.copyWith(rotation: ang);
       } else if (d0 is TextDrawable) {
-        replaced = (d0 as TextDrawable).copyWith(rotation: ang);
+        replaced = d0.copyWith(rotation: ang);
       }
     } else {
       // resize
@@ -644,8 +645,8 @@ class _PainterPageState extends State<PainterPage> {
           replaced = RectangleDrawable(
             position: newRect.center,
             size: newRect.size,
-            paint: (d0 as RectangleDrawable).paint,
-            borderRadius: (d0 as RectangleDrawable).borderRadius,
+            paint: d0.paint,
+            borderRadius: d0.borderRadius,
           );
         } else {
           replaced = OvalDrawable(
@@ -660,7 +661,7 @@ class _PainterPageState extends State<PainterPage> {
         final newRect = Rect.fromPoints(fixed, localScene);
         final newWidth = newRect.size.width.abs().clamp(40.0, 2000.0);
         final centered = Rect.fromCenter(center: newRect.center, width: newWidth, height: startRect.height);
-        replaced = (d0 as ConstrainedTextDrawable).copyWith(position: centered.center, maxWidth: newWidth);
+        replaced = d0.copyWith(position: centered.center, maxWidth: newWidth);
       } else if (d0 is LineDrawable || d0 is ArrowDrawable) {
         if (_laFixedEnd != null) {
           final fixed = _laFixedEnd!;
@@ -685,7 +686,7 @@ class _PainterPageState extends State<PainterPage> {
           final newCenter = (fixed + movingEnd) / 2;
 
           if (d0 is LineDrawable) {
-            replaced = (d0 as LineDrawable).copyWith(position: newCenter, length: len, rotation: ang);
+            replaced = d0.copyWith(position: newCenter, length: len, rotation: ang);
           } else {
             replaced = (d0 as ArrowDrawable).copyWith(position: newCenter, length: len, rotation: ang);
           }
@@ -767,7 +768,7 @@ class _PainterPageState extends State<PainterPage> {
                       Expanded(
                         child: Slider(min: 8, max: 96, value: tempSize, onChanged: (v) => setSS(() => tempSize = v)),
                       ),
-                      SizedBox(width: 40, child: Text('${tempSize.toStringAsFixed(0)}')),
+                      SizedBox(width: 40, child: Text(tempSize.toStringAsFixed(0))),
                     ],
                   ),
                   Wrap(
@@ -814,7 +815,7 @@ class _PainterPageState extends State<PainterPage> {
                       Expanded(
                         child: Slider(min: 40, max: 800, value: tempMaxWidth, onChanged: (v) => setSS(() => tempMaxWidth = v)),
                       ),
-                      SizedBox(width: 56, child: Text('${tempMaxWidth.toStringAsFixed(0)}')),
+                      SizedBox(width: 56, child: Text(tempMaxWidth.toStringAsFixed(0))),
                     ],
                   ),
                 ],
@@ -1065,6 +1066,4 @@ class _PainterPageState extends State<PainterPage> {
       });
     }
   }
-
 }
-

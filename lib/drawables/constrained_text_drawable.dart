@@ -91,4 +91,3 @@ class ConstrainedTextDrawable extends ObjectDrawable {
     canvas.restore();
   }
 }
-

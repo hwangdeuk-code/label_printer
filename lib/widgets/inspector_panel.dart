@@ -303,10 +303,8 @@ class InspectorPanel extends StatelessWidget {
     final controller = TextEditingController(text: td.text);
     Color currentColor = td.style.color ?? Colors.black;
     double currentSize = td.style.fontSize ?? textDefaults.fontSize;
-    bool currentBold =
-        (td.style.fontWeight ?? FontWeight.normal) == FontWeight.bold;
-    bool currentItalic =
-        (td.style.fontStyle ?? FontStyle.normal) == FontStyle.italic;
+    bool currentBold = (td.style.fontWeight ?? FontWeight.normal) == FontWeight.bold;
+    bool currentItalic = (td.style.fontStyle ?? FontStyle.normal) == FontStyle.italic;
     String currentFamily = td.style.fontFamily ?? textDefaults.fontFamily;
     double currentAngle = td.rotationAngle;
 
@@ -449,8 +447,8 @@ class InspectorPanel extends StatelessWidget {
 }
 
 Widget _kv(String k, String v) => Row(
-      children: [
-        Expanded(child: Text(k, style: const TextStyle(color: Colors.black54))),
-        Text(v),
-      ],
-    );
+    children: [
+      Expanded(child: Text(k, style: const TextStyle(color: Colors.black54))),
+      Text(v),
+    ],
+  );

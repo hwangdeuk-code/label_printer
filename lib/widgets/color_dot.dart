@@ -16,7 +16,7 @@ class ColorDot extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final displayColor = color.opacity == 0 && !showChecker ? null : color;
+    final displayColor = color.a == 0 && !showChecker ? null : color;
     return InkWell(
       onTap: onTap,
       child: Container(
@@ -27,7 +27,7 @@ class ColorDot extends StatelessWidget {
           border: Border.all(color: selected ? Colors.black : Colors.black26),
           borderRadius: BorderRadius.circular(20),
         ),
-        child: color.opacity == 0 && showChecker
+        child: color.a == 0 && showChecker
             ? const _CheckerPainterWidget()
             : null,
       ),

@@ -254,10 +254,10 @@ class ToolPanel extends StatelessWidget {
 
   static final _fillChoices = [
     Colors.black12,
-    Colors.red.withOpacity(0.2),
-    Colors.blue.withOpacity(0.2),
-    Colors.green.withOpacity(0.2),
-    Colors.orange.withOpacity(0.2),
+    Colors.red.withValues(alpha: 0.2),
+    Colors.blue.withValues(alpha: 0.2),
+    Colors.green.withValues(alpha: 0.2),
+    Colors.orange.withValues(alpha: 0.2),
   ];
 }
 
