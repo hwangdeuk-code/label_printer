@@ -368,8 +368,21 @@ class _PainterPageState extends State<PainterPage> {
     _dragSnapAngle = null;
     _isCreatingLineLike = false;
     _firstAngleLockPending = false;
+    final createdDrawable = previewShape;
     dragStart = null;
     previewShape = null;
+
+    final shouldSwitchToSelect = currentTool == Tool.rect ||
+        currentTool == Tool.oval ||
+        currentTool == Tool.line ||
+        currentTool == Tool.arrow;
+
+    if (shouldSwitchToSelect && createdDrawable != null) {
+      setState(() => selectedDrawable = createdDrawable);
+    }
+    if (shouldSwitchToSelect) {
+      _setTool(Tool.select);
+    }
   }
 
   Drawable? _makeShape(Offset a, Offset b, {Drawable? previewOf}) {
