@@ -760,6 +760,7 @@ class _PainterPageState extends State<PainterPage> {
                 children: [
                   TextField(
                     controller: controllerText,
+                    autofocus: true,
                     decoration: const InputDecoration(labelText: 'Text', hintText: 'Enter text...'),
                     minLines: 1, maxLines: 6,
                   ),
@@ -857,6 +858,9 @@ class _PainterPageState extends State<PainterPage> {
     controller.addDrawables([t]);
     setState(() {
       selectedDrawable = t;
+      currentTool = Tool.select;
+      controller.freeStyleMode = FreeStyleMode.none;
+      controller.scalingEnabled = true;
       textFontSize = tempSize;
       textBold = tempBold;
       textItalic = tempItalic;
