@@ -9,6 +9,11 @@ import 'package:flutter/material.dart';
 import 'flutter_painter_v2/flutter_painter.dart';
 import 'flutter_painter_v2/flutter_painter_pure.dart';
 import 'flutter_painter_v2/flutter_painter_extensions.dart';
+import 'models/tool.dart';
+import 'drawables/constrained_text_drawable.dart';
+import 'widgets/tool_panel.dart';
+import 'widgets/inspector_panel.dart';
+import 'widgets/canvas_area.dart';
 void main() => runApp(const MyApp());
 
 class MyApp extends StatelessWidget {
@@ -16,7 +21,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Painter v2.1.0+1 — Shapes/Lines/Arrow/Text',
+      title: 'Painter v2.1.0+1 - Shapes/Lines/Arrow/Text',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
@@ -27,99 +32,9 @@ class MyApp extends StatelessWidget {
   }
 }
 
-enum Tool { select, pen, eraser, rect, oval, line, arrow, text }
 enum DragAction { none, move, resizeNW, resizeNE, resizeSW, resizeSE, resizeStart, resizeEnd, rotate }
-enum TxtAlign { left, center, right }
 
-/// 커스텀 텍스트 드로어블(정렬/최대폭 지원)
-class ConstrainedTextDrawable extends ObjectDrawable {
-  final String text;
-  final TextStyle style;
-  final TextDirection direction;
-  final TxtAlign align;
-  final double maxWidth;
-
-  const ConstrainedTextDrawable({
-    required this.text,
-    required super.position,
-    required super.rotationAngle,
-    this.style = const TextStyle(fontSize: 14, color: Colors.black),
-    this.direction = TextDirection.ltr,
-    this.align = TxtAlign.left,
-    this.maxWidth = 300,
-    super.scale = 1.0,
-    super.assists = const <ObjectDrawableAssist>{},
-    super.assistPaints = const <ObjectDrawableAssist, Paint>{},
-    super.locked = false,
-    super.hidden = false,
-  });
-
-  TextAlign get _textAlign => switch (align) {
-        TxtAlign.left => TextAlign.left,
-        TxtAlign.center => TextAlign.center,
-        TxtAlign.right => TextAlign.right,
-      };
-
-  ConstrainedTextDrawable copyWith({
-    String? text,
-    Offset? position,
-    double? rotation,
-    double? scale,
-    TextStyle? style,
-    TextDirection? direction,
-    TxtAlign? align,
-    double? maxWidth,
-    bool? hidden,
-    Set<ObjectDrawableAssist>? assists,
-    bool? locked,
-  }) {
-    return ConstrainedTextDrawable(
-      text: text ?? this.text,
-      position: position ?? this.position,
-      rotationAngle: rotation ?? rotationAngle,
-      scale: scale ?? this.scale,
-      style: style ?? this.style,
-      direction: direction ?? this.direction,
-      align: align ?? this.align,
-      maxWidth: maxWidth ?? this.maxWidth,
-      assists: assists ?? this.assists,
-      assistPaints: assistPaints,
-      locked: locked ?? this.locked,
-      hidden: hidden ?? this.hidden,
-    );
-  }
-
-  @override
-  Size getSize({double minWidth = 0.0, double maxWidth = double.infinity}) {
-    final tp = TextPainter(
-      text: TextSpan(text: text, style: style),
-      textAlign: _textAlign,
-      textDirection: direction,
-      maxLines: 1000,
-    )..layout(minWidth: 0, maxWidth: this.maxWidth.clamp(0, maxWidth));
-    return tp.size;
-  }
-
-  @override
-  void drawObject(Canvas canvas, Size size) {
-    final tp = TextPainter(
-      text: TextSpan(text: text, style: style),
-      textAlign: _textAlign,
-      textDirection: direction,
-      maxLines: 1000,
-    )..layout(minWidth: 0, maxWidth: maxWidth);
-    final boxSize = tp.size;
-
-    canvas.save();
-    canvas.translate(position.dx, position.dy);
-    if (rotationAngle != 0) canvas.rotate(rotationAngle);
-    if (scale != 1.0) canvas.scale(scale);
-    final topLeft = Offset(-boxSize.width / 2, -boxSize.height / 2);
-    tp.paint(canvas, topLeft);
-    canvas.restore();
-  }
-}
-
+/// 커스?� ?�스???�로?�블(?�렬/최�???지??
 class PainterPage extends StatefulWidget {
   const PainterPage({super.key});
   @override
@@ -132,12 +47,12 @@ class _PainterPageState extends State<PainterPage> {
 
   Tool currentTool = Tool.pen;
 
-  // 스타일
+  // ?��???
   Color strokeColor = Colors.black;
   double strokeWidth = 4.0;
   Color fillColor = const Color(0x00000000);
 
-  // 텍스트 기본
+  // ?�스??기본
   String textFontFamily = 'Roboto';
   double textFontSize = 24.0;
   bool textBold = false;
@@ -145,12 +60,12 @@ class _PainterPageState extends State<PainterPage> {
   TxtAlign defaultTextAlign = TxtAlign.left;
   double defaultTextMaxWidth = 300;
 
-  // 옵션
+  // ?�션
   bool lockRatio = false;
   bool angleSnap = true;
   bool endpointDragRotates = true;
 
-  // 스냅 상태
+  // ?�냅 ?�태
   final double _snapStep = math.pi / 4;
   final double _snapTol = math.pi / 36;
   double? _dragSnapAngle;
@@ -161,11 +76,11 @@ class _PainterPageState extends State<PainterPage> {
   Timer? _pressSnapTimer;
   double _lastRawAngle = 0.0;
 
-  // 생성 드래그
+  // ?�성 ?�래�?
   Offset? dragStart;
   Drawable? previewShape;
 
-  // 선택/조작
+  // ?�택/조작
   Drawable? selectedDrawable;
   DragAction dragAction = DragAction.none;
   Rect? dragStartBounds;
@@ -173,18 +88,18 @@ class _PainterPageState extends State<PainterPage> {
   Offset? dragFixedCorner;
   double? startAngle;
 
-  // 핸들 렌더
+  // ?�들 ?�더
   final double handleSize = 10.0;
   final double handleTouchRadius = 16.0;
   final double rotateHandleOffset = 28.0;
 
-  // 탭/드래그 가드
+  // ???�래�?가??
   bool _pressOnSelection = false;
   bool _movedSinceDown = false;
   Offset? _downScene;
   Drawable? _downHitDrawable;
 
-  // 라인/화살표 리사이즈 상태
+  // ?�인/?�살??리사?�즈 ?�태
   Offset? _laFixedEnd;
   double? _laAngle;
   Offset? _laDir;
@@ -214,7 +129,7 @@ class _PainterPageState extends State<PainterPage> {
     super.dispose();
   }
 
-  // 좌표 변환
+  // 좌표 변??
   Offset _sceneFromGlobal(Offset global) {
     final box = _painterKey.currentContext?.findRenderObject() as RenderBox?;
     if (box == null) return global;
@@ -222,14 +137,14 @@ class _PainterPageState extends State<PainterPage> {
     return controller.transformationController.toScene(local);
   }
 
-  // 페인트
+  // ?�인??
   Paint _strokePaint(Color c, double w) => Paint()
     ..color = c
     ..style = PaintingStyle.stroke
     ..strokeWidth = w;
   Paint _fillPaint(Color c) => Paint()..color = c..style = PaintingStyle.fill;
 
-  // 라인 헬퍼/바운즈
+  // ?�인 ?�퍼/바운�?
   Offset _lineStart(dynamic d) {
     final center = (d as ObjectDrawable).position;
     final len = (d is LineDrawable) ? d.length : (d as ArrowDrawable).length;
@@ -264,7 +179,7 @@ class _PainterPageState extends State<PainterPage> {
     return Rect.zero;
   }
 
-  // 툴 전환
+  // ???�환
   bool get _isPainterGestureTool =>
       currentTool == Tool.pen || currentTool == Tool.eraser || currentTool == Tool.select;
 
@@ -296,7 +211,7 @@ class _PainterPageState extends State<PainterPage> {
     });
   }
 
-  // 스냅
+  // ?�냅
   double _normalizeAngle(double rad) {
     final twoPi = 2 * math.pi;
     double a = rad % twoPi;
@@ -323,7 +238,7 @@ class _PainterPageState extends State<PainterPage> {
     return norm;
   }
 
-  // 도형 생성
+  // ?�형 ?�성
   void _onPanStartCreate(DragStartDetails d) {
     if (_isPainterGestureTool || currentTool == Tool.text) return;
     _dragSnapAngle = null;
@@ -446,7 +361,7 @@ class _PainterPageState extends State<PainterPage> {
     }
   }
 
-  // 히트 테스트
+  // ?�트 ?�스??
   bool _hitTest(Drawable d, Offset p) {
     final rect = _boundsOf(d).inflate(math.max(8, strokeWidth));
     if (d is LineDrawable || d is ArrowDrawable) {
@@ -818,7 +733,7 @@ class _PainterPageState extends State<PainterPage> {
     }
   }
 
-  // 텍스트 생성
+  // ?�스???�성
   Future<void> _createTextAt(Offset scenePoint) async {
     final controllerText = TextEditingController();
     double tempSize = textFontSize;
@@ -998,7 +913,7 @@ class _PainterPageState extends State<PainterPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Painter v2.1.0+1 — Shapes/Lines/Arrow/Text'),
+        title: const Text('Painter v2.1.0+1 - Shapes/Lines/Arrow/Text'),
         actions: [
           IconButton(onPressed: controller.canUndo ? controller.undo : null, icon: const Icon(Icons.undo)),
           IconButton(onPressed: controller.canRedo ? controller.redo : null, icon: const Icon(Icons.redo)),
@@ -1008,501 +923,108 @@ class _PainterPageState extends State<PainterPage> {
       ),
       body: Row(
         children: [
-          _leftToolPanel(),
+          ToolPanel(
+            currentTool: currentTool,
+            onToolSelected: _setTool,
+            strokeColor: strokeColor,
+            onStrokeColorChanged: (c) {
+              setState(() {
+                strokeColor = c;
+                controller.freeStyleColor = strokeColor;
+              });
+            },
+            strokeWidth: strokeWidth,
+            onStrokeWidthChanged: (v) {
+              setState(() {
+                strokeWidth = v;
+                controller.freeStyleStrokeWidth = v;
+              });
+            },
+            fillColor: fillColor,
+            onFillColorChanged: (c) => setState(() => fillColor = c),
+            lockRatio: lockRatio,
+            onLockRatioChanged: (v) => setState(() => lockRatio = v),
+            angleSnap: angleSnap,
+            onAngleSnapChanged: (v) => setState(() => angleSnap = v),
+            endpointDragRotates: endpointDragRotates,
+            onEndpointDragRotatesChanged: (v) => setState(() => endpointDragRotates = v),
+            textFontSize: textFontSize,
+            onTextFontSizeChanged: (v) => setState(() => textFontSize = v),
+            textBold: textBold,
+            onTextBoldChanged: (v) => setState(() => textBold = v),
+            textItalic: textItalic,
+            onTextItalicChanged: (v) => setState(() => textItalic = v),
+            textFontFamily: textFontFamily,
+            onTextFontFamilyChanged: (v) => setState(() => textFontFamily = v),
+            defaultTextAlign: defaultTextAlign,
+            onDefaultTextAlignChanged: (v) => setState(() => defaultTextAlign = v),
+            defaultTextMaxWidth: defaultTextMaxWidth,
+            onDefaultTextMaxWidthChanged: (v) => setState(() => defaultTextMaxWidth = v),
+          ),
           const VerticalDivider(width: 1),
-          Expanded(child: _canvasArea()),
-          const VerticalDivider(width: 1),
-          _rightInspector(),
-        ],
-      ),
-    );
-  }
-
-  Widget _leftToolPanel() {
-    return SizedBox(
-      width: 320,
-      child: ListView(
-        padding: const EdgeInsets.all(12),
-        children: [
-          const Text('Tools', style: TextStyle(fontWeight: FontWeight.bold)),
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 8, runSpacing: 8,
-            children: [
-              _toolChip(Tool.select, 'Select', Icons.near_me),
-              _toolChip(Tool.pen, 'Pen', Icons.draw),
-              _toolChip(Tool.eraser, 'Eraser', Icons.auto_fix_off),
-              _toolChip(Tool.rect, 'Rect', Icons.crop_square),
-              _toolChip(Tool.oval, 'Oval', Icons.circle),
-              _toolChip(Tool.line, 'Line', Icons.show_chart),
-              _toolChip(Tool.arrow, 'Arrow', Icons.arrow_right_alt),
-              _toolChip(Tool.text, 'Text', Icons.title),
-            ],
-          ),
-          const SizedBox(height: 16),
-          const Text('Draw Settings', style: TextStyle(fontWeight: FontWeight.bold)),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              const Text('Stroke'), const SizedBox(width: 8),
-              for (final c in [Colors.black, Colors.red, Colors.blue, Colors.green, Colors.orange])
-                _colorDot(c, selected: strokeColor == c, onTap: () {
-                  setState(() {
-                    strokeColor = c;
-                    controller.freeStyleColor = strokeColor;
-                  });
-                }),
-            ],
-          ),
-          Row(
-            children: [
-              const Text('Width'),
-              Expanded(
-                child: Slider(
-                  min: 1, max: 24,
-                  value: strokeWidth,
-                  onChanged: (v) {
-                    setState(() {
-                      strokeWidth = v;
-                      controller.freeStyleStrokeWidth = v;
-                    });
-                  },
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              const Text('Fill'), const SizedBox(width: 8),
-              _colorDot(Colors.transparent,
-                  selected: fillColor.opacity == 0,
-                  checker: true,
-                  onTap: () => setState(() => fillColor = Colors.transparent)),
-              for (final c in [
-                Colors.black12,
-                Colors.red.withOpacity(0.2),
-                Colors.blue.withOpacity(0.2),
-                Colors.green.withOpacity(0.2),
-                Colors.orange.withOpacity(0.2),
-              ])
-                _colorDot(c, selected: fillColor == c, onTap: () => setState(() => fillColor = c)),
-            ],
-          ),
-          const SizedBox(height: 16),
-          const Text('Snap / Behavior', style: TextStyle(fontWeight: FontWeight.bold)),
-          SwitchListTile(
-            value: lockRatio,
-            onChanged: (v) => setState(() => lockRatio = v),
-            title: const Text('Lock Ratio (Rect/Oval → Square/Circle)'),
-            dense: true,
-          ),
-          SwitchListTile(
-            value: angleSnap,
-            onChanged: (v) => setState(() => angleSnap = v),
-            title: const Text('Angle Snap (0° / 45° / 90° …)'),
-            dense: true,
-          ),
-          SwitchListTile(
-            value: endpointDragRotates,
-            onChanged: (v) => setState(() => endpointDragRotates = v),
-            title: const Text('Endpoint drag rotates (Line/Arrow)'),
-            dense: true,
-          ),
-
-          const SizedBox(height: 16),
-          const Text('Text Defaults', style: TextStyle(fontWeight: FontWeight.bold)),
-          Row(
-            children: [
-              const Text('Size'),
-              Expanded(
-                child: Slider(min: 8, max: 96, value: textFontSize, onChanged: (v) => setState(() => textFontSize = v)),
-              ),
-              SizedBox(width: 40, child: Text('${textFontSize.toStringAsFixed(0)}')),
-            ],
-          ),
-          Wrap(
-            spacing: 8, runSpacing: 8,
-            children: [
-              FilterChip(label: const Text('Bold'), selected: textBold, onSelected: (v) => setState(() => textBold = v)),
-              FilterChip(label: const Text('Italic'), selected: textItalic, onSelected: (v) => setState(() => textItalic = v)),
-            ],
-          ),
-          Row(
-            children: [
-              const Text('Font'), const SizedBox(width: 8),
-              DropdownButton<String>(
-                value: textFontFamily,
-                items: const [
-                  DropdownMenuItem(value: 'Roboto', child: Text('Roboto')),
-                  DropdownMenuItem(value: 'NotoSans', child: Text('NotoSans')),
-                  DropdownMenuItem(value: 'Monospace', child: Text('Monospace')),
-                ],
-                onChanged: (v) => setState(() { if (v != null) textFontFamily = v; }),
-              ),
-            ],
-          ),
-          Row(
-            children: [
-              const Text('Default Align'), const SizedBox(width: 8),
-              DropdownButton<TxtAlign>(
-                value: defaultTextAlign,
-                items: const [
-                  DropdownMenuItem(value: TxtAlign.left, child: Text('Left')),
-                  DropdownMenuItem(value: TxtAlign.center, child: Text('Center')),
-                  DropdownMenuItem(value: TxtAlign.right, child: Text('Right')),
-                ],
-                onChanged: (v) => setState(() { if (v != null) defaultTextAlign = v; }),
-              ),
-            ],
-          ),
-          Row(
-            children: [
-              const Text('Default MaxW'),
-              Expanded(
-                child: Slider(min: 40, max: 800, value: defaultTextMaxWidth, onChanged: (v) => setState(() => defaultTextMaxWidth = v)),
-              ),
-              SizedBox(width: 56, child: Text('${defaultTextMaxWidth.toStringAsFixed(0)}')),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _canvasArea() {
-    return Center(
-      child: SizedBox(
-        width: 640,
-        height: 640,
-        child: DecoratedBox(
-          decoration: BoxDecoration(border: Border.all(color: Colors.black12)),
-          child: Stack(
-            children: [
-              AbsorbPointer(
-                absorbing: currentTool == Tool.rect ||
-                          currentTool == Tool.oval ||
-                          currentTool == Tool.line ||
-                          currentTool == Tool.arrow ||
-                          currentTool == Tool.select ||
-                          currentTool == Tool.text,
-                child: RepaintBoundary(
-                  key: _painterKey,
-                  child: FlutterPainter(controller: controller),
-                ),
-              ),
-              Positioned.fill(
-                child: IgnorePointer(
-                  ignoring: currentTool == Tool.pen || currentTool == Tool.eraser,
-                  child: Listener(
-                    behavior: HitTestBehavior.opaque,
-                    onPointerDown: _handlePointerDownSelect,
-                    child: GestureDetector(
-                      dragStartBehavior: DragStartBehavior.down,
-                      behavior: HitTestBehavior.opaque,
-                      onTap: () {
-                        if (currentTool != Tool.select) return;
-                        final hadHit = _downHitDrawable != null;
-                        if (!hadHit && !_pressOnSelection && !_movedSinceDown) {
-                          setState(() {
-                            selectedDrawable = null;
-                            dragAction = DragAction.none;
-                          });
-                        }
-                        _pressOnSelection = false;
-                        _movedSinceDown = false;
-                        _downScene = null;
-                        _downHitDrawable = null;
-                      },
-                      onPanStart: (details) {
-                        if (currentTool == Tool.select) {
-                          _onOverlayPanStart(details);
-                        } else {
-                          _onPanStartCreate(details);
-                        }
-                      },
-                      onPanUpdate: (details) {
-                        if (currentTool == Tool.select) {
-                          _onOverlayPanUpdate(details);
-                        } else {
-                          _onPanUpdateCreate(details);
-                        }
-                      },
-                      onPanEnd: (_) {
-                        if (currentTool == Tool.select) {
-                          _onOverlayPanEnd();
-                        } else {
-                          _onPanEndCreate();
-                        }
-                      },
-                      child: CustomPaint(
-                        painter: _SelectionPainter(
-                          selected: selectedDrawable,
-                          bounds: selectedDrawable == null ? null : _boundsOf(selectedDrawable!),
-                          handleSize: handleSize,
-                          rotateHandleOffset: rotateHandleOffset,
-                          endpointRadius: handleSize * 0.7,
-                          showEndpoints: selectedDrawable is LineDrawable || selectedDrawable is ArrowDrawable,
-                          start: selectedDrawable == null ? null : (selectedDrawable is LineDrawable || selectedDrawable is ArrowDrawable) ? _lineStart(selectedDrawable!) : null,
-                          end: selectedDrawable == null ? null : (selectedDrawable is LineDrawable || selectedDrawable is ArrowDrawable) ? _lineEnd(selectedDrawable!) : null,
-                          isText: selectedDrawable is ConstrainedTextDrawable || selectedDrawable is TextDrawable,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _rightInspector() {
-    return SizedBox(
-      width: 340,
-      child: ListView(
-        padding: const EdgeInsets.all(12),
-        children: [
-          const Text('Inspector', style: TextStyle(fontWeight: FontWeight.bold)),
-          const SizedBox(height: 8),
-          if (selectedDrawable == null)
-            const Text('Nothing selected.\nUse Select tool and tap a shape.')
-          else ...[
-            _kv('Type', selectedDrawable.runtimeType.toString()),
-            const SizedBox(height: 12),
-
-            if (selectedDrawable is! ConstrainedTextDrawable && selectedDrawable is! TextDrawable) ...[
-              const Text('Stroke Color'),
-              const SizedBox(height: 4),
-              Wrap(
-                spacing: 8, runSpacing: 8,
-                children: [
-                  for (final c in [Colors.black, Colors.red, Colors.blue, Colors.green, Colors.orange])
-                    _colorDot(c, onTap: () {
-                      _applyInspector(newStrokeColor: c);
-                    }),
-                ],
-              ),
-              const SizedBox(height: 12),
-              const Text('Stroke Width'),
-              Slider(min: 1, max: 24, value: strokeWidth, onChanged: (v) => _applyInspector(newStrokeWidth: v)),
-              if (selectedDrawable is RectangleDrawable) ...[
-                const SizedBox(height: 12),
-                const Text('Corner Radius (Rect)'),
-                Slider(
-                  min: 0, max: 40,
-                  value: (selectedDrawable as RectangleDrawable).borderRadius.topLeft.x.clamp(0.0, 40.0),
-                  onChanged: (v) => _applyInspector(newCornerRadius: v),
-                ),
-              ],
-            ],
-
-            if (selectedDrawable is ConstrainedTextDrawable) ..._textInspectorConstrained(selectedDrawable as ConstrainedTextDrawable),
-            if (selectedDrawable is TextDrawable) ..._textInspectorPlain(selectedDrawable as TextDrawable),
-          ],
-        ],
-      ),
-    );
-  }
-
-  List<Widget> _textInspectorConstrained(ConstrainedTextDrawable td) {
-    final tc = TextEditingController(text: td.text);
-    Color currentColor = td.style.color ?? Colors.black;
-    double currentSize = td.style.fontSize ?? 24.0;
-    bool currentBold = (td.style.fontWeight ?? FontWeight.normal) == FontWeight.bold;
-    bool currentItalic = (td.style.fontStyle ?? FontStyle.normal) == FontStyle.italic;
-    String currentFamily = td.style.fontFamily ?? textFontFamily;
-    TxtAlign currentAlign = td.align;
-    double currentMaxWidth = td.maxWidth;
-    double currentAngle = td.rotationAngle;
-
-    void apply() {
-      final style = TextStyle(
-        color: currentColor,
-        fontSize: currentSize,
-        fontWeight: currentBold ? FontWeight.bold : FontWeight.normal,
-        fontStyle: currentItalic ? FontStyle.italic : FontStyle.normal,
-        fontFamily: currentFamily,
-      );
-      final replaced = td.copyWith(
-        text: tc.text,
-        style: style,
-        align: currentAlign,
-        maxWidth: currentMaxWidth,
-        rotation: currentAngle,
-      );
-      controller.replaceDrawable(td, replaced);
-      setState(() => selectedDrawable = replaced);
-    }
-
-    return [
-      const Text('Content'), const SizedBox(height: 4),
-      TextField(
-        controller: tc,
-        minLines: 1, maxLines: 6,
-        decoration: const InputDecoration(border: OutlineInputBorder(), isDense: true),
-        onSubmitted: (_) => apply(),
-      ),
-      const SizedBox(height: 12),
-      const Text('Color'), const SizedBox(height: 4),
-      Wrap(
-        spacing: 8, runSpacing: 8,
-        children: [
-          for (final c in [Colors.black, Colors.red, Colors.blue, Colors.green, Colors.orange])
-            _colorDot(c, selected: currentColor == c, onTap: () { currentColor = c; apply(); }),
-        ],
-      ),
-      const SizedBox(height: 12),
-      Row(
-        children: [
-          const Text('Size'),
-          Expanded(child: Slider(min: 8, max: 96, value: currentSize, onChanged: (v) { currentSize = v; apply(); })),
-          SizedBox(width: 42, child: Text('${currentSize.toStringAsFixed(0)}')),
-        ],
-      ),
-      Wrap(
-        spacing: 8, runSpacing: 8,
-        children: [
-          FilterChip(label: const Text('Bold'), selected: currentBold, onSelected: (v) { currentBold = v; apply(); }),
-          FilterChip(label: const Text('Italic'), selected: currentItalic, onSelected: (v) { currentItalic = v; apply(); }),
-        ],
-      ),
-      const SizedBox(height: 8),
-      Row(
-        children: [
-          const Text('Font'), const SizedBox(width: 8),
-          DropdownButton<String>(
-            value: currentFamily,
-            items: const [
-              DropdownMenuItem(value: 'Roboto', child: Text('Roboto')),
-              DropdownMenuItem(value: 'NotoSans', child: Text('NotoSans')),
-              DropdownMenuItem(value: 'Monospace', child: Text('Monospace')),
-            ],
-            onChanged: (v) { if (v != null) { currentFamily = v; apply(); } },
-          ),
-        ],
-      ),
-      Row(
-        children: [
-          const Text('Align'), const SizedBox(width: 8),
-          DropdownButton<TxtAlign>(
-            value: currentAlign,
-            items: const [
-              DropdownMenuItem(value: TxtAlign.left, child: Text('Left')),
-              DropdownMenuItem(value: TxtAlign.center, child: Text('Center')),
-              DropdownMenuItem(value: TxtAlign.right, child: Text('Right')),
-            ],
-            onChanged: (v) { if (v != null) { currentAlign = v; apply(); } },
-          ),
-        ],
-      ),
-      Row(
-        children: [
-          const Text('Max Width'),
-          Expanded(child: Slider(min: 40, max: 1200, value: currentMaxWidth, onChanged: (v) { currentMaxWidth = v; apply(); })),
-          SizedBox(width: 56, child: Text('${currentMaxWidth.toStringAsFixed(0)}')),
-        ],
-      ),
-      Row(
-        children: [
-          const Text('Angle'),
           Expanded(
-            child: Slider(
-              min: -180, max: 180, value: currentAngle * 180 / math.pi,
-              onChanged: (v) {
-                double ang = v * math.pi / 180.0;
-                currentAngle = angleSnap ? _snapAngle(ang) : ang;
-                apply();
-              },
+            child: CanvasArea(
+              currentTool: currentTool,
+              controller: controller,
+              painterKey: _painterKey,
+              onPointerDownSelect: _handlePointerDownSelect,
+              onCanvasTap: _handleCanvasTap,
+              onOverlayPanStart: _onOverlayPanStart,
+              onOverlayPanUpdate: _onOverlayPanUpdate,
+              onOverlayPanEnd: _onOverlayPanEnd,
+              onCreatePanStart: _onPanStartCreate,
+              onCreatePanUpdate: _onPanUpdateCreate,
+              onCreatePanEnd: _onPanEndCreate,
+              selectedDrawable: selectedDrawable,
+              selectionBounds: selectedDrawable == null ? null : _boundsOf(selectedDrawable!),
+              selectionStart: selectedDrawable is LineDrawable || selectedDrawable is ArrowDrawable ? _lineStart(selectedDrawable!) : null,
+              selectionEnd: selectedDrawable is LineDrawable || selectedDrawable is ArrowDrawable ? _lineEnd(selectedDrawable!) : null,
+              handleSize: handleSize,
+              rotateHandleOffset: rotateHandleOffset,
+              showEndpoints: selectedDrawable is LineDrawable || selectedDrawable is ArrowDrawable,
+              isTextSelected: selectedDrawable is ConstrainedTextDrawable || selectedDrawable is TextDrawable,
             ),
           ),
-          SizedBox(width: 52, child: Text('${(currentAngle * 180 / math.pi).toStringAsFixed(0)}°')),
-        ],
-      ),
-    ];
-  }
-
-  List<Widget> _textInspectorPlain(TextDrawable td) {
-    final tc = TextEditingController(text: td.text);
-    Color currentColor = td.style.color ?? Colors.black;
-    double currentSize = td.style.fontSize ?? 24.0;
-    bool currentBold = (td.style.fontWeight ?? FontWeight.normal) == FontWeight.bold;
-    bool currentItalic = (td.style.fontStyle ?? FontStyle.normal) == FontStyle.italic;
-    String currentFamily = td.style.fontFamily ?? textFontFamily;
-    double currentAngle = td.rotationAngle;
-
-    void apply() {
-      final style = TextStyle(
-        color: currentColor,
-        fontSize: currentSize,
-        fontWeight: currentBold ? FontWeight.bold : FontWeight.normal,
-        fontStyle: currentItalic ? FontStyle.italic : FontStyle.normal,
-        fontFamily: currentFamily,
-      );
-      final replaced = td.copyWith(text: tc.text, style: style, rotation: currentAngle);
-      controller.replaceDrawable(td, replaced);
-      setState(() => selectedDrawable = replaced);
-    }
-
-    return [
-      const Text('Content'), const SizedBox(height: 4),
-      TextField(
-        controller: tc,
-        minLines: 1, maxLines: 6,
-        decoration: const InputDecoration(border: OutlineInputBorder(), isDense: true),
-        onSubmitted: (_) => apply(),
-      ),
-      const SizedBox(height: 12),
-      const Text('Color'), const SizedBox(height: 4),
-      Wrap(
-        spacing: 8, runSpacing: 8,
-        children: [
-          for (final c in [Colors.black, Colors.red, Colors.blue, Colors.green, Colors.orange])
-            _colorDot(c, selected: currentColor == c, onTap: () { currentColor = c; apply(); }),
-        ],
-      ),
-      const SizedBox(height: 12),
-      Row(
-        children: [
-          const Text('Size'),
-          Expanded(child: Slider(min: 8, max: 96, value: currentSize, onChanged: (v) { currentSize = v; apply(); })),
-          SizedBox(width: 42, child: Text('${currentSize.toStringAsFixed(0)}')),
-        ],
-      ),
-      Wrap(
-        spacing: 8, runSpacing: 8,
-        children: [
-          FilterChip(label: const Text('Bold'), selected: currentBold, onSelected: (v) { currentBold = v; apply(); }),
-          FilterChip(label: const Text('Italic'), selected: currentItalic, onSelected: (v) { currentItalic = v; apply(); }),
-        ],
-      ),
-      const SizedBox(height: 8),
-      Row(
-        children: [
-          const Text('Angle'),
-          Expanded(
-            child: Slider(
-              min: -180, max: 180, value: currentAngle * 180 / math.pi,
-              onChanged: (v) {
-                double ang = v * math.pi / 180.0;
-                currentAngle = angleSnap ? _snapAngle(ang) : ang;
-                apply();
-              },
+          const VerticalDivider(width: 1),
+          InspectorPanel(
+            selected: selectedDrawable,
+            strokeWidth: strokeWidth,
+            onApplyStroke: _applyInspector,
+            onReplaceDrawable: (original, replacement) {
+              controller.replaceDrawable(original, replacement);
+              setState(() => selectedDrawable = replacement);
+            },
+            angleSnap: angleSnap,
+            snapAngle: _snapAngle,
+            textDefaults: TextDefaults(
+              fontFamily: textFontFamily,
+              fontSize: textFontSize,
+              bold: textBold,
+              italic: textItalic,
+              align: defaultTextAlign,
+              maxWidth: defaultTextMaxWidth,
             ),
           ),
-          SizedBox(width: 52, child: Text('${(currentAngle * 180 / math.pi).toStringAsFixed(0)}°')),
         ],
       ),
-      const SizedBox(height: 4),
-      const Text(
-        '※ TextDrawable(순정)에는 textAlign/maxWidth가 없습니다. '
-        '정렬/최대폭이 필요하면 커스텀 텍스트를 사용하세요.',
-        style: TextStyle(fontSize: 12, color: Colors.black54),
-      ),
-    ];
+    );
   }
+
+  void _handleCanvasTap() {
+    if (currentTool != Tool.select) return;
+    final hadHit = _downHitDrawable != null;
+    if (!hadHit && !_pressOnSelection && !_movedSinceDown) {
+      setState(() {
+        selectedDrawable = null;
+        dragAction = DragAction.none;
+      });
+    }
+    _pressOnSelection = false;
+    _movedSinceDown = false;
+    _downScene = null;
+    _downHitDrawable = null;
+  }
+
 
   void _applyInspector({Color? newStrokeColor, double? newStrokeWidth, double? newCornerRadius}) {
     final d = selectedDrawable;
@@ -1544,114 +1066,5 @@ class _PainterPageState extends State<PainterPage> {
     }
   }
 
-  Widget _toolChip(Tool t, String label, IconData icon) {
-    final selected = currentTool == t;
-    return ChoiceChip(
-      label: Row(mainAxisSize: MainAxisSize.min, children: [Icon(icon, size: 16), const SizedBox(width: 6), Text(label)]),
-      selected: selected,
-      onSelected: (_) => _setTool(t),
-    );
-  }
-
-  Widget _colorDot(Color c, {bool selected = false, bool checker = false, VoidCallback? onTap}) {
-    final child = Container(
-      width: 22, height: 22,
-      decoration: BoxDecoration(
-        color: c.opacity == 0 && !checker ? null : c,
-        border: Border.all(color: selected ? Colors.black : Colors.black26),
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: c.opacity == 0 && checker ? CustomPaint(painter: _CheckerPainter()) : null,
-    );
-    return InkWell(onTap: onTap, child: child);
-  }
-
-  Widget _kv(String k, String v) => Row(
-        children: [Expanded(child: Text(k, style: const TextStyle(color: Colors.black54))), Text(v)],
-      );
 }
 
-class _SelectionPainter extends CustomPainter {
-  final Drawable? selected;
-  final Rect? bounds;
-  final double handleSize;
-  final double rotateHandleOffset;
-
-  final bool showEndpoints;
-  final double endpointRadius;
-  final Offset? start;
-  final Offset? end;
-
-  final bool isText;
-
-  _SelectionPainter({
-    required this.selected,
-    required this.bounds,
-    required this.handleSize,
-    required this.rotateHandleOffset,
-    this.showEndpoints = false,
-    this.endpointRadius = 6,
-    this.start,
-    this.end,
-    this.isText = false,
-  });
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    if (selected == null || bounds == null) return;
-    final r = bounds!;
-    final boxPaint = Paint()
-      ..color = const Color(0xFF3F51B5)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.2;
-
-    canvas.drawRect(r, boxPaint);
-
-    if (!(selected is LineDrawable || selected is ArrowDrawable)) {
-      final handlePaint = Paint()..color = const Color(0xFF3F51B5);
-      for (final c in [r.topLeft, r.topRight, r.bottomLeft, r.bottomRight]) {
-        final h = Rect.fromCenter(center: c, width: handleSize, height: handleSize);
-        canvas.drawRect(h, handlePaint);
-      }
-      final rotateCenter = Offset(r.center.dx, r.top - rotateHandleOffset);
-      canvas.drawLine(r.topCenter, rotateCenter, boxPaint);
-      canvas.drawCircle(rotateCenter, handleSize * 0.6, handlePaint);
-    } else {
-      if (showEndpoints && start != null && end != null) {
-        final epPaint = Paint()..color = const Color(0xFF3F51B5);
-        canvas.drawCircle(start!, endpointRadius, epPaint);
-        canvas.drawCircle(end!, endpointRadius, epPaint);
-        final rotateCenter = Offset(r.center.dx, r.top - rotateHandleOffset);
-        canvas.drawLine(r.topCenter, rotateCenter, boxPaint);
-        canvas.drawCircle(rotateCenter, endpointRadius, epPaint);
-      }
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant _SelectionPainter oldDelegate) {
-    return oldDelegate.selected != selected ||
-        oldDelegate.bounds != bounds ||
-        oldDelegate.start != start ||
-        oldDelegate.end != end ||
-        oldDelegate.handleSize != handleSize ||
-        oldDelegate.isText != isText;
-  }
-}
-
-class _CheckerPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final s = size.shortestSide / 4;
-    final p1 = Paint()..color = const Color(0xFFE0E0E0);
-    final p2 = Paint()..color = const Color(0xFFFFFFFF);
-    for (int y = 0; y < 4; y++) {
-      for (int x = 0; x < 4; x++) {
-        final r = Rect.fromLTWH(x * s, y * s, s, s);
-        canvas.drawRect(r, ((x + y) % 2 == 0) ? p1 : p2);
-      }
-    }
-  }
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
-}
