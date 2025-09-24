@@ -322,7 +322,9 @@ class _PainterPageState extends State<PainterPage> {
         return RectangleDrawable(
           position: center,
           size: Size(w, h),
-          paint: _strokePaint(strokeColor, strokeWidth),
+          paint: fillColor.a == 0
+              ? _strokePaint(strokeColor, strokeWidth)
+              : _fillPaint(fillColor),
           borderRadius: const BorderRadius.all(Radius.circular(12)),
         );
       case Tool.oval:

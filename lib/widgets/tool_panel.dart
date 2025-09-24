@@ -77,7 +77,7 @@ class ToolPanel extends StatelessWidget {
               _toolChip(Tool.select, 'Select', Icons.near_me),
               _toolChip(Tool.pen, 'Pen', Icons.draw),
               _toolChip(Tool.eraser, 'Eraser', Icons.auto_fix_off),
-              _toolChip(Tool.rect, 'Rect', Icons.crop_square),
+              _toolChip(Tool.rect, 'Rect', Icons.square),
               _toolChip(Tool.oval, 'Oval', Icons.circle),
               _toolChip(Tool.line, 'Line', Icons.show_chart),
               _toolChip(Tool.arrow, 'Arrow', Icons.arrow_right_alt),
