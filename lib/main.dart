@@ -389,6 +389,11 @@ class _PainterPageState extends State<PainterPage> {
           fontSize: existing?.fontSize ?? barcodeFontSize,
           foreground: existing?.foreground ?? barcodeForeground,
           background: existing?.background ?? barcodeBackground,
+          bold: existing?.bold ?? false,
+          italic: existing?.italic ?? false,
+          fontFamily: existing?.fontFamily ?? 'Roboto',
+          textAlign: existing?.textAlign,
+          maxTextWidth: existing?.maxTextWidth ?? 0,
           position: center,
           size: size,
         );
@@ -1164,3 +1169,4 @@ class _PainterPageState extends State<PainterPage> {
     }
   }
 }
+
