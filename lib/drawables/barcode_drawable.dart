@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:barcode/barcode.dart';
@@ -13,6 +14,11 @@ class BarcodeDrawable extends Sized2DDrawable {
     this.fontSize = 16,
     this.foreground = Colors.black,
     this.background = Colors.white,
+    this.bold = false,
+    this.italic = false,
+    this.fontFamily = 'Roboto',
+    this.textAlign,
+    this.maxTextWidth = 0,
     required super.size,
     required super.position,
     super.rotationAngle = 0,
@@ -29,8 +35,14 @@ class BarcodeDrawable extends Sized2DDrawable {
   final double fontSize;
   final Color foreground;
   final Color background;
+  final bool bold;
+  final bool italic;
+  final String fontFamily;
+  final TextAlign? textAlign;
+  final double maxTextWidth;
 
   static const double _textPadding = 4;
+  static const Object _noTextAlign = Object();
 
   @override
   BarcodeDrawable copyWith({
@@ -47,6 +59,11 @@ class BarcodeDrawable extends Sized2DDrawable {
     double? fontSize,
     Color? foreground,
     Color? background,
+    bool? bold,
+    bool? italic,
+    String? fontFamily,
+    Object? textAlign = _noTextAlign,
+    double? maxTextWidth,
   }) {
     return BarcodeDrawable(
       data: data ?? this.data,
@@ -55,6 +72,13 @@ class BarcodeDrawable extends Sized2DDrawable {
       fontSize: fontSize ?? this.fontSize,
       foreground: foreground ?? this.foreground,
       background: background ?? this.background,
+      bold: bold ?? this.bold,
+      italic: italic ?? this.italic,
+      fontFamily: fontFamily ?? this.fontFamily,
+      textAlign: identical(textAlign, _noTextAlign)
+          ? this.textAlign
+          : textAlign as TextAlign?,
+      maxTextWidth: maxTextWidth ?? this.maxTextWidth,
       size: size ?? this.size,
       position: position ?? this.position,
       rotationAngle: rotation ?? rotationAngle,
@@ -118,31 +142,29 @@ class BarcodeDrawable extends Sized2DDrawable {
         );
         canvas.drawRect(barRect, barPaint);
       } else if (element is BarcodeText && showValue) {
+        final layoutWidth = math.max(
+          1.0,
+          maxTextWidth > 0 ? math.min(maxTextWidth, element.width) : element.width,
+        );
+        final resolvedAlign = textAlign ?? _toTextAlign(element.align);
         final textStyle = TextStyle(
           fontSize: fontSize,
           color: foreground,
+          fontWeight: bold ? FontWeight.bold : FontWeight.normal,
+          fontStyle: italic ? FontStyle.italic : FontStyle.normal,
+          fontFamily: fontFamily,
         );
         final textPainter = TextPainter(
           text: TextSpan(text: element.text, style: textStyle),
-          textAlign: _toTextAlign(element.align),
+          textAlign: resolvedAlign,
           textDirection: TextDirection.ltr,
+          maxLines: 1,
         )
-          ..layout(minWidth: 0, maxWidth: element.width);
+          ..layout(minWidth: layoutWidth, maxWidth: layoutWidth);
 
-        double dx = offset.dx + element.left;
-        switch (element.align) {
-          case BarcodeTextAlign.center:
-            dx += (element.width - textPainter.width) / 2;
-            break;
-          case BarcodeTextAlign.right:
-            dx += element.width - textPainter.width;
-            break;
-          case BarcodeTextAlign.left:
-            break;
-        }
-
-        final dy = offset.dy + element.top + (element.height - textPainter.height) / 2;
-        textPainter.paint(canvas, Offset(dx, dy));
+        final dy =
+            offset.dy + element.top + (element.height - textPainter.height) / 2;
+        textPainter.paint(canvas, Offset(offset.dx + element.left, dy));
       }
     }
   }
@@ -165,15 +187,26 @@ class BarcodeDrawable extends Sized2DDrawable {
       ..strokeWidth = 1.5;
     canvas.drawRect(rect, borderPaint);
 
+    final maxWidth = maxTextWidth > 0
+        ? math.min(maxTextWidth, rect.width - 8)
+        : rect.width - 8;
+    final layoutWidth = math.max(8.0, maxWidth);
+
     final textPainter = TextPainter(
       text: TextSpan(
         text: message,
-        style: TextStyle(color: foreground.withValues(alpha: 0.6), fontSize: fontSize),
+        style: TextStyle(
+          color: foreground.withValues(alpha: 0.6),
+          fontSize: fontSize,
+          fontWeight: bold ? FontWeight.bold : FontWeight.normal,
+          fontStyle: italic ? FontStyle.italic : FontStyle.normal,
+          fontFamily: fontFamily,
+        ),
       ),
-      textAlign: TextAlign.center,
+      textAlign: textAlign ?? TextAlign.center,
       textDirection: TextDirection.ltr,
     )
-      ..layout(maxWidth: rect.width - 8);
+      ..layout(maxWidth: layoutWidth);
 
     final offset = Offset(
       rect.left + (rect.width - textPainter.width) / 2,

@@ -1,4 +1,4 @@
-// lib/main.dart
+﻿// lib/main.dart
 import 'dart:async';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
@@ -46,6 +46,7 @@ class PainterPage extends StatefulWidget {
 }
 
 class _PainterPageState extends State<PainterPage> {
+  double scalePercent = 100.0;
   late final PainterController controller;
   final GlobalKey _painterKey = GlobalKey();
 
@@ -70,7 +71,7 @@ class _PainterPageState extends State<PainterPage> {
   double barcodeFontSize = 16.0;
   Color barcodeForeground = Colors.black;
   Color barcodeBackground = Colors.white;
-
+  double printerDpi = 300;
 
   // ??????????
   bool lockRatio = false;
@@ -153,7 +154,7 @@ class _PainterPageState extends State<PainterPage> {
   Paint _strokePaint(Color c, double w) => Paint()
     ..color = c
     ..style = PaintingStyle.stroke
-    ..strokeWidth = w;
+    ..strokeWidth = w * (scalePercent / 100.0);
   Paint _fillPaint(Color c) => Paint()..color = c..style = PaintingStyle.fill;
 
   // ??????????????????????????????????????????????????
@@ -365,7 +366,7 @@ class _PainterPageState extends State<PainterPage> {
       case Tool.rect:
         return RectangleDrawable(
           position: center,
-          size: Size(w, h),
+          size: Size(w, h) * (scalePercent / 100.0),
           paint: fillColor.a == 0
               ? _strokePaint(strokeColor, strokeWidth)
               : _fillPaint(fillColor),
@@ -374,32 +375,32 @@ class _PainterPageState extends State<PainterPage> {
       case Tool.oval:
         return OvalDrawable(
           position: center,
-          size: Size(w, h),
+          size: Size(w, h) * (scalePercent / 100.0),
           paint: fillColor.a == 0
               ? _strokePaint(strokeColor, strokeWidth)
               : _fillPaint(fillColor),
         );
       case Tool.barcode:
         final existing = previewOf is BarcodeDrawable ? previewOf : null;
-        final size = Size(math.max(w, 1), math.max(h, 1));
+        final size = Size(math.max(w, 1), math.max(h, 1)) * (scalePercent / 100.0);
         return BarcodeDrawable(
           data: existing?.data ?? barcodeData,
           type: existing?.type ?? barcodeType,
           showValue: existing?.showValue ?? barcodeShowValue,
-          fontSize: existing?.fontSize ?? barcodeFontSize,
+          fontSize: (existing?.fontSize ?? barcodeFontSize) * (scalePercent / 100.0),
           foreground: existing?.foreground ?? barcodeForeground,
           background: existing?.background ?? barcodeBackground,
           bold: existing?.bold ?? false,
           italic: existing?.italic ?? false,
           fontFamily: existing?.fontFamily ?? 'Roboto',
           textAlign: existing?.textAlign,
-          maxTextWidth: existing?.maxTextWidth ?? 0,
+          maxTextWidth: (existing?.maxTextWidth ?? 0) * (scalePercent / 100.0),
           position: center,
           size: size,
         );
       case Tool.line:
       case Tool.arrow:
-        final length = (b - a).distance;
+        final length = (b - a).distance * (scalePercent / 100.0);
         var angle = math.atan2(dy, dx);
         if (_isCreatingLineLike && _firstAngleLockPending && length >= _firstLockMinLen) {
           _dragSnapAngle = _nearestStep(angle);
@@ -416,7 +417,7 @@ class _PainterPageState extends State<PainterPage> {
         } else {
           return ArrowDrawable(
             position: mid, length: length, rotationAngle: angle,
-            arrowHeadSize: 16,
+            arrowHeadSize: 16 * (scalePercent / 100.0),
             paint: _strokePaint(strokeColor, strokeWidth),
           );
         }
@@ -1063,6 +1064,8 @@ class _PainterPageState extends State<PainterPage> {
             onBarcodeForegroundChanged: (c) => setState(() => barcodeForeground = c),
             barcodeBackground: barcodeBackground,
             onBarcodeBackgroundChanged: (c) => setState(() => barcodeBackground = c),
+            scalePercent: scalePercent,
+            onScalePercentChanged: (v) => setState(() => scalePercent = v),
           ),
           const VerticalDivider(width: 1),
           Expanded(
@@ -1086,6 +1089,8 @@ class _PainterPageState extends State<PainterPage> {
               rotateHandleOffset: rotateHandleOffset,
               showEndpoints: selectedDrawable is LineDrawable || selectedDrawable is ArrowDrawable,
               isTextSelected: selectedDrawable is ConstrainedTextDrawable || selectedDrawable is TextDrawable,
+              printerDpi: printerDpi,
+              scalePercent: scalePercent,
             ),
           ),
           const VerticalDivider(width: 1),
@@ -1169,4 +1174,3 @@ class _PainterPageState extends State<PainterPage> {
     }
   }
 }
-

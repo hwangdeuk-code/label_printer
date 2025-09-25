@@ -484,6 +484,17 @@ class InspectorPanel extends StatelessWidget {
     double currentFontSize = barcode.fontSize;
     Color currentForeground = barcode.foreground;
     Color currentBackground = barcode.background;
+    bool currentBold = barcode.bold;
+    bool currentItalic = barcode.italic;
+    String currentFamily = barcode.fontFamily;
+    TextAlign? currentAlign = barcode.textAlign;
+    bool autoMaxWidth = barcode.maxTextWidth <= 0;
+
+    double clampWidth(double value) =>
+        math.max(40.0, math.min(2000.0, value));
+
+    double currentMaxWidth =
+        clampWidth(autoMaxWidth ? barcode.size.width : barcode.maxTextWidth);
 
     void commit() {
       onReplaceDrawable(
@@ -495,6 +506,11 @@ class InspectorPanel extends StatelessWidget {
           fontSize: currentFontSize,
           foreground: currentForeground,
           background: currentBackground,
+          bold: currentBold,
+          italic: currentItalic,
+          fontFamily: currentFamily,
+          textAlign: currentAlign,
+          maxTextWidth: autoMaxWidth ? 0 : currentMaxWidth,
         ),
       );
     }
@@ -563,6 +579,104 @@ class InspectorPanel extends StatelessWidget {
             ),
           ),
           SizedBox(width: 48, child: Text(currentFontSize.toStringAsFixed(0))),
+        ],
+      ),
+      Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: [
+          FilterChip(
+            label: const Text('Bold'),
+            selected: currentBold,
+            onSelected: (v) {
+              currentBold = v;
+              commit();
+            },
+          ),
+          FilterChip(
+            label: const Text('Italic'),
+            selected: currentItalic,
+            onSelected: (v) {
+              currentItalic = v;
+              commit();
+            },
+          ),
+        ],
+      ),
+      const SizedBox(height: 8),
+      Row(
+        children: [
+          const Text('Font'),
+          const SizedBox(width: 8),
+          DropdownButton<String>(
+            value: currentFamily,
+            items: const [
+              DropdownMenuItem(value: 'Roboto', child: Text('Roboto')),
+              DropdownMenuItem(value: 'NotoSans', child: Text('NotoSans')),
+              DropdownMenuItem(value: 'Monospace', child: Text('Monospace')),
+            ],
+            onChanged: (v) {
+              if (v != null) {
+                currentFamily = v;
+                commit();
+              }
+            },
+          ),
+        ],
+      ),
+      Row(
+        children: [
+          const Text('Align'),
+          const SizedBox(width: 8),
+          DropdownButton<TextAlign?>(
+            value: currentAlign,
+            items: const [
+              DropdownMenuItem(value: null, child: Text('Auto')),
+              DropdownMenuItem(value: TextAlign.left, child: Text('Left')),
+              DropdownMenuItem(value: TextAlign.center, child: Text('Center')),
+              DropdownMenuItem(value: TextAlign.right, child: Text('Right')),
+            ],
+            onChanged: (value) {
+              currentAlign = value;
+              commit();
+            },
+          ),
+        ],
+      ),
+      SwitchListTile(
+        value: autoMaxWidth,
+        onChanged: (v) {
+          autoMaxWidth = v;
+          if (autoMaxWidth) {
+            currentMaxWidth = clampWidth(barcode.size.width);
+          }
+          commit();
+        },
+        dense: true,
+        contentPadding: EdgeInsets.zero,
+        title: const Text('Auto max width'),
+      ),
+      Row(
+        children: [
+          const Text('Max Width'),
+          Expanded(
+            child: Slider(
+              min: 40,
+              max: 2000,
+              value: currentMaxWidth,
+              onChanged: (v) {
+                autoMaxWidth = false;
+                currentMaxWidth = clampWidth(v);
+                commit();
+              },
+            ),
+          ),
+          SizedBox(
+            width: 56,
+            child: Text(
+              autoMaxWidth ? 'Auto' : currentMaxWidth.toStringAsFixed(0),
+            ),
+          ),
         ],
       ),
       const SizedBox(height: 12),

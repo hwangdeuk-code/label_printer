@@ -5,6 +5,8 @@ import '../models/tool.dart';
 import 'color_dot.dart';
 
 class ToolPanel extends StatelessWidget {
+  final double scalePercent;
+  final ValueChanged<double> onScalePercentChanged;
   const ToolPanel({
     super.key,
     required this.currentTool,
@@ -45,6 +47,8 @@ class ToolPanel extends StatelessWidget {
     required this.onBarcodeForegroundChanged,
     required this.barcodeBackground,
     required this.onBarcodeBackgroundChanged,
+    required this.scalePercent,
+    required this.onScalePercentChanged,
   });
 
   final Tool currentTool;
@@ -88,11 +92,30 @@ class ToolPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // 캔버스 스케일 조정 슬라이더
+    final scaleSlider = Row(
+      children: [
+        const Text('Scale'),
+        Expanded(
+          child: Slider(
+            min: 10,
+            max: 400,
+            divisions: 39,
+            value: scalePercent,
+            label: '${scalePercent.toInt()}%',
+            onChanged: onScalePercentChanged,
+          ),
+        ),
+        SizedBox(width: 40, child: Text('${scalePercent.toInt()}%')),
+      ],
+    );
     return SizedBox(
       width: 320,
       child: ListView(
         padding: const EdgeInsets.all(12),
         children: [
+          scaleSlider,
+          const SizedBox(height: 12),
           const Text('Tools', style: TextStyle(fontWeight: FontWeight.bold)),
           const SizedBox(height: 8),
           Wrap(
