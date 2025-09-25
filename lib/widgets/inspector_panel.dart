@@ -1,8 +1,10 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:barcode/barcode.dart';
 
 import '../drawables/constrained_text_drawable.dart';
+import '../drawables/barcode_drawable.dart';
 import '../flutter_painter_v2/flutter_painter.dart';
 import '../models/tool.dart';
 import 'color_dot.dart';
@@ -67,12 +69,14 @@ class InspectorPanel extends StatelessWidget {
           else ...[
             _kv('Type', selected!.runtimeType.toString()),
             const SizedBox(height: 12),
-            if (selected is! ConstrainedTextDrawable && selected is! TextDrawable)
+            if (selected is! ConstrainedTextDrawable && selected is! TextDrawable && selected is! BarcodeDrawable)
               ..._buildShapeControls(selected!),
             if (selected is ConstrainedTextDrawable)
               ..._buildConstrainedTextControls(selected as ConstrainedTextDrawable),
             if (selected is TextDrawable)
               ..._buildPlainTextControls(selected as TextDrawable),
+            if (selected is BarcodeDrawable)
+              ..._buildBarcodeControls(selected as BarcodeDrawable),
           ],
         ],
       ),
@@ -299,12 +303,39 @@ class InspectorPanel extends StatelessWidget {
     ];
   }
 
+  static const _barcodeTypes = [
+    BarcodeType.Code128,
+    BarcodeType.Code39,
+    BarcodeType.QrCode,
+    BarcodeType.PDF417,
+    BarcodeType.DataMatrix,
+  ];
+
+  static const _barcodeLabels = <BarcodeType, String>{
+    BarcodeType.Code128: 'Code 128',
+    BarcodeType.Code39: 'Code 39',
+    BarcodeType.QrCode: 'QR Code',
+    BarcodeType.PDF417: 'PDF417',
+    BarcodeType.DataMatrix: 'Data Matrix',
+  };
+
+  static const _barcodeBgChoices = <Color>[
+    Color(0x00FFFFFF),
+    Color(0xFFFFFFFF),
+    Color(0xFFF4F4F4),
+    Color(0xFFE8F0FE),
+    Color(0xFFFFF8E1),
+    Color(0xFFE8F5E9),
+  ];
+
   List<Widget> _buildPlainTextControls(TextDrawable td) {
     final controller = TextEditingController(text: td.text);
     Color currentColor = td.style.color ?? Colors.black;
     double currentSize = td.style.fontSize ?? textDefaults.fontSize;
-    bool currentBold = (td.style.fontWeight ?? FontWeight.normal) == FontWeight.bold;
-    bool currentItalic = (td.style.fontStyle ?? FontStyle.normal) == FontStyle.italic;
+    bool currentBold =
+        (td.style.fontWeight ?? FontWeight.normal) == FontWeight.bold;
+    bool currentItalic =
+        (td.style.fontStyle ?? FontStyle.normal) == FontStyle.italic;
     String currentFamily = td.style.fontFamily ?? textDefaults.fontFamily;
     double currentAngle = td.rotationAngle;
 
@@ -444,6 +475,137 @@ class InspectorPanel extends StatelessWidget {
       ),
     ];
   }
+
+  List<Widget> _buildBarcodeControls(BarcodeDrawable barcode) {
+    final valueController = TextEditingController(text: barcode.data);
+    String currentValue = barcode.data;
+    BarcodeType currentType = barcode.type;
+    bool showValue = barcode.showValue;
+    double currentFontSize = barcode.fontSize;
+    Color currentForeground = barcode.foreground;
+    Color currentBackground = barcode.background;
+
+    void commit() {
+      onReplaceDrawable(
+        barcode,
+        barcode.copyWith(
+          data: currentValue,
+          type: currentType,
+          showValue: showValue,
+          fontSize: currentFontSize,
+          foreground: currentForeground,
+          background: currentBackground,
+        ),
+      );
+    }
+
+    return [
+      const Text('Barcode Value'),
+      const SizedBox(height: 4),
+      TextField(
+        controller: valueController,
+        minLines: 1,
+        maxLines: 4,
+        decoration: const InputDecoration(
+          border: OutlineInputBorder(),
+          isDense: true,
+        ),
+        onChanged: (v) {
+          currentValue = v;
+          commit();
+        },
+      ),
+      const SizedBox(height: 12),
+      Row(
+        children: [
+          const Text('Type'),
+          const SizedBox(width: 8),
+          DropdownButton<BarcodeType>(
+            value: currentType,
+            items: [
+              for (final type in _barcodeTypes)
+                DropdownMenuItem(
+                  value: type,
+                  child: Text(_barcodeLabel(type)),
+                ),
+            ],
+            onChanged: (value) {
+              if (value != null) {
+                currentType = value;
+                commit();
+              }
+            },
+          ),
+        ],
+      ),
+      SwitchListTile(
+        value: showValue,
+        onChanged: (v) {
+          showValue = v;
+          commit();
+        },
+        dense: true,
+        contentPadding: EdgeInsets.zero,
+        title: const Text('Show human-readable value'),
+      ),
+      Row(
+        children: [
+          const Text('Font Size'),
+          Expanded(
+            child: Slider(
+              min: 8,
+              max: 64,
+              value: currentFontSize,
+              onChanged: (v) {
+                currentFontSize = v;
+                commit();
+              },
+            ),
+          ),
+          SizedBox(width: 48, child: Text(currentFontSize.toStringAsFixed(0))),
+        ],
+      ),
+      const SizedBox(height: 12),
+      const Text('Foreground'),
+      const SizedBox(height: 4),
+      Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: [
+          for (final c in _swatchColors)
+            ColorDot(
+              color: c,
+              selected: currentForeground == c,
+              onTap: () {
+                currentForeground = c;
+                commit();
+              },
+            ),
+        ],
+      ),
+      const SizedBox(height: 12),
+      const Text('Background'),
+      const SizedBox(height: 4),
+      Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: [
+          for (final c in _barcodeBgChoices)
+            ColorDot(
+              color: c,
+              selected: currentBackground.value == c.value,
+              showChecker: c.alpha < 0xFF,
+              onTap: () {
+                currentBackground = c;
+                commit();
+              },
+            ),
+        ],
+      ),
+    ];
+  }
+
+  String _barcodeLabel(BarcodeType type) => _barcodeLabels[type] ?? type.name;
 }
 
 Widget _kv(String k, String v) => Row(

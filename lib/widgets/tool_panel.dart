@@ -1,3 +1,4 @@
+import 'package:barcode/barcode.dart';
 import 'package:flutter/material.dart';
 
 import '../models/tool.dart';
@@ -32,6 +33,18 @@ class ToolPanel extends StatelessWidget {
     required this.onDefaultTextAlignChanged,
     required this.defaultTextMaxWidth,
     required this.onDefaultTextMaxWidthChanged,
+    required this.barcodeData,
+    required this.onBarcodeDataChanged,
+    required this.barcodeType,
+    required this.onBarcodeTypeChanged,
+    required this.barcodeShowValue,
+    required this.onBarcodeShowValueChanged,
+    required this.barcodeFontSize,
+    required this.onBarcodeFontSizeChanged,
+    required this.barcodeForeground,
+    required this.onBarcodeForegroundChanged,
+    required this.barcodeBackground,
+    required this.onBarcodeBackgroundChanged,
   });
 
   final Tool currentTool;
@@ -60,6 +73,18 @@ class ToolPanel extends StatelessWidget {
   final ValueChanged<TxtAlign> onDefaultTextAlignChanged;
   final double defaultTextMaxWidth;
   final ValueChanged<double> onDefaultTextMaxWidthChanged;
+  final String barcodeData;
+  final ValueChanged<String> onBarcodeDataChanged;
+  final BarcodeType barcodeType;
+  final ValueChanged<BarcodeType> onBarcodeTypeChanged;
+  final bool barcodeShowValue;
+  final ValueChanged<bool> onBarcodeShowValueChanged;
+  final double barcodeFontSize;
+  final ValueChanged<double> onBarcodeFontSizeChanged;
+  final Color barcodeForeground;
+  final ValueChanged<Color> onBarcodeForegroundChanged;
+  final Color barcodeBackground;
+  final ValueChanged<Color> onBarcodeBackgroundChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -82,6 +107,7 @@ class ToolPanel extends StatelessWidget {
               _toolChip(Tool.line, 'Line', Icons.show_chart),
               _toolChip(Tool.arrow, 'Arrow', Icons.arrow_right_alt),
               _toolChip(Tool.text, 'Text', Icons.title),
+              _toolChip(Tool.barcode, 'Barcode', Icons.qr_code_2),
             ],
           ),
           const SizedBox(height: 16),
@@ -136,13 +162,13 @@ class ToolPanel extends StatelessWidget {
           SwitchListTile(
             value: lockRatio,
             onChanged: onLockRatioChanged,
-            title: const Text('Lock Ratio (Rect/Oval -> Square/Circle)'),
+            title: const Text('Lock ratio (Rect/Oval/Barcode)'),
             dense: true,
           ),
           SwitchListTile(
             value: angleSnap,
             onChanged: onAngleSnapChanged,
-            title: const Text('Angle Snap (0 deg / 45 deg / 90 deg)'),
+            title: const Text('Angle snap (0 / 45 / 90 deg)'),
             dense: true,
           ),
           SwitchListTile(
@@ -150,6 +176,90 @@ class ToolPanel extends StatelessWidget {
             onChanged: onEndpointDragRotatesChanged,
             title: const Text('Endpoint drag rotates (Line/Arrow)'),
             dense: true,
+          ),
+          const SizedBox(height: 16),
+          const Text('Barcode Defaults', style: TextStyle(fontWeight: FontWeight.bold)),
+          const SizedBox(height: 8),
+          TextFormField(
+            initialValue: barcodeData,
+            decoration: const InputDecoration(
+              labelText: 'Value',
+              border: OutlineInputBorder(),
+              isDense: true,
+            ),
+            onChanged: onBarcodeDataChanged,
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              const Text('Type'),
+              const SizedBox(width: 8),
+              DropdownButton<BarcodeType>(
+                value: barcodeType,
+                items: [
+                  for (final type in _barcodeTypes)
+                    DropdownMenuItem(
+                      value: type,
+                      child: Text(_barcodeLabel(type)),
+                    ),
+                ],
+                onChanged: (value) {
+                  if (value != null) onBarcodeTypeChanged(value);
+                },
+              ),
+            ],
+          ),
+          SwitchListTile(
+            value: barcodeShowValue,
+            onChanged: onBarcodeShowValueChanged,
+            dense: true,
+            contentPadding: EdgeInsets.zero,
+            title: const Text('Show human-readable value'),
+          ),
+          Row(
+            children: [
+              const Text('Font Size'),
+              Expanded(
+                child: Slider(
+                  min: 8,
+                  max: 64,
+                  value: barcodeFontSize,
+                  onChanged: onBarcodeFontSizeChanged,
+                ),
+              ),
+              SizedBox(width: 40, child: Text(barcodeFontSize.toStringAsFixed(0))),
+            ],
+          ),
+          const SizedBox(height: 8),
+          const Text('Foreground'),
+          const SizedBox(height: 4),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final c in _strokeChoices)
+                ColorDot(
+                  color: c,
+                  selected: barcodeForeground == c,
+                  onTap: () => onBarcodeForegroundChanged(c),
+                ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          const Text('Background'),
+          const SizedBox(height: 4),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final c in _barcodeBgChoices)
+                ColorDot(
+                  color: c,
+                  selected: barcodeBackground.value == c.value,
+                  showChecker: c.alpha < 0xFF,
+                  onTap: () => onBarcodeBackgroundChanged(c),
+                ),
+            ],
           ),
           const SizedBox(height: 16),
           const Text('Text Defaults', style: TextStyle(fontWeight: FontWeight.bold)),
@@ -259,6 +369,33 @@ class ToolPanel extends StatelessWidget {
     Colors.green.withValues(alpha: 0.2),
     Colors.orange.withValues(alpha: 0.2),
   ];
+
+  static const _barcodeTypes = [
+    BarcodeType.Code128,
+    BarcodeType.Code39,
+    BarcodeType.QrCode,
+    BarcodeType.PDF417,
+    BarcodeType.DataMatrix,
+  ];
+
+  static const _barcodeLabels = <BarcodeType, String>{
+    BarcodeType.Code128: 'Code 128',
+    BarcodeType.Code39: 'Code 39',
+    BarcodeType.QrCode: 'QR Code',
+    BarcodeType.PDF417: 'PDF417',
+    BarcodeType.DataMatrix: 'Data Matrix',
+  };
+
+  static const _barcodeBgChoices = <Color>[
+    Color(0x00FFFFFF),
+    Color(0xFFFFFFFF),
+    Color(0xFFF4F4F4),
+    Color(0xFFE8F0FE),
+    Color(0xFFFFF8E1),
+    Color(0xFFE8F5E9),
+  ];
+
+  static String _barcodeLabel(BarcodeType type) => _barcodeLabels[type] ?? type.name;
 }
 
 class _ToolChip extends StatelessWidget {

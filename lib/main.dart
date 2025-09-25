@@ -5,15 +5,19 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:barcode/barcode.dart';
 
 import 'flutter_painter_v2/flutter_painter.dart';
 import 'flutter_painter_v2/flutter_painter_pure.dart';
 import 'flutter_painter_v2/flutter_painter_extensions.dart';
+
 import 'models/tool.dart';
 import 'drawables/constrained_text_drawable.dart';
+import 'drawables/barcode_drawable.dart';
 import 'widgets/tool_panel.dart';
 import 'widgets/inspector_panel.dart';
 import 'widgets/canvas_area.dart';
+
 void main() => runApp(const MyApp());
 
 class MyApp extends StatelessWidget {
@@ -34,7 +38,7 @@ class MyApp extends StatelessWidget {
 
 enum DragAction { none, move, resizeNW, resizeNE, resizeSW, resizeSE, resizeStart, resizeEnd, rotate }
 
-/// 커스?� ?�스???�로?�블(?�렬/최�???지??
+/// ??????????????????????????????????????????????????????????????????????????????????????????????????????????
 class PainterPage extends StatefulWidget {
   const PainterPage({super.key});
   @override
@@ -47,25 +51,33 @@ class _PainterPageState extends State<PainterPage> {
 
   Tool currentTool = Tool.pen;
 
-  // ?��???
+  // ????????????????
   Color strokeColor = Colors.black;
   double strokeWidth = 4.0;
   Color fillColor = const Color(0x00000000);
 
-  // ?�스??기본
+  // ???????????????????
   String textFontFamily = 'Roboto';
   double textFontSize = 24.0;
   bool textBold = false;
   bool textItalic = false;
   TxtAlign defaultTextAlign = TxtAlign.left;
   double defaultTextMaxWidth = 300;
+  // Barcode defaults
+  String barcodeData = '123456789012';
+  BarcodeType barcodeType = BarcodeType.Code128;
+  bool barcodeShowValue = true;
+  double barcodeFontSize = 16.0;
+  Color barcodeForeground = Colors.black;
+  Color barcodeBackground = Colors.white;
 
-  // ?�션
+
+  // ??????????
   bool lockRatio = false;
   bool angleSnap = true;
   bool endpointDragRotates = true;
 
-  // ?�냅 ?�태
+  // ??????????????????????????
   final double _snapStep = math.pi / 4;
   final double _snapTol = math.pi / 36;
   double? _dragSnapAngle;
@@ -76,11 +88,11 @@ class _PainterPageState extends State<PainterPage> {
   Timer? _pressSnapTimer;
   double _lastRawAngle = 0.0;
 
-  // ?�성 ?�래�?
+  // ??????????????????????????????????
   Offset? dragStart;
   Drawable? previewShape;
 
-  // ?�택/조작
+  // ???????????????????
   Drawable? selectedDrawable;
   DragAction dragAction = DragAction.none;
   Rect? dragStartBounds;
@@ -88,18 +100,18 @@ class _PainterPageState extends State<PainterPage> {
   Offset? dragFixedCorner;
   double? startAngle;
 
-  // ?�들 ?�띔
+  // ?????????????????????
   final double handleSize = 10.0;
   final double handleTouchRadius = 16.0;
   final double rotateHandleOffset = 28.0;
 
-  // ???�래�?가??
+  // ???????????????????????????????????????
   bool _pressOnSelection = false;
   bool _movedSinceDown = false;
   Offset? _downScene;
   Drawable? _downHitDrawable;
 
-  // ?�인/?�살??리사?�즈 ?�태
+  // ??????????????????????????????????????????????????????????????????????????
   Offset? _laFixedEnd;
   double? _laAngle;
   Offset? _laDir;
@@ -129,7 +141,7 @@ class _PainterPageState extends State<PainterPage> {
     super.dispose();
   }
 
-  // 좌표 변??
+  // ???????????????????????????????????
   Offset _sceneFromGlobal(Offset global) {
     final renderObject = _painterKey.currentContext?.findRenderObject();
     if (renderObject is! RenderBox) return global;
@@ -137,49 +149,80 @@ class _PainterPageState extends State<PainterPage> {
     return controller.transformationController.toScene(local);
   }
 
-  // ?�인??
+  // ???????????
   Paint _strokePaint(Color c, double w) => Paint()
     ..color = c
     ..style = PaintingStyle.stroke
     ..strokeWidth = w;
   Paint _fillPaint(Color c) => Paint()..color = c..style = PaintingStyle.fill;
 
-  // ?�인 ?�흼/바운�?
-  Offset _lineStart(dynamic d) {
-    final center = (d as ObjectDrawable).position;
-    final len = (d is LineDrawable) ? d.length : (d as ArrowDrawable).length;
-    final ang = (d is LineDrawable) ? d.rotationAngle : (d as ArrowDrawable).rotationAngle;
-    final dir = Offset(math.cos(ang), math.sin(ang));
-    return center - dir * (len / 2);
+  // ??????????????????????????????????????????????????
+  Offset _lineStart(Drawable d) {
+    if (d is LineDrawable) {
+      final line = d;
+      final dir = Offset(math.cos(line.rotationAngle), math.sin(line.rotationAngle));
+      return line.position - dir * (line.length / 2);
+    }
+    if (d is ArrowDrawable) {
+      final arrow = d;
+      final dir = Offset(math.cos(arrow.rotationAngle), math.sin(arrow.rotationAngle));
+      return arrow.position - dir * (arrow.length / 2);
+    }
+    return Offset.zero;
   }
 
-  Offset _lineEnd(dynamic d) {
-    final center = (d as ObjectDrawable).position;
-    final len = (d is LineDrawable) ? d.length : (d as ArrowDrawable).length;
-    final ang = (d is LineDrawable) ? d.rotationAngle : (d as ArrowDrawable).rotationAngle;
-    final dir = Offset(math.cos(ang), math.sin(ang));
-    return center + dir * (len / 2);
+  Offset _lineEnd(Drawable d) {
+    if (d is LineDrawable) {
+      final line = d;
+      final dir = Offset(math.cos(line.rotationAngle), math.sin(line.rotationAngle));
+      return line.position + dir * (line.length / 2);
+    }
+    if (d is ArrowDrawable) {
+      final arrow = d;
+      final dir = Offset(math.cos(arrow.rotationAngle), math.sin(arrow.rotationAngle));
+      return arrow.position + dir * (arrow.length / 2);
+    }
+    return Offset.zero;
   }
 
   Rect _boundsOf(Drawable d) {
-    if (d is RectangleDrawable || d is OvalDrawable) {
-      final pos = (d as ObjectDrawable).position;
-      final size = (d as dynamic).size as Size;
-      return Rect.fromCenter(center: pos, width: size.width, height: size.height);
-    } else if (d is LineDrawable || d is ArrowDrawable) {
-      final a = _lineStart(d); final b = _lineEnd(d);
+    if (d is RectangleDrawable) {
+      final rect = d;
+      return Rect.fromCenter(center: rect.position, width: rect.size.width, height: rect.size.height);
+    }
+    if (d is OvalDrawable) {
+      final oval = d;
+      return Rect.fromCenter(center: oval.position, width: oval.size.width, height: oval.size.height);
+    }
+    if (d is BarcodeDrawable) {
+      final barcode = d;
+      return Rect.fromCenter(center: barcode.position, width: barcode.size.width, height: barcode.size.height);
+    }
+    if (d is LineDrawable) {
+      final line = d;
+      final a = _lineStart(line);
+      final b = _lineEnd(line);
       return Rect.fromPoints(a, b);
-    } else if (d is ConstrainedTextDrawable) {
-      final size = d.getSize(maxWidth: d.maxWidth);
-      return Rect.fromCenter(center: d.position, width: size.width, height: size.height);
-    } else if (d is TextDrawable) {
-      final size = d.getSize();
-      return Rect.fromCenter(center: d.position, width: size.width, height: size.height);
+    }
+    if (d is ArrowDrawable) {
+      final arrow = d;
+      final a = _lineStart(arrow);
+      final b = _lineEnd(arrow);
+      return Rect.fromPoints(a, b);
+    }
+    if (d is ConstrainedTextDrawable) {
+      final constrained = d;
+      final size = constrained.getSize(maxWidth: constrained.maxWidth);
+      return Rect.fromCenter(center: constrained.position, width: size.width, height: size.height);
+    }
+    if (d is TextDrawable) {
+      final text = d;
+      final size = text.getSize();
+      return Rect.fromCenter(center: text.position, width: size.width, height: size.height);
     }
     return Rect.zero;
   }
 
-  // ???�환
   bool get _isPainterGestureTool =>
       currentTool == Tool.pen || currentTool == Tool.eraser || currentTool == Tool.select;
 
@@ -211,7 +254,7 @@ class _PainterPageState extends State<PainterPage> {
     });
   }
 
-  // ?�냅
+  // ????????????????????
   double _normalizeAngle(double rad) {
     final twoPi = 2 * math.pi;
     double a = rad % twoPi;
@@ -238,7 +281,7 @@ class _PainterPageState extends State<PainterPage> {
     return norm;
   }
 
-  // ?�형 ?�성
+  // ????????????????
   void _onPanStartCreate(DragStartDetails d) {
     if (_isPainterGestureTool || currentTool == Tool.text) return;
     _dragSnapAngle = null;
@@ -290,7 +333,8 @@ class _PainterPageState extends State<PainterPage> {
     final shouldSwitchToSelect = currentTool == Tool.rect ||
         currentTool == Tool.oval ||
         currentTool == Tool.line ||
-        currentTool == Tool.arrow;
+        currentTool == Tool.arrow ||
+        currentTool == Tool.barcode;
 
     if (shouldSwitchToSelect && createdDrawable != null) {
       setState(() => selectedDrawable = createdDrawable);
@@ -306,7 +350,7 @@ class _PainterPageState extends State<PainterPage> {
     var w = dx.abs();
     var h = dy.abs();
 
-    if (lockRatio && (currentTool == Tool.rect || currentTool == Tool.oval)) {
+    if (lockRatio && (currentTool == Tool.rect || currentTool == Tool.oval || currentTool == Tool.barcode)) {
       final m = math.max(w, h);
       dx = (dx.isNegative ? -m : m);
       dy = (dy.isNegative ? -m : m);
@@ -334,6 +378,19 @@ class _PainterPageState extends State<PainterPage> {
           paint: fillColor.a == 0
               ? _strokePaint(strokeColor, strokeWidth)
               : _fillPaint(fillColor),
+        );
+      case Tool.barcode:
+        final existing = previewOf is BarcodeDrawable ? previewOf : null;
+        final size = Size(math.max(w, 1), math.max(h, 1));
+        return BarcodeDrawable(
+          data: existing?.data ?? barcodeData,
+          type: existing?.type ?? barcodeType,
+          showValue: existing?.showValue ?? barcodeShowValue,
+          fontSize: existing?.fontSize ?? barcodeFontSize,
+          foreground: existing?.foreground ?? barcodeForeground,
+          background: existing?.background ?? barcodeBackground,
+          position: center,
+          size: size,
         );
       case Tool.line:
       case Tool.arrow:
@@ -363,7 +420,7 @@ class _PainterPageState extends State<PainterPage> {
     }
   }
 
-  // ?�트 ?�스??
+  // ?????????????????
   bool _hitTest(Drawable d, Offset p) {
     final rect = _boundsOf(d).inflate(math.max(8, strokeWidth));
     if (d is LineDrawable || d is ArrowDrawable) {
@@ -485,151 +542,172 @@ class _PainterPageState extends State<PainterPage> {
     _firstAngleLockPending = false;
 
     final localScene = _sceneFromGlobal(details.globalPosition);
+    final current = selectedDrawable;
 
-    if (selectedDrawable != null) {
-      final rect = _boundsOf(selectedDrawable!);
+    void clearLineResize() {
+      _laFixedEnd = null;
+      _laAngle = null;
+      _laDir = null;
+    }
+
+    void prepareLineResize(Drawable drawable, DragAction action) {
+      if (action != DragAction.resizeStart && action != DragAction.resizeEnd) {
+        clearLineResize();
+        return;
+      }
+
+      if (drawable is LineDrawable) {
+        final start = _lineStart(drawable);
+        final end = _lineEnd(drawable);
+        _laFixedEnd = action == DragAction.resizeStart ? end : start;
+        final rotation = drawable.rotationAngle;
+        _laAngle = rotation;
+        _laDir = Offset(math.cos(rotation), math.sin(rotation));
+        return;
+      }
+
+      if (drawable is ArrowDrawable) {
+        final start = _lineStart(drawable);
+        final end = _lineEnd(drawable);
+        _laFixedEnd = action == DragAction.resizeStart ? end : start;
+        final rotation = drawable.rotationAngle;
+        _laAngle = rotation;
+        _laDir = Offset(math.cos(rotation), math.sin(rotation));
+        return;
+      }
+
+      clearLineResize();
+    }
+
+    clearLineResize();
+
+    if (current != null) {
+      final rect = _boundsOf(current);
       final action = _hitHandle(rect, localScene);
       dragAction = action;
       dragStartBounds = rect;
       dragStartPointer = localScene;
 
-      if (action == DragAction.rotate) {
-        startAngle = (selectedDrawable as ObjectDrawable).rotationAngle;
+      if (action == DragAction.rotate && current is ObjectDrawable) {
+        startAngle = current.rotationAngle;
+      } else {
+        startAngle = null;
       }
 
-      if ((selectedDrawable is LineDrawable || selectedDrawable is ArrowDrawable) &&
-          (action == DragAction.resizeStart || action == DragAction.resizeEnd)) {
-        final d0 = selectedDrawable!;
-        final a = _lineStart(d0);
-        final b = _lineEnd(d0);
-        final fixedEnd  = (action == DragAction.resizeStart) ? b : a;
-        _laFixedEnd = fixedEnd;
-        _laAngle    = (d0 as ObjectDrawable).rotationAngle;
-        _laDir      = Offset(math.cos(_laAngle!), math.sin(_laAngle!));
-      }
+      prepareLineResize(current, action);
 
       if (action == DragAction.none && !rect.inflate(4).contains(localScene)) {
         final hit = _pickTopAt(localScene);
-        if (hit != null && hit != selectedDrawable) {
+        if (hit != null && hit != current) {
           setState(() => selectedDrawable = hit);
-          final r2 = _boundsOf(selectedDrawable!);
+          final r2 = _boundsOf(hit);
           final a2 = _hitHandle(r2, localScene);
           dragAction = a2;
           dragStartBounds = r2;
           dragStartPointer = localScene;
 
-          if (a2 == DragAction.rotate) {
-            startAngle = (selectedDrawable as ObjectDrawable).rotationAngle;
+          if (a2 == DragAction.rotate && hit is ObjectDrawable) {
+            startAngle = hit.rotationAngle;
+          } else {
+            startAngle = null;
           }
 
-          if ((selectedDrawable is LineDrawable || selectedDrawable is ArrowDrawable) &&
-              (a2 == DragAction.resizeStart || a2 == DragAction.resizeEnd)) {
-            final d0 = selectedDrawable!;
-            final a = _lineStart(d0);
-            final b = _lineEnd(d0);
-            final fixedEnd  = (a2 == DragAction.resizeStart) ? b : a;
-            _laFixedEnd = fixedEnd;
-            _laAngle    = (d0 as ObjectDrawable).rotationAngle;
-            _laDir      = Offset(math.cos(_laAngle!), math.sin(_laAngle!));
-          }
+          prepareLineResize(hit, a2);
         }
       }
     } else {
       final hit = _pickTopAt(localScene);
       if (hit != null) {
         setState(() => selectedDrawable = hit);
-        final r2 = _boundsOf(selectedDrawable!);
+        final r2 = _boundsOf(hit);
         final a2 = _hitHandle(r2, localScene);
         dragAction = a2;
         dragStartBounds = r2;
         dragStartPointer = localScene;
 
-        if (a2 == DragAction.rotate) {
-          startAngle = (selectedDrawable as ObjectDrawable).rotationAngle;
+        if (a2 == DragAction.rotate && hit is ObjectDrawable) {
+          startAngle = hit.rotationAngle;
+        } else {
+          startAngle = null;
         }
 
-        if ((selectedDrawable is LineDrawable || selectedDrawable is ArrowDrawable) &&
-            (a2 == DragAction.resizeStart || a2 == DragAction.resizeEnd)) {
-          final d0 = selectedDrawable!;
-          final a = _lineStart(d0);
-          final b = _lineEnd(d0);
-          final fixedEnd  = (a2 == DragAction.resizeStart) ? b : a;
-          _laFixedEnd = fixedEnd;
-          _laAngle    = (d0 as ObjectDrawable).rotationAngle;
-          _laDir      = Offset(math.cos(_laAngle!), math.sin(_laAngle!));
-        }
+        prepareLineResize(hit, a2);
       } else {
         dragAction = DragAction.none;
         dragStartBounds = null;
         dragStartPointer = null;
+        startAngle = null;
+        clearLineResize();
       }
     }
 
     setState(() {});
   }
-
   void _onOverlayPanUpdate(DragUpdateDetails details) {
     if (selectedDrawable == null || dragAction == DragAction.none) return;
     _movedSinceDown = true;
 
     final localScene = _sceneFromGlobal(details.globalPosition);
-    final d0 = selectedDrawable!;
+    final original = selectedDrawable!;
     final startRect = dragStartBounds!;
     final startPt = dragStartPointer!;
     Drawable? replaced;
 
     if (dragAction == DragAction.move) {
       final delta = localScene - startPt;
-      if (d0 is RectangleDrawable) {
+      if (original is RectangleDrawable) {
         replaced = RectangleDrawable(
           position: startRect.center + delta,
           size: startRect.size,
-          paint: d0.paint,
-          borderRadius: d0.borderRadius,
+          paint: original.paint,
+          borderRadius: original.borderRadius,
         );
-      } else if (d0 is OvalDrawable) {
+      } else if (original is OvalDrawable) {
         replaced = OvalDrawable(
           position: startRect.center + delta,
           size: startRect.size,
-          paint: d0.paint,
+          paint: original.paint,
         );
-      } else if (d0 is LineDrawable) {
+      } else if (original is BarcodeDrawable) {
+        replaced = original.copyWith(position: startRect.center + delta);
+      } else if (original is LineDrawable) {
         replaced = LineDrawable(
           position: startRect.center + delta,
-          length: d0.length,
-          rotationAngle: d0.rotationAngle,
-          paint: d0.paint,
+          length: original.length,
+          rotationAngle: original.rotationAngle,
+          paint: original.paint,
         );
-      } else if (d0 is ArrowDrawable) {
+      } else if (original is ArrowDrawable) {
         replaced = ArrowDrawable(
           position: startRect.center + delta,
-          length: d0.length,
-          rotationAngle: d0.rotationAngle,
-          arrowHeadSize: d0.arrowHeadSize,
-          paint: d0.paint,
+          length: original.length,
+          rotationAngle: original.rotationAngle,
+          arrowHeadSize: original.arrowHeadSize,
+          paint: original.paint,
         );
-      } else if (d0 is ConstrainedTextDrawable) {
-        replaced = d0.copyWith(position: startRect.center + delta);
-      } else if (d0 is TextDrawable) {
-        replaced = d0.copyWith(position: startRect.center + delta);
+      } else if (original is ConstrainedTextDrawable) {
+        replaced = original.copyWith(position: startRect.center + delta);
+      } else if (original is TextDrawable) {
+        replaced = original.copyWith(position: startRect.center + delta);
       }
     } else if (dragAction == DragAction.rotate) {
-      if (d0 is! ObjectDrawable) return;
-      final center = d0.position;
-      var ang = math.atan2((localScene - center).dy, (localScene - center).dx);
-      ang = _snapAngle(ang);
-      if (d0 is LineDrawable) {
-        replaced = d0.copyWith(rotation: ang);
-      } else if (d0 is ArrowDrawable) {
-        replaced = d0.copyWith(rotation: ang);
-      } else if (d0 is ConstrainedTextDrawable) {
-        replaced = d0.copyWith(rotation: ang);
-      } else if (d0 is TextDrawable) {
-        replaced = d0.copyWith(rotation: ang);
+      if (original is ObjectDrawable) {
+        final center = original.position;
+        var ang = math.atan2((localScene - center).dy, (localScene - center).dx);
+        ang = _snapAngle(ang);
+
+        if (original is LineDrawable) {
+          replaced = original.copyWith(rotation: ang);
+        } else if (original is ArrowDrawable) {
+          replaced = original.copyWith(rotation: ang);
+        } else if (original is ConstrainedTextDrawable) {
+          replaced = original.copyWith(rotation: ang);
+        } else if (original is TextDrawable) {
+          replaced = original.copyWith(rotation: ang);
+        }
       }
     } else {
-      // resize
-      if (d0 is RectangleDrawable || d0 is OvalDrawable) {
+      if (original is RectangleDrawable || original is OvalDrawable || original is BarcodeDrawable) {
         dragFixedCorner ??= _fixedCornerForAction(startRect, dragAction);
         final fixed = dragFixedCorner!;
         Rect newRect = Rect.fromPoints(fixed, localScene);
@@ -643,28 +721,30 @@ class _PainterPageState extends State<PainterPage> {
           newRect = Rect.fromPoints(fixed, fixed + Offset(ddx, ddy));
         }
 
-        if (d0 is RectangleDrawable) {
+        if (original is RectangleDrawable) {
           replaced = RectangleDrawable(
             position: newRect.center,
             size: newRect.size,
-            paint: d0.paint,
-            borderRadius: d0.borderRadius,
+            paint: original.paint,
+            borderRadius: original.borderRadius,
           );
-        } else {
+        } else if (original is OvalDrawable) {
           replaced = OvalDrawable(
             position: newRect.center,
             size: newRect.size,
-            paint: (d0 as OvalDrawable).paint,
+            paint: original.paint,
           );
+        } else if (original is BarcodeDrawable) {
+          replaced = original.copyWith(position: newRect.center, size: newRect.size);
         }
-      } else if (d0 is ConstrainedTextDrawable) {
+      } else if (original is ConstrainedTextDrawable) {
         dragFixedCorner ??= _fixedCornerForAction(startRect, dragAction);
         final fixed = dragFixedCorner!;
         final newRect = Rect.fromPoints(fixed, localScene);
         final newWidth = newRect.size.width.abs().clamp(40.0, 2000.0);
         final centered = Rect.fromCenter(center: newRect.center, width: newWidth, height: startRect.height);
-        replaced = d0.copyWith(position: centered.center, maxWidth: newWidth);
-      } else if (d0 is LineDrawable || d0 is ArrowDrawable) {
+        replaced = original.copyWith(position: centered.center, maxWidth: newWidth);
+      } else if (original is LineDrawable || original is ArrowDrawable) {
         if (_laFixedEnd != null) {
           final fixed = _laFixedEnd!;
           final pnt = localScene;
@@ -676,10 +756,10 @@ class _PainterPageState extends State<PainterPage> {
             ang = _snapAngle(ang);
             len = (pnt - fixed).distance.clamp(_laMinLen, double.infinity);
           } else {
-            final dir = _laDir ?? Offset(math.cos(_laAngle!), math.sin(_laAngle!));
+            final dir = _laDir ?? Offset(math.cos(_laAngle ?? 0), math.sin(_laAngle ?? 0));
             final v = pnt - fixed;
             final t = v.dx * dir.dx + v.dy * dir.dy;
-            ang = _laAngle!;
+            ang = _laAngle ?? math.atan2(dir.dy, dir.dx);
             len = (dir * t).distance.clamp(_laMinLen, double.infinity);
           }
 
@@ -687,10 +767,10 @@ class _PainterPageState extends State<PainterPage> {
           final movingEnd = fixed + dir2 * len;
           final newCenter = (fixed + movingEnd) / 2;
 
-          if (d0 is LineDrawable) {
-            replaced = d0.copyWith(position: newCenter, length: len, rotation: ang);
-          } else {
-            replaced = (d0 as ArrowDrawable).copyWith(position: newCenter, length: len, rotation: ang);
+          if (original is LineDrawable) {
+            replaced = original.copyWith(position: newCenter, length: len, rotation: ang);
+          } else if (original is ArrowDrawable) {
+            replaced = original.copyWith(position: newCenter, length: len, rotation: ang);
           }
 
           _laAngle = ang;
@@ -700,11 +780,10 @@ class _PainterPageState extends State<PainterPage> {
     }
 
     if (replaced != null) {
-      controller.replaceDrawable(d0, replaced);
+      controller.replaceDrawable(original, replaced);
       setState(() => selectedDrawable = replaced);
     }
   }
-
   void _onOverlayPanEnd() {
     _pressSnapTimer?.cancel();
     _dragSnapAngle = null;
@@ -736,7 +815,7 @@ class _PainterPageState extends State<PainterPage> {
     }
   }
 
-  // ?�스???�성
+  // ?????????????????????
   Future<void> _createTextAt(Offset scenePoint) async {
     final controllerText = TextEditingController();
     double tempSize = textFontSize;
@@ -967,6 +1046,18 @@ class _PainterPageState extends State<PainterPage> {
             onDefaultTextAlignChanged: (v) => setState(() => defaultTextAlign = v),
             defaultTextMaxWidth: defaultTextMaxWidth,
             onDefaultTextMaxWidthChanged: (v) => setState(() => defaultTextMaxWidth = v),
+            barcodeData: barcodeData,
+            onBarcodeDataChanged: (v) => setState(() => barcodeData = v),
+            barcodeType: barcodeType,
+            onBarcodeTypeChanged: (v) => setState(() => barcodeType = v),
+            barcodeShowValue: barcodeShowValue,
+            onBarcodeShowValueChanged: (v) => setState(() => barcodeShowValue = v),
+            barcodeFontSize: barcodeFontSize,
+            onBarcodeFontSizeChanged: (v) => setState(() => barcodeFontSize = v),
+            barcodeForeground: barcodeForeground,
+            onBarcodeForegroundChanged: (c) => setState(() => barcodeForeground = c),
+            barcodeBackground: barcodeBackground,
+            onBarcodeBackgroundChanged: (c) => setState(() => barcodeBackground = c),
           ),
           const VerticalDivider(width: 1),
           Expanded(
