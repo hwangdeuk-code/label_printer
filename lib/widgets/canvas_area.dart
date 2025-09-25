@@ -73,126 +73,124 @@ class CanvasArea extends StatelessWidget {
 
   final double pixelsPerCm = printerDpi > 0 ? (printerDpi / 2.54) * (scalePercent / 100.0) : 0;
 
-    return Center(
-      child: SizedBox(
-        width: _canvasDimension * (scalePercent / 100.0),
-        height: _canvasDimension * (scalePercent / 100.0),
-        child: Stack(
-          children: [
-            // 항상 흰색 배경이 깔리도록 추가
-            Positioned.fill(
-              child: Container(color: Colors.white),
+    return SizedBox(
+      width: _canvasDimension,
+      height: _canvasDimension,
+      child: Stack(
+        children: [
+          // 항상 흰색 배경이 깔리도록 추가
+          Positioned.fill(
+            child: Container(color: Colors.white),
+          ),
+          Positioned.fill(
+            child: DecoratedBox(
+              decoration: BoxDecoration(border: Border.all(color: Colors.black12)),
             ),
-            Positioned.fill(
-              child: DecoratedBox(
-                decoration: BoxDecoration(border: Border.all(color: Colors.black12)),
-              ),
+          ),
+          Positioned(
+            left: _rulerThickness,
+            right: 0,
+            top: 0,
+            height: _rulerThickness,
+            child: CustomPaint(
+              painter: _HorizontalRulerPainter(pixelsPerCm: pixelsPerCm),
             ),
-            Positioned(
-              left: _rulerThickness,
-              right: 0,
-              top: 0,
-              height: _rulerThickness,
-              child: CustomPaint(
-                painter: _HorizontalRulerPainter(pixelsPerCm: pixelsPerCm),
-              ),
+          ),
+          Positioned(
+            left: 0,
+            top: _rulerThickness,
+            bottom: 0,
+            width: _rulerThickness,
+            child: CustomPaint(
+              painter: _VerticalRulerPainter(pixelsPerCm: pixelsPerCm),
             ),
-            Positioned(
-              left: 0,
-              top: _rulerThickness,
-              bottom: 0,
-              width: _rulerThickness,
-              child: CustomPaint(
-                painter: _VerticalRulerPainter(pixelsPerCm: pixelsPerCm),
-              ),
-            ),
-            const Positioned(
-              left: 0,
-              top: 0,
-              width: _rulerThickness,
-              height: _rulerThickness,
-              child: _RulerCorner(),
-            ),
-            Positioned(
-              left: _rulerThickness,
-              top: _rulerThickness,
-              right: 0,
-              bottom: 0,
-              child: DecoratedBox(
-                decoration: BoxDecoration(border: Border.all(color: Colors.black12)),
-                child: Stack(
-                  children: [
-                    AbsorbPointer(
-                      absorbing: absorbPainter,
-                      child: RepaintBoundary(
-                        key: painterKey,
-                        child: Transform.scale(
-                          scale: scalePercent / 100.0,
-                          alignment: Alignment.topLeft,
-                          child: FlutterPainter(controller: controller),
-                        ),
+          ),
+          const Positioned(
+            left: 0,
+            top: 0,
+            width: _rulerThickness,
+            height: _rulerThickness,
+            child: _RulerCorner(),
+          ),
+          Positioned(
+            left: _rulerThickness,
+            top: _rulerThickness,
+            right: 0,
+            bottom: 0,
+            child: DecoratedBox(
+              decoration: BoxDecoration(border: Border.all(color: Colors.black12)),
+              child: Stack(
+                children: [
+                  AbsorbPointer(
+                    absorbing: absorbPainter,
+                    child: RepaintBoundary(
+                      key: painterKey,
+                      child: Transform.scale(
+                        scale: scalePercent / 100.0,
+                        alignment: Alignment.topLeft,
+                        child: FlutterPainter(controller: controller),
                       ),
                     ),
-                    Positioned.fill(
-                      child: IgnorePointer(
-                        ignoring: overlayIgnored,
-                        child: Listener(
+                  ),
+                  Positioned.fill(
+                    child: IgnorePointer(
+                      ignoring: overlayIgnored,
+                      child: Listener(
+                        behavior: HitTestBehavior.opaque,
+                        onPointerDown: onPointerDownSelect,
+                        child: GestureDetector(
+                          dragStartBehavior: DragStartBehavior.down,
                           behavior: HitTestBehavior.opaque,
-                          onPointerDown: onPointerDownSelect,
-                          child: GestureDetector(
-                            dragStartBehavior: DragStartBehavior.down,
-                            behavior: HitTestBehavior.opaque,
-                            onTap: onCanvasTap,
-                            onPanStart: (details) {
-                              if (currentTool == Tool.select) {
-                                onOverlayPanStart(details);
-                              } else {
-                                onCreatePanStart(details);
-                              }
-                            },
-                            onPanUpdate: (details) {
-                              if (currentTool == Tool.select) {
-                                onOverlayPanUpdate(details);
-                              } else {
-                                onCreatePanUpdate(details);
-                              }
-                            },
-                            onPanEnd: (_) {
-                              if (currentTool == Tool.select) {
-                                onOverlayPanEnd();
-                              } else {
-                                onCreatePanEnd();
-                              }
-                            },
-                            child: Transform.scale(
-                              scale: scalePercent / 100.0,
-                              alignment: Alignment.topLeft,
-                              child: CustomPaint(
-                                painter: _SelectionPainter(
-                                  selected: selectedDrawable,
-                                  bounds: selectionBounds,
-                                  handleSize: handleSize,
-                                  rotateHandleOffset: rotateHandleOffset,
-                                  showEndpoints: showEndpoints,
-                                  start: selectionStart,
-                                  end: selectionEnd,
-                                  endpointRadius: handleSize * 0.7,
-                                  isText: isTextSelected,
-                                ),
+                          onTap: onCanvasTap,
+                          onPanStart: (details) {
+                            if (currentTool == Tool.select) {
+                              onOverlayPanStart(details);
+                            } else {
+                              onCreatePanStart(details);
+                            }
+                          },
+                          onPanUpdate: (details) {
+                            if (currentTool == Tool.select) {
+                              onOverlayPanUpdate(details);
+                            } else {
+                              onCreatePanUpdate(details);
+                            }
+                          },
+                          onPanEnd: (_) {
+                            if (currentTool == Tool.select) {
+                              onOverlayPanEnd();
+                            } else {
+                              onCreatePanEnd();
+                            }
+                          },
+                          child: Transform.scale(
+                            scale: scalePercent / 100.0,
+                            alignment: Alignment.topLeft,
+                            child: CustomPaint(
+                              painter: _SelectionPainter(
+                                selected: selectedDrawable,
+                                bounds: selectionBounds,
+                                handleSize: handleSize,
+                                rotateHandleOffset: rotateHandleOffset,
+                                showEndpoints: showEndpoints,
+                                start: selectionStart,
+                                end: selectionEnd,
+                                endpointRadius: handleSize * 0.7,
+                                isText: isTextSelected,
                               ),
                             ),
                           ),
                         ),
                       ),
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
-    );
+  );
   }
 }
 
