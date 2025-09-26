@@ -489,6 +489,7 @@ class InspectorPanel extends StatelessWidget {
     String currentFamily = barcode.fontFamily;
     TextAlign? currentAlign = barcode.textAlign;
     bool autoMaxWidth = barcode.maxTextWidth <= 0;
+    double currentAngle = barcode.rotationAngle;
 
     double clampWidth(double value) =>
         math.max(40.0, math.min(2000.0, value));
@@ -511,11 +512,30 @@ class InspectorPanel extends StatelessWidget {
           fontFamily: currentFamily,
           textAlign: currentAlign,
           maxTextWidth: autoMaxWidth ? 0 : currentMaxWidth,
+          rotation: currentAngle,
         ),
       );
     }
 
     return [
+      // --- Angle(회전) 버튼 추가 ---
+      Row(
+        children: [
+          const Text('Angle'),
+          IconButton(
+            icon: const Icon(Icons.rotate_right),
+            tooltip: '90도 회전',
+            onPressed: () {
+              // 90도씩 시계방향 회전
+              currentAngle = ((currentAngle + (math.pi / 2)) % (2 * math.pi));
+              commit();
+            },
+          ),
+          SizedBox(width: 8),
+          Text('${(currentAngle * 180 / math.pi).toStringAsFixed(0)}°'),
+        ],
+      ),
+      const SizedBox(height: 8),
       const Text('Barcode Value'),
       const SizedBox(height: 4),
       TextField(
