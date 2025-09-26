@@ -6,7 +6,7 @@ plugins {
 }
 
 android {
-    namespace = "com.example.label_printer"
+    namespace = "com.itsng.label_printer"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -21,21 +21,34 @@ android {
 
     defaultConfig {
         // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "com.example.label_printer"
+        applicationId = "com.itsng.label_printer"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+		resConfigs("en", "ko")
+
+		ndk {
+			abiFilters += setOf("arm64-v8a") // arm64만 포함
+    	}
     }
 
     buildTypes {
+		debug {
+ 			// 사용하지 않는 리소스 제거
+      		shrinkResources true
+		}
+
         release {
             // TODO: Add your own signing config for the release build.
             // Signing with the debug keys for now, so `flutter run --release` works.
             signingConfig = signingConfigs.getByName("debug")
-        }
+
+ 			// 사용하지 않는 리소스 제거
+      		shrinkResources true
+		}
     }
 }
 
