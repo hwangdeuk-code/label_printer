@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../models/tool.dart';
 import '../flutter_painter_v2/flutter_painter.dart';
 
+/// 커스텀 텍스트 드로어블(정렬/최대폭 지원)
 class ConstrainedTextDrawable extends ObjectDrawable {
   final String text;
   final TextStyle style;

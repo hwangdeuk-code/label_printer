@@ -1,4 +1,5 @@
 ﻿// lib/main.dart
+
 import 'dart:async';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
@@ -6,6 +7,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:barcode/barcode.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
 import 'flutter_painter_v2/flutter_painter.dart';
 import 'flutter_painter_v2/flutter_painter_pure.dart';
@@ -18,14 +20,17 @@ import 'widgets/tool_panel.dart';
 import 'widgets/inspector_panel.dart';
 import 'widgets/canvas_area.dart';
 
+const appTitle = 'ITS&G Label Printer';
+
 void main() => runApp(const MyApp());
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Painter v2.1.0+1 - Shapes/Lines/Arrow/Text',
+      title: appTitle,
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
@@ -38,7 +43,6 @@ class MyApp extends StatelessWidget {
 
 enum DragAction { none, move, resizeNW, resizeNE, resizeSW, resizeSE, resizeStart, resizeEnd, rotate }
 
-/// ??????????????????????????????????????????????????????????????????????????????????????????????????????????
 class PainterPage extends StatefulWidget {
   const PainterPage({super.key});
   @override
@@ -46,18 +50,19 @@ class PainterPage extends StatefulWidget {
 }
 
 class _PainterPageState extends State<PainterPage> {
+	String appVersion = '';  
   double scalePercent = 100.0;
   late final PainterController controller;
   final GlobalKey _painterKey = GlobalKey();
 
   Tool currentTool = Tool.pen;
 
-  // ????????????????
+  // 스타일
   Color strokeColor = Colors.black;
   double strokeWidth = 4.0;
   Color fillColor = const Color(0x00000000);
 
-  // ???????????????????
+  // 텍스트 기본
   String textFontFamily = 'Roboto';
   double textFontSize = 24.0;
   bool textBold = false;
@@ -73,12 +78,12 @@ class _PainterPageState extends State<PainterPage> {
   Color barcodeBackground = Colors.white;
   double printerDpi = 300;
 
-  // ??????????
+  // 옵션
   bool lockRatio = false;
   bool angleSnap = true;
   bool endpointDragRotates = true;
 
-  // ??????????????????????????
+  // 스냅 상태
   final double _snapStep = math.pi / 4;
   final double _snapTol = math.pi / 36;
   double? _dragSnapAngle;
@@ -89,11 +94,11 @@ class _PainterPageState extends State<PainterPage> {
   Timer? _pressSnapTimer;
   double _lastRawAngle = 0.0;
 
-  // ??????????????????????????????????
+  // 생성 드래그
   Offset? dragStart;
   Drawable? previewShape;
 
-  // ???????????????????
+  // 선택/조작
   Drawable? selectedDrawable;
   DragAction dragAction = DragAction.none;
   Rect? dragStartBounds;
@@ -101,18 +106,18 @@ class _PainterPageState extends State<PainterPage> {
   Offset? dragFixedCorner;
   double? startAngle;
 
-  // ?????????????????????
+  // 핸들 렌더
   final double handleSize = 10.0;
   final double handleTouchRadius = 16.0;
   final double rotateHandleOffset = 28.0;
 
-  // ???????????????????????????????????????
+  // 탭/드래그 가드
   bool _pressOnSelection = false;
   bool _movedSinceDown = false;
   Offset? _downScene;
   Drawable? _downHitDrawable;
 
-  // ??????????????????????????????????????????????????????????????????????????
+  // 라인/화살표 리사이즈 상태
   Offset? _laFixedEnd;
   double? _laAngle;
   Offset? _laDir;
@@ -133,6 +138,12 @@ class _PainterPageState extends State<PainterPage> {
     controller.addListener(() {
       if (mounted) setState(() {});
     });
+
+    // 위젯이 빌드된 후 실행되도록 Future.delayed 사용
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final info = await PackageInfo.fromPlatform();
+      setState(() { appVersion = info.version; });
+    });
   }
 
   @override
@@ -142,7 +153,7 @@ class _PainterPageState extends State<PainterPage> {
     super.dispose();
   }
 
-  // ???????????????????????????????????
+  // 좌표 변환
   Offset _sceneFromGlobal(Offset global) {
     final renderObject = _painterKey.currentContext?.findRenderObject();
     if (renderObject is! RenderBox) return global;
@@ -150,14 +161,14 @@ class _PainterPageState extends State<PainterPage> {
     return controller.transformationController.toScene(local);
   }
 
-  // ???????????
+  // 페인트
   Paint _strokePaint(Color c, double w) => Paint()
     ..color = c
     ..style = PaintingStyle.stroke
     ..strokeWidth = w * (scalePercent / 100.0);
   Paint _fillPaint(Color c) => Paint()..color = c..style = PaintingStyle.fill;
 
-  // ??????????????????????????????????????????????????
+  // 라인 헬퍼/바운즈
   Offset _lineStart(Drawable d) {
     if (d is LineDrawable) {
       final line = d;
@@ -224,8 +235,8 @@ class _PainterPageState extends State<PainterPage> {
     return Rect.zero;
   }
 
-  bool get _isPainterGestureTool =>
-      currentTool == Tool.pen || currentTool == Tool.eraser || currentTool == Tool.select;
+	// 툴 전환
+  bool get _isPainterGestureTool => currentTool == Tool.pen || currentTool == Tool.eraser || currentTool == Tool.select;
 
   void _setTool(Tool t) {
     setState(() {
@@ -255,7 +266,7 @@ class _PainterPageState extends State<PainterPage> {
     });
   }
 
-  // ????????????????????
+  // 스냅
   double _normalizeAngle(double rad) {
     final twoPi = 2 * math.pi;
     double a = rad % twoPi;
@@ -263,8 +274,9 @@ class _PainterPageState extends State<PainterPage> {
     if (a < -math.pi) a += twoPi;
     return a;
   }
-  double _nearestStep(double raw) =>
-      (_normalizeAngle(raw / _snapStep).roundToDouble()) * _snapStep;
+
+  double _nearestStep(double raw) => (_normalizeAngle(raw / _snapStep).roundToDouble()) * _snapStep;
+
   double _snapAngle(double raw) {
     if (!angleSnap) return raw;
     final norm = _normalizeAngle(raw);
@@ -282,7 +294,7 @@ class _PainterPageState extends State<PainterPage> {
     return norm;
   }
 
-  // ????????????????
+  // 도형 생성
   void _onPanStartCreate(DragStartDetails d) {
     if (_isPainterGestureTool || currentTool == Tool.text) return;
     _dragSnapAngle = null;
@@ -426,7 +438,7 @@ class _PainterPageState extends State<PainterPage> {
     }
   }
 
-  // ?????????????????
+  // 히트 테스트
   bool _hitTest(Drawable d, Offset p) {
     final rect = _boundsOf(d).inflate(math.max(8, strokeWidth));
     if (d is LineDrawable || d is ArrowDrawable) {
@@ -666,11 +678,13 @@ class _PainterPageState extends State<PainterPage> {
 
     setState(() {});
   }
+
   void _onOverlayPanUpdate(DragUpdateDetails details) {
     if (selectedDrawable == null || dragAction == DragAction.none) return;
     _movedSinceDown = true;
 
     var localScene = _sceneFromGlobal(details.globalPosition);
+
     // BarcodeDrawable(회전된 바코드)에만 회전 보정 적용
     if (selectedDrawable is BarcodeDrawable) {
       final r = dragStartBounds!;
@@ -878,6 +892,7 @@ class _PainterPageState extends State<PainterPage> {
       setState(() => selectedDrawable = replaced);
     }
   }
+
   void _onOverlayPanEnd() {
     _pressSnapTimer?.cancel();
     _dragSnapAngle = null;
@@ -909,7 +924,7 @@ class _PainterPageState extends State<PainterPage> {
     }
   }
 
-  // ?????????????????????
+  // 텍스트 생성
   Future<void> _createTextAt(Offset scenePoint) async {
     final controllerText = TextEditingController();
     double tempSize = textFontSize;
@@ -1093,7 +1108,14 @@ class _PainterPageState extends State<PainterPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Painter v2.1.0+1 - Shapes/Lines/Arrow/Text'),
+        title: Text.rich(
+						TextSpan(
+							children: [
+								TextSpan(text: '$appTitle ', style: TextStyle(fontSize: 20)),
+								TextSpan(text: 'v$appVersion',style: TextStyle(fontSize: 16, fontWeight: FontWeight.normal)),
+							],
+						),
+					),
         actions: [
           IconButton(onPressed: controller.canUndo ? controller.undo : null, icon: const Icon(Icons.undo)),
           IconButton(onPressed: controller.canRedo ? controller.redo : null, icon: const Icon(Icons.redo)),
@@ -1220,7 +1242,6 @@ class _PainterPageState extends State<PainterPage> {
     _downScene = null;
     _downHitDrawable = null;
   }
-
 
   void _applyInspector({Color? newStrokeColor, double? newStrokeWidth, double? newCornerRadius}) {
     final d = selectedDrawable;
