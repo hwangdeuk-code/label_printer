@@ -392,6 +392,24 @@ class _SelectionPainter extends CustomPainter {
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.2;
 
+    bool shouldRotate = false;
+    double angle = 0;
+    // BarcodeDrawable(또는 ObjectDrawable이면서 rotationAngle!=0)만 회전 적용
+    if ((selected.runtimeType.toString().contains('BarcodeDrawable') ||
+         (selected is ObjectDrawable && (selected as ObjectDrawable).rotationAngle != 0)) &&
+        !(selected is LineDrawable || selected is ArrowDrawable)) {
+      shouldRotate = true;
+      angle = (selected as dynamic).rotationAngle ?? 0;
+    }
+
+    if (shouldRotate) {
+      final center = r.center;
+      canvas.save();
+      canvas.translate(center.dx, center.dy);
+      canvas.rotate(angle);
+      canvas.translate(-center.dx, -center.dy);
+    }
+
     canvas.drawRect(r, boxPaint);
 
     if (!(selected is LineDrawable || selected is ArrowDrawable)) {
@@ -412,6 +430,10 @@ class _SelectionPainter extends CustomPainter {
         canvas.drawLine(r.topCenter, rotateCenter, boxPaint);
         canvas.drawCircle(rotateCenter, endpointRadius, epPaint);
       }
+    }
+
+    if (shouldRotate) {
+      canvas.restore();
     }
   }
 

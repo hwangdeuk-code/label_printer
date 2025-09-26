@@ -491,18 +491,35 @@ class _PainterPageState extends State<PainterPage> {
       return DragAction.none;
     }
 
+    // BarcodeDrawable(회전된 바코드)만 hit test 좌표 역회전 보정
+    Offset p2 = p;
+    if (selectedDrawable is BarcodeDrawable) {
+      final angle = (selectedDrawable as BarcodeDrawable).rotationAngle;
+      if (angle != 0) {
+        final center = bounds.center;
+        final dx = p.dx - center.dx;
+        final dy = p.dy - center.dy;
+        final cosA = math.cos(-angle);
+        final sinA = math.sin(-angle);
+        p2 = Offset(
+          cosA * dx - sinA * dy + center.dx,
+          sinA * dx + cosA * dy + center.dy,
+        );
+      }
+    }
+
     final corners = [bounds.topLeft, bounds.topRight, bounds.bottomLeft, bounds.bottomRight];
     final rotCenter = _rotateHandlePos(bounds);
 
-    if ((p - corners[0]).distance <= handleTouchRadius) return DragAction.resizeNW;
-    if ((p - corners[1]).distance <= handleTouchRadius) return DragAction.resizeNE;
-    if ((p - corners[2]).distance <= handleTouchRadius) return DragAction.resizeSW;
-    if ((p - corners[3]).distance <= handleTouchRadius) return DragAction.resizeSE;
-    if ((p - rotCenter).distance <= handleTouchRadius) return DragAction.rotate;
+    if ((p2 - corners[0]).distance <= handleTouchRadius) return DragAction.resizeNW;
+    if ((p2 - corners[1]).distance <= handleTouchRadius) return DragAction.resizeNE;
+    if ((p2 - corners[2]).distance <= handleTouchRadius) return DragAction.resizeSW;
+    if ((p2 - corners[3]).distance <= handleTouchRadius) return DragAction.resizeSE;
+    if ((p2 - rotCenter).distance <= handleTouchRadius) return DragAction.rotate;
 
-    final distToLine = _distanceToSegment(p, bounds.topCenter, rotCenter);
+    final distToLine = _distanceToSegment(p2, bounds.topCenter, rotCenter);
     if (distToLine <= handleTouchRadius * 0.7) return DragAction.rotate;
-    if (bounds.inflate(4).contains(p)) return DragAction.move;
+    if (bounds.inflate(4).contains(p2)) return DragAction.move;
     return DragAction.none;
   }
 
@@ -653,7 +670,23 @@ class _PainterPageState extends State<PainterPage> {
     if (selectedDrawable == null || dragAction == DragAction.none) return;
     _movedSinceDown = true;
 
-    final localScene = _sceneFromGlobal(details.globalPosition);
+    var localScene = _sceneFromGlobal(details.globalPosition);
+    // BarcodeDrawable(회전된 바코드)에만 회전 보정 적용
+    if (selectedDrawable is BarcodeDrawable) {
+      final r = dragStartBounds!;
+      final center = r.center;
+      final angle = -(selectedDrawable as BarcodeDrawable).rotationAngle;
+      if (angle != 0) {
+        final dx = localScene.dx - center.dx;
+        final dy = localScene.dy - center.dy;
+        final cosA = math.cos(angle);
+        final sinA = math.sin(angle);
+        localScene = Offset(
+          cosA * dx - sinA * dy + center.dx,
+          sinA * dx + cosA * dy + center.dy,
+        );
+      }
+    }
     final original = selectedDrawable!;
     final startRect = dragStartBounds!;
     final startPt = dragStartPointer!;
@@ -715,13 +748,37 @@ class _PainterPageState extends State<PainterPage> {
     } else {
       if (original is RectangleDrawable || original is OvalDrawable || original is BarcodeDrawable) {
         dragFixedCorner ??= _fixedCornerForAction(startRect, dragAction);
-        final fixed = dragFixedCorner!;
-        Rect newRect = Rect.fromPoints(fixed, localScene);
+        var fixed = dragFixedCorner!;
+        var scene = localScene;
+        // BarcodeDrawable(회전된 바코드)만 fixed/localScene 모두 역회전 보정
+        if (original is BarcodeDrawable) {
+          final angle = original.rotationAngle;
+          if (angle != 0) {
+            final center = startRect.center;
+            // fixed 보정
+            final dxF = fixed.dx - center.dx;
+            final dyF = fixed.dy - center.dy;
+            final cosA = math.cos(angle);
+            final sinA = math.sin(angle);
+            fixed = Offset(
+              cosA * dxF - sinA * dyF + center.dx,
+              sinA * dxF + cosA * dyF + center.dy,
+            );
+            // localScene 보정(이미 위에서 적용된 경우 중복 적용 방지)
+            final dxS = scene.dx - center.dx;
+            final dyS = scene.dy - center.dy;
+            scene = Offset(
+              cosA * dxS - sinA * dyS + center.dx,
+              sinA * dxS + cosA * dyS + center.dy,
+            );
+          }
+        }
+        Rect newRect = Rect.fromPoints(fixed, scene);
 
         if (lockRatio) {
           final size = newRect.size;
           final m = math.max(size.width.abs(), size.height.abs());
-          final dir = (localScene - fixed);
+          final dir = (scene - fixed);
           final ddx = dir.dx.isNegative ? -m : m;
           final ddy = dir.dy.isNegative ? -m : m;
           newRect = Rect.fromPoints(fixed, fixed + Offset(ddx, ddy));
@@ -741,7 +798,38 @@ class _PainterPageState extends State<PainterPage> {
             paint: original.paint,
           );
         } else if (original is BarcodeDrawable) {
-          replaced = original.copyWith(position: newRect.center, size: newRect.size);
+          // 1. fixed, scene을 바코드 중심 기준으로 -rotationAngle만큼 역회전
+          final angle = original.rotationAngle;
+          final center = startRect.center;
+          Offset _unrotate(Offset pt) {
+            final dx = pt.dx - center.dx;
+            final dy = pt.dy - center.dy;
+            final cosA = math.cos(-angle);
+            final sinA = math.sin(-angle);
+            return Offset(
+              cosA * dx - sinA * dy + center.dx,
+              sinA * dx + cosA * dy + center.dy,
+            );
+          }
+          final fixedUnrot = _unrotate(fixed);
+          final sceneUnrot = _unrotate(scene);
+          // 2. 변환된 두 점으로 newRect 생성
+          final newRectUnrot = Rect.fromPoints(fixedUnrot, sceneUnrot);
+          // 3. newRect.center를 다시 +rotationAngle만큼 정방향 회전
+          final dx = newRectUnrot.center.dx - center.dx;
+          final dy = newRectUnrot.center.dy - center.dy;
+          final cosA = math.cos(angle);
+          final sinA = math.sin(angle);
+          final rotatedCenter = Offset(
+            cosA * dx - sinA * dy + center.dx,
+            sinA * dx + cosA * dy + center.dy,
+          );
+          // 4. size는 newRectUnrot.size 그대로 적용
+          replaced = original.copyWith(
+            position: rotatedCenter,
+            size: newRectUnrot.size,
+            rotation: original.rotationAngle,
+          );
         }
       } else if (original is ConstrainedTextDrawable) {
         dragFixedCorner ??= _fixedCornerForAction(startRect, dragAction);
