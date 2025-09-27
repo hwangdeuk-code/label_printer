@@ -75,9 +75,7 @@ class BarcodeDrawable extends Sized2DDrawable {
       bold: bold ?? this.bold,
       italic: italic ?? this.italic,
       fontFamily: fontFamily ?? this.fontFamily,
-      textAlign: identical(textAlign, _noTextAlign)
-          ? this.textAlign
-          : textAlign as TextAlign?,
+      textAlign: identical(textAlign, _noTextAlign) ? this.textAlign : textAlign as TextAlign?,
       maxTextWidth: maxTextWidth ?? this.maxTextWidth,
       size: size ?? this.size,
       position: position ?? this.position,
@@ -91,17 +89,11 @@ class BarcodeDrawable extends Sized2DDrawable {
   }
 
   @override
-  void drawObject(Canvas canvas, Size size) {
-    final drawingSize = this.size * scale;
-    final rect = Rect.fromCenter(
-      center: position,
-      width: drawingSize.width,
-      height: drawingSize.height,
-    );
+  void drawObject(Canvas canvas, Size _) {
+    final rect = Rect.fromCenter(center: position, width: size.width, height: size.height);
 
-    if (background.a > 0) {
-      final bgPaint = Paint()..color = background;
-      canvas.drawRect(rect, bgPaint);
+    if (background.alpha > 0) {
+      canvas.drawRect(rect, Paint()..color = background);
     }
 
     if (data.isEmpty) {
@@ -110,67 +102,58 @@ class BarcodeDrawable extends Sized2DDrawable {
     }
 
     final barcode = Barcode.fromType(type);
-    final bytes = Uint8List.fromList(data.codeUnits);
-    List<BarcodeElement> elements;
+    late final List<BarcodeElement> elements;
     try {
       elements = barcode
           .makeBytes(
-            bytes,
-            width: drawingSize.width,
-            height: drawingSize.height,
+            Uint8List.fromList(data.codeUnits),
+            width: size.width,
+            height: size.height,
             drawText: showValue,
             fontHeight: showValue ? fontSize : null,
             textPadding: showValue ? _textPadding : null,
           )
           .toList();
-    } catch (error) {
+    } catch (_) {
       _drawPlaceholder(canvas, rect, 'Invalid data');
       return;
     }
 
-    final offset = rect.topLeft;
+    final origin = rect.topLeft;
     final barPaint = Paint()..color = foreground;
 
-    for (final element in elements) {
-      if (element is BarcodeBar) {
-        if (!element.black) continue;
-        final barRect = Rect.fromLTWH(
-          offset.dx + element.left,
-          offset.dy + element.top,
-          element.width,
-          element.height,
-        );
-        canvas.drawRect(barRect, barPaint);
-      } else if (element is BarcodeText && showValue) {
-        final layoutWidth = math.max(
-          1.0,
-          maxTextWidth > 0 ? math.min(maxTextWidth, element.width) : element.width,
-        );
-        final resolvedAlign = textAlign ?? _toTextAlign(element.align);
-        final textStyle = TextStyle(
-          fontSize: fontSize,
-          color: foreground,
-          fontWeight: bold ? FontWeight.bold : FontWeight.normal,
-          fontStyle: italic ? FontStyle.italic : FontStyle.normal,
-          fontFamily: fontFamily,
-        );
-        final textPainter = TextPainter(
-          text: TextSpan(text: element.text, style: textStyle),
-          textAlign: resolvedAlign,
+    for (final e in elements) {
+      if (e is BarcodeBar) {
+        if (!e.black) continue;
+        final r = Rect.fromLTWH(origin.dx + e.left, origin.dy + e.top, e.width, e.height);
+        canvas.drawRect(r, barPaint);
+      } else if (e is BarcodeText && showValue) {
+        final w = math.max(1.0, maxTextWidth > 0 ? math.min(maxTextWidth, e.width) : e.width);
+        final align = textAlign ?? _toTextAlign(e.align);
+        final tp = TextPainter(
+          text: TextSpan(
+            text: e.text,
+            style: TextStyle(
+              fontSize: fontSize,
+              color: foreground,
+              fontWeight: bold ? FontWeight.bold : FontWeight.normal,
+              fontStyle: italic ? FontStyle.italic : FontStyle.normal,
+              fontFamily: fontFamily,
+            ),
+          ),
+          textAlign: align,
           textDirection: TextDirection.ltr,
           maxLines: 1,
-        )
-          ..layout(minWidth: layoutWidth, maxWidth: layoutWidth);
+        )..layout(minWidth: w, maxWidth: w);
 
-        final dy =
-            offset.dy + element.top + (element.height - textPainter.height) / 2;
-        textPainter.paint(canvas, Offset(offset.dx + element.left, dy));
+        final dy = origin.dy + e.top + (e.height - tp.height) / 2;
+        tp.paint(canvas, Offset(origin.dx + e.left, dy));
       }
     }
   }
 
-  TextAlign _toTextAlign(BarcodeTextAlign align) {
-    switch (align) {
+  TextAlign _toTextAlign(BarcodeTextAlign a) {
+    switch (a) {
       case BarcodeTextAlign.left:
         return TextAlign.left;
       case BarcodeTextAlign.center:
@@ -180,23 +163,21 @@ class BarcodeDrawable extends Sized2DDrawable {
     }
   }
 
-  void _drawPlaceholder(Canvas canvas, Rect rect, String message) {
-    final borderPaint = Paint()
-      ..color = foreground.withValues(alpha: 0.4)
+  void _drawPlaceholder(Canvas canvas, Rect rect, String msg) {
+    final stroke = Paint()
+      ..color = foreground.withOpacity(0.4)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.5;
-    canvas.drawRect(rect, borderPaint);
+    canvas.drawRect(rect, stroke);
 
-    final maxWidth = maxTextWidth > 0
-        ? math.min(maxTextWidth, rect.width - 8)
-        : rect.width - 8;
-    final layoutWidth = math.max(8.0, maxWidth);
+    final maxW = maxTextWidth > 0 ? math.min(maxTextWidth, rect.width - 8) : rect.width - 8;
+    final layoutW = math.max(8.0, maxW);
 
-    final textPainter = TextPainter(
+    final tp = TextPainter(
       text: TextSpan(
-        text: message,
+        text: msg,
         style: TextStyle(
-          color: foreground.withValues(alpha: 0.6),
+          color: foreground.withOpacity(0.6),
           fontSize: fontSize,
           fontWeight: bold ? FontWeight.bold : FontWeight.normal,
           fontStyle: italic ? FontStyle.italic : FontStyle.normal,
@@ -205,13 +186,12 @@ class BarcodeDrawable extends Sized2DDrawable {
       ),
       textAlign: textAlign ?? TextAlign.center,
       textDirection: TextDirection.ltr,
-    )
-      ..layout(maxWidth: layoutWidth);
+    )..layout(maxWidth: layoutW);
 
-    final offset = Offset(
-      rect.left + (rect.width - textPainter.width) / 2,
-      rect.top + (rect.height - textPainter.height) / 2,
+    final ofs = Offset(
+      rect.left + (rect.width - tp.width) / 2,
+      rect.top + (rect.height - tp.height) / 2,
     );
-    textPainter.paint(canvas, offset);
+    tp.paint(canvas, ofs);
   }
 }

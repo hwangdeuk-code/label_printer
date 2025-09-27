@@ -1,4 +1,4 @@
-﻿// lib/main.dart
+﻿// main.dart 전체 파일입니다. (요약 없음)
 
 import 'dart:async';
 import 'dart:math' as math;
@@ -50,7 +50,7 @@ class PainterPage extends StatefulWidget {
 }
 
 class _PainterPageState extends State<PainterPage> {
-	String appVersion = '';  
+  String appVersion = '';
   double scalePercent = 100.0;
   late final PainterController controller;
   final GlobalKey _painterKey = GlobalKey();
@@ -69,7 +69,8 @@ class _PainterPageState extends State<PainterPage> {
   bool textItalic = false;
   TxtAlign defaultTextAlign = TxtAlign.left;
   double defaultTextMaxWidth = 300;
-  // Barcode defaults
+
+  // 바코드 기본
   String barcodeData = '123456789012';
   BarcodeType barcodeType = BarcodeType.Code128;
   bool barcodeShowValue = true;
@@ -102,8 +103,8 @@ class _PainterPageState extends State<PainterPage> {
   Drawable? selectedDrawable;
   DragAction dragAction = DragAction.none;
   Rect? dragStartBounds;
-  Offset? dragStartPointer;
-  Offset? dragFixedCorner;
+  Offset? dragStartPointer;   // 월드 좌표
+  Offset? dragFixedCorner;    // 월드 좌표(회전 반영된 코너)
   double? startAngle;
 
   // 핸들 렌더
@@ -139,7 +140,6 @@ class _PainterPageState extends State<PainterPage> {
       if (mounted) setState(() {});
     });
 
-    // 위젯이 빌드된 후 실행되도록 Future.delayed 사용
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       final info = await PackageInfo.fromPlatform();
       setState(() { appVersion = info.version; });
@@ -171,71 +171,58 @@ class _PainterPageState extends State<PainterPage> {
   // 라인 헬퍼/바운즈
   Offset _lineStart(Drawable d) {
     if (d is LineDrawable) {
-      final line = d;
-      final dir = Offset(math.cos(line.rotationAngle), math.sin(line.rotationAngle));
-      return line.position - dir * (line.length / 2);
+      final dir = Offset(math.cos(d.rotationAngle), math.sin(d.rotationAngle));
+      return d.position - dir * (d.length / 2);
     }
     if (d is ArrowDrawable) {
-      final arrow = d;
-      final dir = Offset(math.cos(arrow.rotationAngle), math.sin(arrow.rotationAngle));
-      return arrow.position - dir * (arrow.length / 2);
+      final dir = Offset(math.cos(d.rotationAngle), math.sin(d.rotationAngle));
+      return d.position - dir * (d.length / 2);
     }
     return Offset.zero;
   }
 
   Offset _lineEnd(Drawable d) {
     if (d is LineDrawable) {
-      final line = d;
-      final dir = Offset(math.cos(line.rotationAngle), math.sin(line.rotationAngle));
-      return line.position + dir * (line.length / 2);
+      final dir = Offset(math.cos(d.rotationAngle), math.sin(d.rotationAngle));
+      return d.position + dir * (d.length / 2);
     }
     if (d is ArrowDrawable) {
-      final arrow = d;
-      final dir = Offset(math.cos(arrow.rotationAngle), math.sin(arrow.rotationAngle));
-      return arrow.position + dir * (arrow.length / 2);
+      final dir = Offset(math.cos(d.rotationAngle), math.sin(d.rotationAngle));
+      return d.position + dir * (d.length / 2);
     }
     return Offset.zero;
   }
 
   Rect _boundsOf(Drawable d) {
     if (d is RectangleDrawable) {
-      final rect = d;
-      return Rect.fromCenter(center: rect.position, width: rect.size.width, height: rect.size.height);
+      return Rect.fromCenter(center: d.position, width: d.size.width, height: d.size.height);
     }
     if (d is OvalDrawable) {
-      final oval = d;
-      return Rect.fromCenter(center: oval.position, width: oval.size.width, height: oval.size.height);
+      return Rect.fromCenter(center: d.position, width: d.size.width, height: d.size.height);
     }
     if (d is BarcodeDrawable) {
-      final barcode = d;
-      return Rect.fromCenter(center: barcode.position, width: barcode.size.width, height: barcode.size.height);
+      return Rect.fromCenter(center: d.position, width: d.size.width, height: d.size.height);
     }
     if (d is LineDrawable) {
-      final line = d;
-      final a = _lineStart(line);
-      final b = _lineEnd(line);
+      final a = _lineStart(d), b = _lineEnd(d);
       return Rect.fromPoints(a, b);
     }
     if (d is ArrowDrawable) {
-      final arrow = d;
-      final a = _lineStart(arrow);
-      final b = _lineEnd(arrow);
+      final a = _lineStart(d), b = _lineEnd(d);
       return Rect.fromPoints(a, b);
     }
     if (d is ConstrainedTextDrawable) {
-      final constrained = d;
-      final size = constrained.getSize(maxWidth: constrained.maxWidth);
-      return Rect.fromCenter(center: constrained.position, width: size.width, height: size.height);
+      final s = d.getSize(maxWidth: d.maxWidth);
+      return Rect.fromCenter(center: d.position, width: s.width, height: s.height);
     }
     if (d is TextDrawable) {
-      final text = d;
-      final size = text.getSize();
-      return Rect.fromCenter(center: text.position, width: size.width, height: size.height);
+      final s = d.getSize();
+      return Rect.fromCenter(center: d.position, width: s.width, height: s.height);
     }
     return Rect.zero;
   }
 
-	// 툴 전환
+  // 툴 전환
   bool get _isPainterGestureTool => currentTool == Tool.pen || currentTool == Tool.eraser || currentTool == Tool.select;
 
   void _setTool(Tool t) {
@@ -378,41 +365,37 @@ class _PainterPageState extends State<PainterPage> {
       case Tool.rect:
         return RectangleDrawable(
           position: center,
-          size: Size(w, h) * (scalePercent / 100.0),
-          paint: fillColor.a == 0
-              ? _strokePaint(strokeColor, strokeWidth)
-              : _fillPaint(fillColor),
+          size: Size(w, h),
+          paint: fillColor.a == 0 ? _strokePaint(strokeColor, strokeWidth) : _fillPaint(fillColor),
           borderRadius: const BorderRadius.all(Radius.circular(12)),
         );
       case Tool.oval:
         return OvalDrawable(
           position: center,
-          size: Size(w, h) * (scalePercent / 100.0),
-          paint: fillColor.a == 0
-              ? _strokePaint(strokeColor, strokeWidth)
-              : _fillPaint(fillColor),
+          size: Size(w, h),
+          paint: fillColor.a == 0 ? _strokePaint(strokeColor, strokeWidth) : _fillPaint(fillColor),
         );
       case Tool.barcode:
         final existing = previewOf is BarcodeDrawable ? previewOf : null;
-        final size = Size(math.max(w, 1), math.max(h, 1)) * (scalePercent / 100.0);
+        final size = Size(math.max(w, 1), math.max(h, 1));
         return BarcodeDrawable(
           data: existing?.data ?? barcodeData,
           type: existing?.type ?? barcodeType,
           showValue: existing?.showValue ?? barcodeShowValue,
-          fontSize: (existing?.fontSize ?? barcodeFontSize) * (scalePercent / 100.0),
+          fontSize: existing?.fontSize ?? barcodeFontSize,
           foreground: existing?.foreground ?? barcodeForeground,
           background: existing?.background ?? barcodeBackground,
           bold: existing?.bold ?? false,
           italic: existing?.italic ?? false,
           fontFamily: existing?.fontFamily ?? 'Roboto',
           textAlign: existing?.textAlign,
-          maxTextWidth: (existing?.maxTextWidth ?? 0) * (scalePercent / 100.0),
+          maxTextWidth: existing?.maxTextWidth ?? 0,
           position: center,
           size: size,
         );
       case Tool.line:
       case Tool.arrow:
-        final length = (b - a).distance * (scalePercent / 100.0);
+        final length = (b - a).distance;
         var angle = math.atan2(dy, dx);
         if (_isCreatingLineLike && _firstAngleLockPending && length >= _firstLockMinLen) {
           _dragSnapAngle = _nearestStep(angle);
@@ -422,16 +405,9 @@ class _PainterPageState extends State<PainterPage> {
 
         final mid = Offset((a.dx + b.dx) / 2, (a.dy + b.dy) / 2);
         if (currentTool == Tool.line) {
-          return LineDrawable(
-            position: mid, length: length, rotationAngle: angle,
-            paint: _strokePaint(strokeColor, strokeWidth),
-          );
+          return LineDrawable(position: mid, length: length, rotationAngle: angle, paint: _strokePaint(strokeColor, strokeWidth));
         } else {
-          return ArrowDrawable(
-            position: mid, length: length, rotationAngle: angle,
-            arrowHeadSize: 16 * (scalePercent / 100.0),
-            paint: _strokePaint(strokeColor, strokeWidth),
-          );
+          return ArrowDrawable(position: mid, length: length, rotationAngle: angle, arrowHeadSize: 16, paint: _strokePaint(strokeColor, strokeWidth));
         }
       default:
         return null;
@@ -503,20 +479,18 @@ class _PainterPageState extends State<PainterPage> {
       return DragAction.none;
     }
 
-    // BarcodeDrawable(회전된 바코드)만 hit test 좌표 역회전 보정
+    // 바코드 + 텍스트: 포인터를 언회전 좌표로 보정해서 코너 핸들 판정
     Offset p2 = p;
-    if (selectedDrawable is BarcodeDrawable) {
-      final angle = (selectedDrawable as BarcodeDrawable).rotationAngle;
+    final d = selectedDrawable;
+    if (d is BarcodeDrawable || d is ConstrainedTextDrawable || d is TextDrawable) {
+      final angle = (d as ObjectDrawable).rotationAngle;
       if (angle != 0) {
         final center = bounds.center;
         final dx = p.dx - center.dx;
         final dy = p.dy - center.dy;
         final cosA = math.cos(-angle);
         final sinA = math.sin(-angle);
-        p2 = Offset(
-          cosA * dx - sinA * dy + center.dx,
-          sinA * dx + cosA * dy + center.dy,
-        );
+        p2 = Offset(cosA * dx - sinA * dy + center.dx, sinA * dx + cosA * dy + center.dy);
       }
     }
 
@@ -536,6 +510,26 @@ class _PainterPageState extends State<PainterPage> {
   }
 
   Offset _rotateHandlePos(Rect r) => Offset(r.center.dx, r.top - rotateHandleOffset);
+
+  // 도우미: 한 점을 center 기준 +angle로 회전
+  Offset _rotPoint(Offset point, Offset center, double angle) {
+    final v = point - center;
+    final ca = math.cos(angle), sa = math.sin(angle);
+    return Offset(ca * v.dx - sa * v.dy, sa * v.dx + ca * v.dy) + center;
+  }
+
+  // 로컬(언회전) 벡터 변환
+  Offset _toLocalVec(Offset worldPoint, Offset center, double angle) {
+    final v = worldPoint - center;
+    final cosA = math.cos(-angle), sinA = math.sin(-angle);
+    return Offset(cosA * v.dx - sinA * v.dy, sinA * v.dx + cosA * v.dy);
+  }
+
+  Offset _fromLocalVec(Offset localVec, Offset center, double angle) {
+    final cosA = math.cos(angle), sinA = math.sin(angle);
+    final w = Offset(cosA * localVec.dx - sinA * localVec.dy, sinA * localVec.dx + cosA * localVec.dy);
+    return center + w;
+  }
 
   // PointerDown: select/text
   void _handlePointerDownSelect(PointerDownEvent e) async {
@@ -590,27 +584,15 @@ class _PainterPageState extends State<PainterPage> {
         clearLineResize();
         return;
       }
-
-      if (drawable is LineDrawable) {
+      if (drawable is LineDrawable || drawable is ArrowDrawable) {
         final start = _lineStart(drawable);
         final end = _lineEnd(drawable);
         _laFixedEnd = action == DragAction.resizeStart ? end : start;
-        final rotation = drawable.rotationAngle;
+        final rotation = (drawable as ObjectDrawable).rotationAngle;
         _laAngle = rotation;
         _laDir = Offset(math.cos(rotation), math.sin(rotation));
         return;
       }
-
-      if (drawable is ArrowDrawable) {
-        final start = _lineStart(drawable);
-        final end = _lineEnd(drawable);
-        _laFixedEnd = action == DragAction.resizeStart ? end : start;
-        final rotation = drawable.rotationAngle;
-        _laAngle = rotation;
-        _laDir = Offset(math.cos(rotation), math.sin(rotation));
-        return;
-      }
-
       clearLineResize();
     }
 
@@ -629,6 +611,24 @@ class _PainterPageState extends State<PainterPage> {
         startAngle = null;
       }
 
+      // 바코드 + 텍스트: 리사이즈 시작 시 고정 코너를 "회전된 코너"로 저장
+      if (current is BarcodeDrawable ||
+          current is ConstrainedTextDrawable ||
+          current is TextDrawable) {
+        if (action == DragAction.resizeNW ||
+            action == DragAction.resizeNE ||
+            action == DragAction.resizeSW ||
+            action == DragAction.resizeSE) {
+          final angle = (current as ObjectDrawable).rotationAngle;
+          final opp = _fixedCornerForAction(rect, action);
+          dragFixedCorner = _rotPoint(opp, rect.center, angle);
+        } else {
+          dragFixedCorner = null;
+        }
+      } else {
+        dragFixedCorner = null;
+      }
+
       prepareLineResize(current, action);
 
       if (action == DragAction.none && !rect.inflate(4).contains(localScene)) {
@@ -645,6 +645,23 @@ class _PainterPageState extends State<PainterPage> {
             startAngle = hit.rotationAngle;
           } else {
             startAngle = null;
+          }
+
+          if (hit is BarcodeDrawable ||
+              hit is ConstrainedTextDrawable ||
+              hit is TextDrawable) {
+            if (a2 == DragAction.resizeNW ||
+                a2 == DragAction.resizeNE ||
+                a2 == DragAction.resizeSW ||
+                a2 == DragAction.resizeSE) {
+              final angle = (hit as ObjectDrawable).rotationAngle;
+              final opp = _fixedCornerForAction(r2, a2);
+              dragFixedCorner = _rotPoint(opp, r2.center, angle);
+            } else {
+              dragFixedCorner = null;
+            }
+          } else {
+            dragFixedCorner = null;
           }
 
           prepareLineResize(hit, a2);
@@ -666,12 +683,30 @@ class _PainterPageState extends State<PainterPage> {
           startAngle = null;
         }
 
+        if (hit is BarcodeDrawable ||
+            hit is ConstrainedTextDrawable ||
+            hit is TextDrawable) {
+          if (a2 == DragAction.resizeNW ||
+              a2 == DragAction.resizeNE ||
+              a2 == DragAction.resizeSW ||
+              a2 == DragAction.resizeSE) {
+            final angle = (hit as ObjectDrawable).rotationAngle;
+            final opp = _fixedCornerForAction(r2, a2);
+            dragFixedCorner = _rotPoint(opp, r2.center, angle);
+          } else {
+            dragFixedCorner = null;
+          }
+        } else {
+          dragFixedCorner = null;
+        }
+
         prepareLineResize(hit, a2);
       } else {
         dragAction = DragAction.none;
         dragStartBounds = null;
         dragStartPointer = null;
         startAngle = null;
+        dragFixedCorner = null;
         clearLineResize();
       }
     }
@@ -683,70 +718,53 @@ class _PainterPageState extends State<PainterPage> {
     if (selectedDrawable == null || dragAction == DragAction.none) return;
     _movedSinceDown = true;
 
-    var localScene = _sceneFromGlobal(details.globalPosition);
+    // ---- 월드/로컬 좌표 분리 (핵심 수정) ----
+    final scenePtWorld = _sceneFromGlobal(details.globalPosition);
+    var scenePtLocal = scenePtWorld;
 
-    // BarcodeDrawable(회전된 바코드)에만 회전 보정 적용
-    if (selectedDrawable is BarcodeDrawable) {
-      final r = dragStartBounds!;
-      final center = r.center;
-      final angle = -(selectedDrawable as BarcodeDrawable).rotationAngle;
-      if (angle != 0) {
-        final dx = localScene.dx - center.dx;
-        final dy = localScene.dy - center.dy;
-        final cosA = math.cos(angle);
-        final sinA = math.sin(angle);
-        localScene = Offset(
-          cosA * dx - sinA * dy + center.dx,
-          sinA * dx + cosA * dy + center.dy,
-        );
-      }
-    }
     final original = selectedDrawable!;
     final startRect = dragStartBounds!;
-    final startPt = dragStartPointer!;
+    final startPtWorld = dragStartPointer!;
     Drawable? replaced;
 
+    // 바코드/텍스트의 "리사이즈"에서만 로컬 좌표(언회전) 사용
+    final isTextLike = original is BarcodeDrawable || original is ConstrainedTextDrawable || original is TextDrawable;
+    final isCornerResize = (dragAction == DragAction.resizeNW || dragAction == DragAction.resizeNE || dragAction == DragAction.resizeSW || dragAction == DragAction.resizeSE);
+
+    if (isTextLike && isCornerResize) {
+      final angle = (original as ObjectDrawable).rotationAngle;
+      if (angle != 0) {
+        final c = startRect.center;
+        final dx = scenePtWorld.dx - c.dx, dy = scenePtWorld.dy - c.dy;
+        final ca = math.cos(-angle), sa = math.sin(-angle);
+        scenePtLocal = Offset(ca * dx - sa * dy + c.dx, sa * dx + ca * dy + c.dy);
+      }
+    }
+
+    // --- MOVE (항상 월드 좌표) ---
     if (dragAction == DragAction.move) {
-      final delta = localScene - startPt;
+      final delta = scenePtWorld - startPtWorld;
       if (original is RectangleDrawable) {
-        replaced = RectangleDrawable(
-          position: startRect.center + delta,
-          size: startRect.size,
-          paint: original.paint,
-          borderRadius: original.borderRadius,
-        );
+        replaced = RectangleDrawable(position: startRect.center + delta, size: startRect.size, paint: original.paint, borderRadius: original.borderRadius);
       } else if (original is OvalDrawable) {
-        replaced = OvalDrawable(
-          position: startRect.center + delta,
-          size: startRect.size,
-          paint: original.paint,
-        );
+        replaced = OvalDrawable(position: startRect.center + delta, size: startRect.size, paint: original.paint);
       } else if (original is BarcodeDrawable) {
         replaced = original.copyWith(position: startRect.center + delta);
       } else if (original is LineDrawable) {
-        replaced = LineDrawable(
-          position: startRect.center + delta,
-          length: original.length,
-          rotationAngle: original.rotationAngle,
-          paint: original.paint,
-        );
+        replaced = LineDrawable(position: startRect.center + delta, length: original.length, rotationAngle: original.rotationAngle, paint: original.paint);
       } else if (original is ArrowDrawable) {
-        replaced = ArrowDrawable(
-          position: startRect.center + delta,
-          length: original.length,
-          rotationAngle: original.rotationAngle,
-          arrowHeadSize: original.arrowHeadSize,
-          paint: original.paint,
-        );
+        replaced = ArrowDrawable(position: startRect.center + delta, length: original.length, rotationAngle: original.rotationAngle, arrowHeadSize: original.arrowHeadSize, paint: original.paint);
       } else if (original is ConstrainedTextDrawable) {
         replaced = original.copyWith(position: startRect.center + delta);
       } else if (original is TextDrawable) {
         replaced = original.copyWith(position: startRect.center + delta);
       }
-    } else if (dragAction == DragAction.rotate) {
+    }
+    // --- ROTATE (항상 월드 좌표) ---
+    else if (dragAction == DragAction.rotate) {
       if (original is ObjectDrawable) {
         final center = original.position;
-        var ang = math.atan2((localScene - center).dy, (localScene - center).dx);
+        var ang = math.atan2((scenePtWorld - center).dy, (scenePtWorld - center).dx);
         ang = _snapAngle(ang);
 
         if (original is LineDrawable) {
@@ -757,105 +775,104 @@ class _PainterPageState extends State<PainterPage> {
           replaced = original.copyWith(rotation: ang);
         } else if (original is TextDrawable) {
           replaced = original.copyWith(rotation: ang);
+        } else if (original is BarcodeDrawable) {
+          replaced = original.copyWith(rotation: ang);
         }
       }
-    } else {
-      if (original is RectangleDrawable || original is OvalDrawable || original is BarcodeDrawable) {
-        dragFixedCorner ??= _fixedCornerForAction(startRect, dragAction);
-        var fixed = dragFixedCorner!;
-        var scene = localScene;
-        // BarcodeDrawable(회전된 바코드)만 fixed/localScene 모두 역회전 보정
-        if (original is BarcodeDrawable) {
-          final angle = original.rotationAngle;
-          if (angle != 0) {
-            final center = startRect.center;
-            // fixed 보정
-            final dxF = fixed.dx - center.dx;
-            final dyF = fixed.dy - center.dy;
-            final cosA = math.cos(angle);
-            final sinA = math.sin(angle);
-            fixed = Offset(
-              cosA * dxF - sinA * dyF + center.dx,
-              sinA * dxF + cosA * dyF + center.dy,
-            );
-            // localScene 보정(이미 위에서 적용된 경우 중복 적용 방지)
-            final dxS = scene.dx - center.dx;
-            final dyS = scene.dy - center.dy;
-            scene = Offset(
-              cosA * dxS - sinA * dyS + center.dx,
-              sinA * dxS + cosA * dyS + center.dy,
-            );
-          }
-        }
-        Rect newRect = Rect.fromPoints(fixed, scene);
+    }
+    // --- RESIZE ---
+    else {
+      if (original is RectangleDrawable || original is OvalDrawable) {
+        final fixed = dragFixedCorner ?? _fixedCornerForAction(startRect, dragAction);
+        Rect newRect = Rect.fromPoints(fixed, scenePtWorld);
 
         if (lockRatio) {
           final size = newRect.size;
           final m = math.max(size.width.abs(), size.height.abs());
-          final dir = (scene - fixed);
+          final dir = (scenePtWorld - fixed);
           final ddx = dir.dx.isNegative ? -m : m;
           final ddy = dir.dy.isNegative ? -m : m;
           newRect = Rect.fromPoints(fixed, fixed + Offset(ddx, ddy));
         }
 
         if (original is RectangleDrawable) {
-          replaced = RectangleDrawable(
-            position: newRect.center,
-            size: newRect.size,
-            paint: original.paint,
-            borderRadius: original.borderRadius,
-          );
+          replaced = RectangleDrawable(position: newRect.center, size: newRect.size, paint: original.paint, borderRadius: original.borderRadius);
         } else if (original is OvalDrawable) {
-          replaced = OvalDrawable(
-            position: newRect.center,
-            size: newRect.size,
-            paint: original.paint,
-          );
-        } else if (original is BarcodeDrawable) {
-          // 1. fixed, scene을 바코드 중심 기준으로 -rotationAngle만큼 역회전
+          replaced = OvalDrawable(position: newRect.center, size: newRect.size, paint: original.paint);
+        }
+      } else if (original is BarcodeDrawable) {
+        if (isCornerResize) {
           final angle = original.rotationAngle;
-          final center = startRect.center;
-          Offset _unrotate(Offset pt) {
-            final dx = pt.dx - center.dx;
-            final dy = pt.dy - center.dy;
-            final cosA = math.cos(-angle);
-            final sinA = math.sin(-angle);
-            return Offset(
-              cosA * dx - sinA * dy + center.dx,
-              sinA * dx + cosA * dy + center.dy,
-            );
+          final center0 = startRect.center;
+
+          final worldFixed = dragFixedCorner!;
+          final worldMove = scenePtWorld;
+
+          final vFixed = _toLocalVec(worldFixed, center0, angle);
+          final vMove  = _toLocalVec(worldMove,  center0, angle);
+
+          Offset vCenter = (vFixed + vMove) / 2;
+          Size newSize = Size((vMove.dx - vFixed.dx).abs(), (vMove.dy - vFixed.dy).abs());
+
+          if (lockRatio) {
+            final m = math.max(newSize.width, newSize.height);
+            final signX = (vMove.dx - vFixed.dx) >= 0 ? 1.0 : -1.0;
+            final signY = (vMove.dy - vFixed.dy) >= 0 ? 1.0 : -1.0;
+            final vMoveLocked = Offset(vFixed.dx + signX * m, vFixed.dy + signY * m);
+            vCenter = (vFixed + vMoveLocked) / 2;
+            newSize = Size(m, m);
           }
-          final fixedUnrot = _unrotate(fixed);
-          final sceneUnrot = _unrotate(scene);
-          // 2. 변환된 두 점으로 newRect 생성
-          final newRectUnrot = Rect.fromPoints(fixedUnrot, sceneUnrot);
-          // 3. newRect.center를 다시 +rotationAngle만큼 정방향 회전
-          final dx = newRectUnrot.center.dx - center.dx;
-          final dy = newRectUnrot.center.dy - center.dy;
-          final cosA = math.cos(angle);
-          final sinA = math.sin(angle);
-          final rotatedCenter = Offset(
-            cosA * dx - sinA * dy + center.dx,
-            sinA * dx + cosA * dy + center.dy,
-          );
-          // 4. size는 newRectUnrot.size 그대로 적용
+
+          final newCenterWorld = _fromLocalVec(vCenter, center0, angle);
+
           replaced = original.copyWith(
-            position: rotatedCenter,
-            size: newRectUnrot.size,
-            rotation: original.rotationAngle,
+            position: newCenterWorld,
+            size: newSize,
+            rotation: angle,
           );
         }
       } else if (original is ConstrainedTextDrawable) {
-        dragFixedCorner ??= _fixedCornerForAction(startRect, dragAction);
-        final fixed = dragFixedCorner!;
-        final newRect = Rect.fromPoints(fixed, localScene);
-        final newWidth = newRect.size.width.abs().clamp(40.0, 2000.0);
-        final centered = Rect.fromCenter(center: newRect.center, width: newWidth, height: startRect.height);
-        replaced = original.copyWith(position: centered.center, maxWidth: newWidth);
+        if (isCornerResize) {
+          final angle = original.rotationAngle;
+          final center0 = startRect.center;
+
+          final worldFixed = dragFixedCorner!;
+          final worldMove = scenePtWorld;
+
+          final vFixed = _toLocalVec(worldFixed, center0, angle);
+          final vMove  = _toLocalVec(worldMove,  center0, angle);
+
+          final vCenter = (vFixed + vMove) / 2;
+          final newWidth = (vMove.dx - vFixed.dx).abs().clamp(40.0, 2000.0);
+
+          final newCenterWorld = _fromLocalVec(vCenter, center0, angle);
+
+          replaced = original.copyWith(
+            position: newCenterWorld,
+            maxWidth: newWidth,
+            rotation: angle,
+          );
+        }
+      } else if (original is TextDrawable) {
+        if (isCornerResize) {
+          final angle = original.rotationAngle;
+          final center0 = startRect.center;
+
+          final worldFixed = dragFixedCorner!;
+          final worldMove = scenePtWorld;
+
+          final vFixed = _toLocalVec(worldFixed, center0, angle);
+          final vMove  = _toLocalVec(worldMove,  center0, angle);
+          final vCenter = (vFixed + vMove) / 2;
+
+          final newCenterWorld = _fromLocalVec(vCenter, center0, angle);
+
+          replaced = original.copyWith(position: newCenterWorld, rotation: angle);
+        }
       } else if (original is LineDrawable || original is ArrowDrawable) {
         if (_laFixedEnd != null) {
           final fixed = _laFixedEnd!;
-          final pnt = localScene;
+          final pnt = scenePtWorld;
 
           double ang;
           double len;
@@ -924,7 +941,7 @@ class _PainterPageState extends State<PainterPage> {
     }
   }
 
-  // 텍스트 생성
+  // 텍스트 생성(기존)
   Future<void> _createTextAt(Offset scenePoint) async {
     final controllerText = TextEditingController();
     double tempSize = textFontSize;
@@ -946,69 +963,45 @@ class _PainterPageState extends State<PainterPage> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  TextField(
-                    controller: controllerText,
-                    autofocus: true,
-                    decoration: const InputDecoration(labelText: 'Text', hintText: 'Enter text...'),
-                    minLines: 1, maxLines: 6,
-                  ),
+                  TextField(controller: controllerText, autofocus: true, decoration: const InputDecoration(labelText: 'Text', hintText: 'Enter text...'), minLines: 1, maxLines: 6),
                   const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      const Text('Size'),
-                      Expanded(
-                        child: Slider(min: 8, max: 96, value: tempSize, onChanged: (v) => setSS(() => tempSize = v)),
-                      ),
-                      SizedBox(width: 40, child: Text(tempSize.toStringAsFixed(0))),
-                    ],
-                  ),
-                  Wrap(
-                    spacing: 8, runSpacing: 8,
-                    children: [
-                      FilterChip(label: const Text('Bold'), selected: tempBold, onSelected: (v) => setSS(() => tempBold = v)),
-                      FilterChip(label: const Text('Italic'), selected: tempItalic, onSelected: (v) => setSS(() => tempItalic = v)),
-                    ],
-                  ),
+                  Row(children: [const Text('Size'), Expanded(child: Slider(min: 8, max: 96, value: tempSize, onChanged: (v) => setSS(() => tempSize = v))), SizedBox(width: 40, child: Text(tempSize.toStringAsFixed(0)))]),
+                  Wrap(spacing: 8, runSpacing: 8, children: [
+                    FilterChip(label: const Text('Bold'), selected: tempBold, onSelected: (v) => setSS(() => tempBold = v)),
+                    FilterChip(label: const Text('Italic'), selected: tempItalic, onSelected: (v) => setSS(() => tempItalic = v)),
+                  ]),
                   const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      const Text('Font'), const SizedBox(width: 8),
-                      DropdownButton<String>(
-                        value: tempFamily,
-                        items: const [
-                          DropdownMenuItem(value: 'Roboto', child: Text('Roboto')),
-                          DropdownMenuItem(value: 'NotoSans', child: Text('NotoSans')),
-                          DropdownMenuItem(value: 'Monospace', child: Text('Monospace')),
-                        ],
-                        onChanged: (v) => setSS(() { if (v != null) tempFamily = v; }),
-                      ),
-                    ],
-                  ),
+                  Row(children: [
+                    const Text('Font'), const SizedBox(width: 8),
+                    DropdownButton<String>(
+                      value: tempFamily,
+                      items: const [
+                        DropdownMenuItem(value: 'Roboto', child: Text('Roboto')),
+                        DropdownMenuItem(value: 'NotoSans', child: Text('NotoSans')),
+                        DropdownMenuItem(value: 'Monospace', child: Text('Monospace')),
+                      ],
+                      onChanged: (v) => setSS(() { if (v != null) tempFamily = v; }),
+                    ),
+                  ]),
                   const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      const Text('Align'), const SizedBox(width: 8),
-                      DropdownButton<TxtAlign>(
-                        value: tempAlign,
-                        items: const [
-                          DropdownMenuItem(value: TxtAlign.left, child: Text('Left')),
-                          DropdownMenuItem(value: TxtAlign.center, child: Text('Center')),
-                          DropdownMenuItem(value: TxtAlign.right, child: Text('Right')),
-                        ],
-                        onChanged: (v) => setSS(() { if (v != null) tempAlign = v; }),
-                      ),
-                    ],
-                  ),
+                  Row(children: [
+                    const Text('Align'), const SizedBox(width: 8),
+                    DropdownButton<TxtAlign>(
+                      value: tempAlign,
+                      items: const [
+                        DropdownMenuItem(value: TxtAlign.left, child: Text('Left')),
+                        DropdownMenuItem(value: TxtAlign.center, child: Text('Center')),
+                        DropdownMenuItem(value: TxtAlign.right, child: Text('Right')),
+                      ],
+                      onChanged: (v) => setSS(() { if (v != null) tempAlign = v; }),
+                    ),
+                  ]),
                   const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      const Text('Max Width'),
-                      Expanded(
-                        child: Slider(min: 40, max: 800, value: tempMaxWidth, onChanged: (v) => setSS(() => tempMaxWidth = v)),
-                      ),
-                      SizedBox(width: 56, child: Text(tempMaxWidth.toStringAsFixed(0))),
-                    ],
-                  ),
+                  Row(children: [
+                    const Text('Max Width'),
+                    Expanded(child: Slider(min: 40, max: 800, value: tempMaxWidth, onChanged: (v) => setSS(() => tempMaxWidth = v))),
+                    SizedBox(width: 56, child: Text(tempMaxWidth.toStringAsFixed(0))),
+                  ]),
                 ],
               ),
             ),
@@ -1059,7 +1052,6 @@ class _PainterPageState extends State<PainterPage> {
     });
   }
 
-  // Clear/Save
   void _clearAll() {
     controller.clearDrawables();
     selectedDrawable = null;
@@ -1109,13 +1101,13 @@ class _PainterPageState extends State<PainterPage> {
     return Scaffold(
       appBar: AppBar(
         title: Text.rich(
-						TextSpan(
-							children: [
-								TextSpan(text: '$appTitle ', style: TextStyle(fontSize: 20)),
-								TextSpan(text: 'v$appVersion',style: TextStyle(fontSize: 16, fontWeight: FontWeight.normal)),
-							],
-						),
-					),
+          TextSpan(
+            children: [
+              TextSpan(text: '$appTitle ', style: const TextStyle(fontSize: 20)),
+              TextSpan(text: 'v$appVersion', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.normal)),
+            ],
+          ),
+        ),
         actions: [
           IconButton(onPressed: controller.canUndo ? controller.undo : null, icon: const Icon(Icons.undo)),
           IconButton(onPressed: controller.canRedo ? controller.redo : null, icon: const Icon(Icons.redo)),
@@ -1262,15 +1254,13 @@ class _PainterPageState extends State<PainterPage> {
         paint: _strokePaint(newStrokeColor ?? strokeColor, newStrokeWidth ?? strokeWidth),
       );
     } else if (d is LineDrawable) {
-      replaced = d.copyWith(
-        paint: _strokePaint(newStrokeColor ?? strokeColor, newStrokeWidth ?? strokeWidth),
-      );
+      replaced = d.copyWith(paint: _strokePaint(newStrokeColor ?? strokeColor, newStrokeWidth ?? strokeWidth));
     } else if (d is ArrowDrawable) {
-      replaced = d.copyWith(
-        paint: _strokePaint(newStrokeColor ?? strokeColor, newStrokeWidth ?? strokeWidth),
-      );
+      replaced = d.copyWith(paint: _strokePaint(newStrokeColor ?? strokeColor, newStrokeWidth ?? strokeWidth));
     } else if (d is ConstrainedTextDrawable || d is TextDrawable) {
       return;
+    } else if (d is BarcodeDrawable) {
+      return; // 바코드의 색/배경은 Inspector에서 변경하지 않음
     }
 
     if (replaced != null) {

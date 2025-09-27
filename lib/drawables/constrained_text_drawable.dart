@@ -4,6 +4,9 @@ import '../models/tool.dart';
 import '../flutter_painter_v2/flutter_painter.dart';
 
 /// 커스텀 텍스트 드로어블(정렬/최대폭 지원)
+/// - 바코드/텍스트와 동일하게 "센터 기준" 배치
+/// - drawObject(): 전역 position을 중심으로 중앙 정렬로 페인트
+/// - 선택 박스: position + getSize() (회전은 SelectionPainter/ObjectDrawable에서 1회)
 class ConstrainedTextDrawable extends ObjectDrawable {
   final String text;
   final TextStyle style;
@@ -62,6 +65,7 @@ class ConstrainedTextDrawable extends ObjectDrawable {
     );
   }
 
+  /// 선택 박스용 사이즈(스케일 미적용).
   @override
   Size getSize({double minWidth = 0.0, double maxWidth = double.infinity}) {
     final tp = TextPainter(
@@ -73,6 +77,8 @@ class ConstrainedTextDrawable extends ObjectDrawable {
     return tp.size;
   }
 
+  /// 실제 그리기:
+  /// - 전역 position을 중심으로 중앙 정렬 배치(최대폭은 maxWidth).
   @override
   void drawObject(Canvas canvas, Size size) {
     final tp = TextPainter(
@@ -81,14 +87,8 @@ class ConstrainedTextDrawable extends ObjectDrawable {
       textDirection: direction,
       maxLines: 1000,
     )..layout(minWidth: 0, maxWidth: maxWidth);
-    final boxSize = tp.size;
 
-    canvas.save();
-    canvas.translate(position.dx, position.dy);
-    if (rotationAngle != 0) canvas.rotate(rotationAngle);
-    if (scale != 1.0) canvas.scale(scale);
-    final topLeft = Offset(-boxSize.width / 2, -boxSize.height / 2);
+    final topLeft = position - Offset(tp.width / 2, tp.height / 2);
     tp.paint(canvas, topLeft);
-    canvas.restore();
   }
 }

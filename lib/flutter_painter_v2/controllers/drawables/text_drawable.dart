@@ -1,25 +1,16 @@
-
 import 'package:flutter/material.dart';
 
 import 'object_drawable.dart';
 
-/// Text Drawable
+/// Text Drawable (단순 텍스트)
+/// - 바코드와 동일하게 "센터 기준"으로 페인트합니다.
+/// - ObjectDrawable.draw()가 position 기준으로 회전만 1회 적용하므로,
+///   여기서는 전역 position을 기준으로 중앙 배치하여 그립니다(중복 변환 없음).
 class TextDrawable extends ObjectDrawable {
-  /// The text to be drawn.
   final String text;
-
-  /// The style the text will be drawn with.
   final TextStyle style;
-
-  /// The direction of the text to be drawn.
   final TextDirection direction;
 
-  // A text painter which will paint the text on the canvas.
-  final TextPainter textPainter;
-
-  /// Creates a [TextDrawable] to draw [text].
-  ///
-  /// The path will be drawn with the passed [style] if provided.
   TextDrawable({
     required this.text,
     required Offset position,
@@ -33,33 +24,43 @@ class TextDrawable extends ObjectDrawable {
     bool locked = false,
     bool hidden = false,
     Set<ObjectDrawableAssist> assists = const <ObjectDrawableAssist>{},
-  })  : textPainter = TextPainter(
-          text: TextSpan(text: text, style: style),
-          textAlign: TextAlign.center,
-          textScaleFactor: scale,
-          textDirection: direction,
-        ),
-        super(
-            position: position,
-            rotationAngle: rotation,
-            scale: scale,
-            assists: assists,
-            locked: locked,
-            hidden: hidden);
+  }) : super(
+          position: position,
+          rotationAngle: rotation,
+          scale: scale,
+          assists: assists,
+          locked: locked,
+          hidden: hidden,
+        );
 
-  /// Draws the text on the provided [canvas] of size [size].
+  /// 선택 박스용 크기(스케일 미적용).
   @override
-  void drawObject(Canvas canvas, Size size) {
-    // Render the text according to the size of the canvas taking the scale in mind
-    textPainter.layout(maxWidth: size.width * scale);
-
-    // Paint the text on the canvas
-    // It is shifted back by half of its width and height to be drawn in the center
-    textPainter.paint(canvas,
-        position - Offset(textPainter.width / 2, textPainter.height / 2));
+  Size getSize({double minWidth = 0.0, double maxWidth = double.infinity}) {
+    final tp = TextPainter(
+      text: TextSpan(text: text, style: style),
+      textAlign: TextAlign.center,
+      textDirection: direction,
+      maxLines: 1000,
+    )..layout(minWidth: 0, maxWidth: maxWidth);
+    return tp.size;
   }
 
-  /// Creates a copy of this but with the given fields replaced with the new values.
+  /// 실제 그리기:
+  /// - 전역 position을 중심으로 중앙 정렬 배치.
+  /// - 회전/스케일/이동은 ObjectDrawable.draw()에서 일관 처리(회전만 1회).
+  @override
+  void drawObject(Canvas canvas, Size size) {
+    final tp = TextPainter(
+      text: TextSpan(text: text, style: style),
+      textAlign: TextAlign.center,
+      textDirection: direction,
+      maxLines: 1000,
+    )..layout(minWidth: 0, maxWidth: double.infinity);
+
+    final topLeft = position - Offset(tp.width / 2, tp.height / 2);
+    tp.paint(canvas, topLeft);
+  }
+
   @override
   TextDrawable copyWith({
     bool? hidden,
@@ -84,33 +85,4 @@ class TextDrawable extends ObjectDrawable {
       locked: locked ?? this.locked,
     );
   }
-
-  /// Calculates the size of the rendered object.
-  @override
-  Size getSize({double minWidth = 0.0, double maxWidth = double.infinity}) {
-    // Generate the text as a visual layout
-    textPainter.layout(minWidth: minWidth, maxWidth: maxWidth * scale);
-    return textPainter.size;
-  }
-
-  /// Compares two [TextDrawable]s for equality.
-  // @override
-  // bool operator ==(Object other) {
-  //   return other is TextDrawable &&
-  //       super == other &&
-  //       other.text == text &&
-  //       other.style == style &&
-  //       other.direction == direction;
-  // }
-  //
-  // @override
-  // int get hashCode => hashValues(
-  //     hidden,
-  //     hashList(assists),
-  //     hashList(assistPaints.entries),
-  //     position,
-  //     rotationAngle,
-  //     scale,
-  //     style,
-  //     direction);
 }

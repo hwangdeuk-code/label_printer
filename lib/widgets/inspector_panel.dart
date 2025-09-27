@@ -279,25 +279,20 @@ class InspectorPanel extends StatelessWidget {
           SizedBox(width: 56, child: Text(currentMaxWidth.toStringAsFixed(0))),
         ],
       ),
+      // === 앵글: 바코드와 동일한 90° 회전 버튼 방식 ===
       Row(
         children: [
           const Text('Angle'),
-          Expanded(
-            child: Slider(
-              min: -180,
-              max: 180,
-              value: currentAngle * 180 / math.pi,
-              onChanged: (v) {
-                final rad = v * math.pi / 180.0;
-                currentAngle = angleSnap ? snapAngle(rad) : rad;
-                commit();
-              },
-            ),
+          IconButton(
+            icon: const Icon(Icons.rotate_right),
+            tooltip: 'Rotate 90°',
+            onPressed: () {
+              currentAngle = ((currentAngle + (math.pi / 2)) % (2 * math.pi));
+              commit();
+            },
           ),
-          SizedBox(
-            width: 52,
-            child: Text('${(currentAngle * 180 / math.pi).toStringAsFixed(0)} deg'),
-          ),
+          const SizedBox(width: 8),
+          Text('${(currentAngle * 180 / math.pi).toStringAsFixed(0)}°'),
         ],
       ),
     ];
@@ -447,30 +442,25 @@ class InspectorPanel extends StatelessWidget {
           ),
         ],
       ),
+      // === 앵글: 바코드와 동일한 90° 회전 버튼 방식 ===
       Row(
         children: [
           const Text('Angle'),
-          Expanded(
-            child: Slider(
-              min: -180,
-              max: 180,
-              value: currentAngle * 180 / math.pi,
-              onChanged: (v) {
-                final rad = v * math.pi / 180.0;
-                currentAngle = angleSnap ? snapAngle(rad) : rad;
-                commit();
-              },
-            ),
+          IconButton(
+            icon: const Icon(Icons.rotate_right),
+            tooltip: 'Rotate 90°',
+            onPressed: () {
+              currentAngle = ((currentAngle + (math.pi / 2)) % (2 * math.pi));
+              commit();
+            },
           ),
-          SizedBox(
-            width: 52,
-            child: Text('${(currentAngle * 180 / math.pi).toStringAsFixed(0)} deg'),
-          ),
+          const SizedBox(width: 8),
+          Text('${(currentAngle * 180 / math.pi).toStringAsFixed(0)}°'),
         ],
       ),
       const SizedBox(height: 4),
       const Text(
-        'TextDrawable (simple text) does not honour alignment/max width.\nUse constrained text if those properties are required.',
+        'TextDrawable (simple text)는 크기박스/정렬/최대폭을 지원하지 않습니다.\n폭 제어가 필요하면 ConstrainedText를 사용하세요.',
         style: TextStyle(fontSize: 12, color: Colors.black54),
       ),
     ];
@@ -518,20 +508,19 @@ class InspectorPanel extends StatelessWidget {
     }
 
     return [
-      // --- Angle(회전) 버튼 추가 ---
+      // --- Angle(회전) 버튼: 90° ---
       Row(
         children: [
           const Text('Angle'),
           IconButton(
             icon: const Icon(Icons.rotate_right),
-            tooltip: '90도 회전',
+            tooltip: 'Rotate 90°',
             onPressed: () {
-              // 90도씩 시계방향 회전
               currentAngle = ((currentAngle + (math.pi / 2)) % (2 * math.pi));
               commit();
             },
           ),
-          SizedBox(width: 8),
+          const SizedBox(width: 8),
           Text('${(currentAngle * 180 / math.pi).toStringAsFixed(0)}°'),
         ],
       ),

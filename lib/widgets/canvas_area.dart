@@ -35,8 +35,8 @@ class CanvasArea extends StatelessWidget {
     required this.rotateHandleOffset,
     required this.showEndpoints,
     required this.isTextSelected,
-  this.printerDpi = 300,
-  this.scalePercent = 100.0,
+    this.printerDpi = 300,
+    this.scalePercent = 100.0,
   });
 
   final Tool currentTool;
@@ -71,17 +71,14 @@ class CanvasArea extends StatelessWidget {
         currentTool == Tool.select ||
         currentTool == Tool.text;
 
-  final double pixelsPerCm = printerDpi > 0 ? (printerDpi / 2.54) * (scalePercent / 100.0) : 0;
+    final double pixelsPerCm = printerDpi > 0 ? (printerDpi / 2.54) * (scalePercent / 100.0) : 0;
 
     return SizedBox(
       width: _canvasDimension,
       height: _canvasDimension,
       child: Stack(
         children: [
-          // 항상 흰색 배경이 깔리도록 추가
-          Positioned.fill(
-            child: Container(color: Colors.white),
-          ),
+          Positioned.fill(child: Container(color: Colors.white)),
           Positioned.fill(
             child: DecoratedBox(
               decoration: BoxDecoration(border: Border.all(color: Colors.black12)),
@@ -92,25 +89,17 @@ class CanvasArea extends StatelessWidget {
             right: 0,
             top: 0,
             height: _rulerThickness,
-            child: CustomPaint(
-              painter: _HorizontalRulerPainter(pixelsPerCm: pixelsPerCm),
-            ),
+            child: CustomPaint(painter: _HorizontalRulerPainter(pixelsPerCm: pixelsPerCm)),
           ),
           Positioned(
             left: 0,
             top: _rulerThickness,
             bottom: 0,
             width: _rulerThickness,
-            child: CustomPaint(
-              painter: _VerticalRulerPainter(pixelsPerCm: pixelsPerCm),
-            ),
+            child: CustomPaint(painter: _VerticalRulerPainter(pixelsPerCm: pixelsPerCm)),
           ),
           const Positioned(
-            left: 0,
-            top: 0,
-            width: _rulerThickness,
-            height: _rulerThickness,
-            child: _RulerCorner(),
+            left: 0, top: 0, width: _rulerThickness, height: _rulerThickness, child: _RulerCorner(),
           ),
           Positioned(
             left: _rulerThickness,
@@ -190,7 +179,7 @@ class CanvasArea extends StatelessWidget {
           ),
         ],
       ),
-  );
+    );
   }
 }
 
@@ -202,162 +191,98 @@ class _RulerCorner extends StatelessWidget {
     return Container(
       color: _rulerBackground,
       alignment: Alignment.center,
-      child: const Text(
-        'cm',
-        style: TextStyle(fontSize: 10, color: Colors.black54),
-      ),
+      child: const Text('cm', style: TextStyle(fontSize: 10, color: Colors.black54)),
     );
   }
 }
 
 class _HorizontalRulerPainter extends CustomPainter {
-  const _HorizontalRulerPainter({
-    required this.pixelsPerCm,
-  });
-
+  const _HorizontalRulerPainter({required this.pixelsPerCm});
   final double pixelsPerCm;
 
   @override
   void paint(Canvas canvas, Size size) {
-    final Paint background = Paint()..color = _rulerBackground;
-    canvas.drawRect(Offset.zero & size, background);
+    final bg = Paint()..color = _rulerBackground;
+    canvas.drawRect(Offset.zero & size, bg);
 
-    final Paint border = Paint()
-      ..color = _rulerBorder
-      ..strokeWidth = 1;
-    canvas.drawLine(
-      Offset(0, size.height - 0.5),
-      Offset(size.width, size.height - 0.5),
-      border,
-    );
+    final border = Paint()..color = _rulerBorder..strokeWidth = 1;
+    canvas.drawLine(Offset(0, size.height - 0.5), Offset(size.width, size.height - 0.5), border);
 
-    if (pixelsPerCm <= 0) {
-      return;
-    }
+    if (pixelsPerCm <= 0) return;
 
-    final Paint major = Paint()
-      ..color = Colors.black87
-      ..strokeWidth = 1;
-    final Paint minor = Paint()
-      ..color = Colors.black45
-      ..strokeWidth = 1;
+    final major = Paint()..color = Colors.black87..strokeWidth = 1;
+    final minor = Paint()..color = Colors.black45..strokeWidth = 1;
 
-  final double majorTickTop = size.height * 0.65;
+    final double majorTickTop = size.height * 0.65;
 
-    // 주요 눈금 (정수 cm)
     int i = 0;
     while (true) {
       final double x = i * pixelsPerCm;
       if (x > size.width + 0.5) break;
-      canvas.drawLine(
-        Offset(x, size.height),
-        Offset(x, size.height - (size.height - majorTickTop)),
-        major,
-      );
-      final textPainter = TextPainter(
-        text: TextSpan(text: i.toString(), style: _rulerLabelStyle),
-        textDirection: TextDirection.ltr,
-      )..layout();
-      final double labelX = (x - textPainter.width / 2).clamp(0.0, size.width - textPainter.width);
-      // 라벨을 눈금 위(majorTickTop보다 위쪽)로 이동
-      final double labelY = (majorTickTop - textPainter.height - 6).clamp(0.0, size.height - textPainter.height);
-      textPainter.paint(canvas, Offset(labelX, labelY));
+      canvas.drawLine(Offset(x, size.height), Offset(x, size.height - (size.height - majorTickTop)), major);
+      final tp = TextPainter(text: TextSpan(text: '$i', style: _rulerLabelStyle), textDirection: TextDirection.ltr)..layout();
+      final labelX = (x - tp.width / 2).clamp(0.0, size.width - tp.width);
+      final labelY = (majorTickTop - tp.height - 6).clamp(0.0, size.height - tp.height);
+      tp.paint(canvas, Offset(labelX, labelY));
       i++;
     }
 
-    // 보조 눈금 (0.1cm)
     double cm = 0.1;
     while (true) {
       final double x = cm * pixelsPerCm;
       if (x > size.width + 0.5) break;
-      // 주요 눈금(정수 cm)과 겹치지 않게 0.1, 0.2, ..., 0.9cm만 그림
       if ((cm * 10) % 10 != 0) {
-        canvas.drawLine(
-          Offset(x, size.height),
-          Offset(x, size.height - size.height * 0.225),
-          minor,
-        );
+        canvas.drawLine(Offset(x, size.height), Offset(x, size.height - size.height * 0.225), minor);
       }
       cm += 0.1;
     }
   }
 
   @override
-  bool shouldRepaint(covariant _HorizontalRulerPainter oldDelegate) {
-    return oldDelegate.pixelsPerCm != pixelsPerCm;
-  }
+  bool shouldRepaint(covariant _HorizontalRulerPainter old) => old.pixelsPerCm != pixelsPerCm;
 }
+
 class _VerticalRulerPainter extends CustomPainter {
   const _VerticalRulerPainter({required this.pixelsPerCm});
-
   final double pixelsPerCm;
 
   @override
   void paint(Canvas canvas, Size size) {
-    final Paint background = Paint()..color = _rulerBackground;
-    canvas.drawRect(Offset.zero & size, background);
+    final bg = Paint()..color = _rulerBackground;
+    canvas.drawRect(Offset.zero & size, bg);
 
-    final Paint border = Paint()
-      ..color = _rulerBorder
-      ..strokeWidth = 1;
-    canvas.drawLine(
-      Offset(size.width - 0.5, 0),
-      Offset(size.width - 0.5, size.height),
-      border,
-    );
+    final border = Paint()..color = _rulerBorder..strokeWidth = 1;
+    canvas.drawLine(Offset(size.width - 0.5, 0), Offset(size.width - 0.5, size.height), border);
 
-    if (pixelsPerCm <= 0) {
-      return;
-    }
+    if (pixelsPerCm <= 0) return;
 
-    final Paint major = Paint()
-      ..color = Colors.black87
-      ..strokeWidth = 1;
-    final Paint minor = Paint()
-      ..color = Colors.black45
-      ..strokeWidth = 1;
+    final major = Paint()..color = Colors.black87..strokeWidth = 1;
+    final minor = Paint()..color = Colors.black45..strokeWidth = 1;
 
-    // 주요 눈금 (정수 cm)
     int i = 0;
     while (true) {
       final double y = i * pixelsPerCm;
       if (y > size.height + 0.5) break;
-      canvas.drawLine(
-        Offset(size.width, y),
-        Offset(size.width - size.width * 0.35, y),
-        major,
-      );
-      final textPainter = TextPainter(
-        text: TextSpan(text: '$i', style: _rulerLabelStyle),
-        textDirection: TextDirection.ltr,
-      )..layout();
-      final double labelY =
-          (y - textPainter.height / 2).clamp(0.0, size.height - textPainter.height);
-      textPainter.paint(canvas, Offset(2, labelY));
+      canvas.drawLine(Offset(size.width, y), Offset(size.width - size.width * 0.35, y), major);
+      final tp = TextPainter(text: TextSpan(text: '$i', style: _rulerLabelStyle), textDirection: TextDirection.ltr)..layout();
+      final labelY = (y - tp.height / 2).clamp(0.0, size.height - tp.height);
+      tp.paint(canvas, Offset(2, labelY));
       i++;
     }
 
-    // 보조 눈금 (0.1cm)
     double cm = 0.1;
     while (true) {
       final double y = cm * pixelsPerCm;
       if (y > size.height + 0.5) break;
-      // 주요 눈금(정수 cm)과 겹치지 않게 0.1, 0.2, ..., 0.9cm만 그림
       if ((cm * 10) % 10 != 0) {
-        canvas.drawLine(
-          Offset(size.width, y),
-          Offset(size.width - size.width * 0.225, y),
-          minor,
-        );
+        canvas.drawLine(Offset(size.width, y), Offset(size.width - size.width * 0.225, y), minor);
       }
       cm += 0.1;
     }
   }
 
   @override
-  bool shouldRepaint(covariant _VerticalRulerPainter oldDelegate) {
-    return oldDelegate.pixelsPerCm != pixelsPerCm;
-  }
+  bool shouldRepaint(covariant _VerticalRulerPainter old) => old.pixelsPerCm != pixelsPerCm;
 }
 
 class _SelectionPainter extends CustomPainter {
@@ -386,42 +311,18 @@ class _SelectionPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     if (selected == null || bounds == null) return;
-    final r = bounds!;
-    final boxPaint = Paint()
-      ..color = const Color(0xFF3F51B5)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.2;
 
-    bool shouldRotate = false;
-    double angle = 0;
-    // BarcodeDrawable(또는 ObjectDrawable이면서 rotationAngle!=0)만 회전 적용
-    if ((selected.runtimeType.toString().contains('BarcodeDrawable') ||
-         (selected is ObjectDrawable && (selected as ObjectDrawable).rotationAngle != 0)) &&
-        !(selected is LineDrawable || selected is ArrowDrawable)) {
-      shouldRotate = true;
-      angle = (selected as dynamic).rotationAngle ?? 0;
-    }
+    // 라인/화살표: 회전 사각형 X (엔드포인트 + 회전 핸들만)
+    if (selected is LineDrawable || selected is ArrowDrawable) {
+      final r = bounds!;
+      final boxPaint = Paint()
+        ..color = const Color(0xFF3F51B5)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.2;
 
-    if (shouldRotate) {
-      final center = r.center;
-      canvas.save();
-      canvas.translate(center.dx, center.dy);
-      canvas.rotate(angle);
-      canvas.translate(-center.dx, -center.dy);
-    }
+      // 바운즈(언회전 직선의 캡슐 박스)를 그대로 표시
+      canvas.drawRect(r, boxPaint);
 
-    canvas.drawRect(r, boxPaint);
-
-    if (!(selected is LineDrawable || selected is ArrowDrawable)) {
-      final handlePaint = Paint()..color = const Color(0xFF3F51B5);
-      for (final c in [r.topLeft, r.topRight, r.bottomLeft, r.bottomRight]) {
-        final h = Rect.fromCenter(center: c, width: handleSize, height: handleSize);
-        canvas.drawRect(h, handlePaint);
-      }
-      final rotateCenter = Offset(r.center.dx, r.top - rotateHandleOffset);
-      canvas.drawLine(r.topCenter, rotateCenter, boxPaint);
-      canvas.drawCircle(rotateCenter, handleSize * 0.6, handlePaint);
-    } else {
       if (showEndpoints && start != null && end != null) {
         final epPaint = Paint()..color = const Color(0xFF3F51B5);
         canvas.drawCircle(start!, endpointRadius, epPaint);
@@ -430,27 +331,57 @@ class _SelectionPainter extends CustomPainter {
         canvas.drawLine(r.topCenter, rotateCenter, boxPaint);
         canvas.drawCircle(rotateCenter, endpointRadius, epPaint);
       }
+      return;
     }
 
-    if (shouldRotate) {
+    // 그 외(ObjectDrawable 포함): 선택 박스를 1회 회전만 적용
+    final r = bounds!;
+    final boxPaint = Paint()
+      ..color = const Color(0xFF3F51B5)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.2;
+
+    final obj = selected;
+    double angle = 0.0;
+    if (obj is ObjectDrawable) {
+      angle = obj.rotationAngle;
+    }
+
+    // 언회전 bounds를 기준으로 캔버스 변환 1회
+    if (angle != 0) {
+      canvas.save();
+      canvas.translate(r.center.dx, r.center.dy);
+      canvas.rotate(angle);
+      canvas.translate(-r.center.dx, -r.center.dy);
+    }
+
+    // 선택 박스
+    canvas.drawRect(r, boxPaint);
+
+    // 4 코너 핸들
+    final handlePaint = Paint()..color = const Color(0xFF3F51B5);
+    for (final c in [r.topLeft, r.topRight, r.bottomLeft, r.bottomRight]) {
+      final h = Rect.fromCenter(center: c, width: handleSize, height: handleSize);
+      canvas.drawRect(h, handlePaint);
+    }
+
+    // 회전 핸들 (윗 중앙에서 위로)
+    final rotateCenter = Offset(r.center.dx, r.top - rotateHandleOffset);
+    canvas.drawLine(r.topCenter, rotateCenter, boxPaint);
+    canvas.drawCircle(rotateCenter, handleSize * 0.6, handlePaint);
+
+    if (angle != 0) {
       canvas.restore();
     }
   }
 
   @override
-  bool shouldRepaint(covariant _SelectionPainter oldDelegate) {
-    return oldDelegate.selected != selected ||
-        oldDelegate.bounds != bounds ||
-        oldDelegate.start != start ||
-        oldDelegate.end != end ||
-        oldDelegate.handleSize != handleSize ||
-        oldDelegate.isText != isText;
+  bool shouldRepaint(covariant _SelectionPainter old) {
+    return old.selected != selected ||
+        old.bounds != bounds ||
+        old.start != start ||
+        old.end != end ||
+        old.handleSize != handleSize ||
+        old.isText != isText;
   }
 }
-
-
-
-
-
-
-
