@@ -421,6 +421,7 @@ class ToolPanel extends StatelessWidget {
   static String _barcodeLabel(BarcodeType type) => _barcodeLabels[type] ?? type.name;
 }
 
+
 class _ToolChip extends StatelessWidget {
   const _ToolChip({
     required this.currentTool,
@@ -439,13 +440,29 @@ class _ToolChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final selected = currentTool == tool;
-    return ChoiceChip(
-      label: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [Icon(icon, size: 16), const SizedBox(width: 6), Text(label)],
+    final bg = selected ? Theme.of(context).colorScheme.primary.withOpacity(0.12) : Colors.transparent;
+    final fg = selected ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.onSurface;
+
+    return Material(
+      color: bg,
+      shape: StadiumBorder(side: BorderSide(color: selected ? Theme.of(context).colorScheme.primary : Colors.black26)),
+      child: InkWell(
+        mouseCursor: SystemMouseCursors.click,
+        customBorder: const StadiumBorder(),
+        onTap: () => onSelected(tool),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 16, color: fg),
+              const SizedBox(width: 6),
+              Text(label, style: TextStyle(color: fg)),
+            ],
+          ),
+        ),
       ),
-      selected: selected,
-      onSelected: (_) => onSelected(tool),
     );
   }
 }
+

@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:barcode/barcode.dart';
 
 import '../drawables/constrained_text_drawable.dart';
@@ -9,6 +10,92 @@ import '../flutter_painter_v2/flutter_painter.dart';
 import '../models/tool.dart';
 import 'color_dot.dart';
 
+
+class ArrowKeySlider extends StatefulWidget {
+  final double min;
+  final double max;
+  final double value;
+  final ValueChanged<double> onChanged;
+  final double? step;
+
+  const ArrowKeySlider({
+    Key? key,
+    required this.min,
+    required this.max,
+    required this.value,
+    required this.onChanged,
+    this.step,
+  }) : super(key: key);
+
+  @override
+  State<ArrowKeySlider> createState() => _ArrowKeySliderState();
+}
+
+class _ArrowKeySliderState extends State<ArrowKeySlider> {
+  final FocusNode _arrowKeySliderFocusNode = FocusNode();
+  late final FocusNode _focusNode;
+  late double _value;
+
+  @override
+  void initState() {
+    super.initState();
+    _focusNode = FocusNode(canRequestFocus: true, skipTraversal: false, debugLabel: 'ArrowKeySlider');
+
+    super.initState();
+    _value = widget.value;
+  }
+
+  @override
+  void didUpdateWidget(covariant ArrowKeySlider oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.value != widget.value) {
+      _value = widget.value;
+    }
+  }
+
+  void _nudge(int dir) {
+    final step = widget.step ?? (widget.max - widget.min) / 100.0;
+    final nv = (_value + step * dir).clamp(widget.min, widget.max);
+    setState(() { _value = nv; });
+    widget.onChanged(nv);
+  }
+
+  @override
+  
+  @override
+  void dispose() {
+    _arrowKeySliderFocusNode.dispose();
+    super.dispose();
+  }
+
+Widget build(BuildContext context) {
+    return RawKeyboardListener(
+      focusNode: _arrowKeySliderFocusNode,
+      onKey: (event) {
+        if (event is KeyDownEvent) {
+          if (event.logicalKey == LogicalKeyboardKey.arrowLeft) {
+            _nudge(-1);
+            return;
+          }
+          if (event.logicalKey == LogicalKeyboardKey.arrowRight) {
+            _nudge(1);
+            return;
+          }
+        }
+        return;
+      },
+      child: Slider(
+        min: widget.min,
+        max: widget.max,
+        value: _value.clamp(widget.min, widget.max),
+        onChanged: (v) {
+          setState(() { _value = v; });
+          widget.onChanged(v);
+        },
+      ),
+    );
+  }
+}
 class TextDefaults {
   const TextDefaults({
     required this.fontFamily,
@@ -114,13 +201,13 @@ class InspectorPanel extends StatelessWidget {
       ),
       const SizedBox(height: 12),
       const Text('Stroke Width'),
-      Slider(
+      ArrowKeySlider(
         min: 1, max: 24, value: strokeWidth,
         onChanged: (v) => onApplyStroke(newStrokeWidth: v),
       ),
       const SizedBox(height: 12),
       const Text('Corner Radius'),
-      Slider(
+      ArrowKeySlider(
         min: 0, max: 40, value: r.borderRadius.topLeft.x.clamp(0.0, 40.0),
         onChanged: (v) => onApplyStroke(newCornerRadius: v),
       ),
@@ -140,7 +227,7 @@ class InspectorPanel extends StatelessWidget {
       ),
       const SizedBox(height: 12),
       const Text('Stroke Width'),
-      Slider(
+      ArrowKeySlider(
         min: 1, max: 24, value: strokeWidth,
         onChanged: (v) => onApplyStroke(newStrokeWidth: v),
       ),
@@ -251,19 +338,31 @@ class InspectorPanel extends StatelessWidget {
           SizedBox(width: 56, child: Text(currentMaxWidth.toStringAsFixed(0))),
         ],
       ),
+      
       Row(
         children: [
-          const Text('Angle'),
-          IconButton(icon: const Icon(Icons.rotate_right), tooltip: 'Rotate 90°', onPressed: () { currentAngle = ((currentAngle + (math.pi / 2)) % (2 * math.pi)); commitAll(); }),
+          const Text('Rotation'),
+          IconButton(
+            icon: const Icon(Icons.rotate_left),
+            tooltip: 'Rotate -90°',
+            onPressed: () { currentAngle = ((currentAngle - (math.pi / 2)) % (2 * math.pi)); commitAll(); },
+          ),
+          IconButton(
+            icon: const Icon(Icons.rotate_right),
+            tooltip: 'Rotate +90°',
+            onPressed: () { currentAngle = ((currentAngle + (math.pi / 2)) % (2 * math.pi)); commitAll(); },
+          ),
           Expanded(
-            child: Slider(
+            child: ArrowKeySlider(
               min: _angleMin, max: _angleMax, value: currentAngle.clamp(_angleMin, _angleMax),
               onChanged: (v) { currentAngle = v; commitAll(); },
+              step: (math.pi / 180),
             ),
           ),
           SizedBox(width: 44, child: Text(_degLabel(currentAngle))),
         ],
-      ),
+      )
+    ,
     ];
   }
 
@@ -545,10 +644,10 @@ class InspectorPanel extends StatelessWidget {
       ),
       const SizedBox(height: 12),
       const Text('Stroke Width'),
-      Slider(min: 0, max: 16, value: currentStrokeWidth, onChanged: (v) { currentStrokeWidth = v; commitAll(); }),
+      ArrowKeySlider(min: 0, max: 16, value: currentStrokeWidth, onChanged: (v) { currentStrokeWidth = v; commitAll(); }),
       const SizedBox(height: 12),
       const Text('Corner Radius'),
-      Slider(min: 0, max: 40, value: currentRadius.clamp(0.0, 40.0), onChanged: (v) { currentRadius = v; commitAll(); }),
+      ArrowKeySlider(min: 0, max: 40, value: currentRadius.clamp(0.0, 40.0), onChanged: (v) { currentRadius = v; commitAll(); }),
     ];
   }
 
@@ -564,17 +663,72 @@ class InspectorPanel extends StatelessWidget {
 
     return [
       const SizedBox(height: 12),
+      
+      const SizedBox(height: 12),
       const Text('Rotation'),
       Row(
         children: [
-          IconButton(icon: const Icon(Icons.rotate_right), tooltip: 'Rotate 90°', onPressed: () { currentAngle = ((currentAngle + (math.pi / 2)) % (2 * math.pi)); commitRotation(); }),
+          IconButton(
+            icon: const Icon(Icons.rotate_left),
+            tooltip: 'Rotate -90°',
+            onPressed: () { currentAngle = ((currentAngle - (math.pi / 2)) % (2 * math.pi)); commitRotation(); },
+          ),
           Expanded(
-            child: Slider(min: _angleMin, max: _angleMax, value: currentAngle.clamp(_angleMin, _angleMax), onChanged: (v) { currentAngle = v; commitRotation(); }),
+            child: ArrowKeySlider(
+              min: _angleMin, max: _angleMax, value: currentAngle.clamp(_angleMin, _angleMax),
+              onChanged: (v) { currentAngle = v; commitRotation(); },
+              step: (math.pi / 180), // 1°
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.rotate_right),
+            tooltip: 'Rotate +90°',
+            onPressed: () { currentAngle = ((currentAngle + (math.pi / 2)) % (2 * math.pi)); commitRotation(); },
           ),
           SizedBox(width: 44, child: Text(_degLabel(currentAngle))),
         ],
       ),
-    ];
+    
+      const SizedBox(height: 12),
+      const Text('Stroke Color'),
+      const SizedBox(height: 4),
+      Wrap(
+        spacing: 8, runSpacing: 8,
+        children: [
+          for (final c in _swatchColors)
+            ColorDot(
+              color: c,
+              onTap: () {
+                mutateSelected((d) {
+                  if (d is LineDrawable) {
+                    return d.copyWith(paint: d.paint.copyWith(color: c));
+                  }
+                  if (d is ArrowDrawable) {
+                    return d.copyWith(paint: d.paint.copyWith(color: c));
+                  }
+                  return d;
+                });
+              },
+            ),
+        ],
+      ),
+      const SizedBox(height: 12),
+      const Text('Stroke Width'),
+      ArrowKeySlider(
+        min: 1, max: 24, value: (selected is LineDrawable ? (selected as LineDrawable).paint.strokeWidth : (selected as ArrowDrawable).paint.strokeWidth),
+        onChanged: (v) {
+          mutateSelected((d) {
+            if (d is LineDrawable) {
+              return d.copyWith(paint: d.paint.copyWith(strokeWidth: v));
+            }
+            if (d is ArrowDrawable) {
+              return d.copyWith(paint: d.paint.copyWith(strokeWidth: v));
+            }
+            return d;
+          });
+        },
+      ),
+];
   }
 }
 
