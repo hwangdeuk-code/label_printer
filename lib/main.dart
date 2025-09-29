@@ -1,12 +1,12 @@
-﻿// main.dart 전체 파일입니다. (요약 없음)
-
-import 'dart:async';
+﻿import 'dart:async';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
+import 'dart:typed_data';
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:barcode/barcode.dart';
+import 'package:file_selector/file_selector.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
 import 'flutter_painter_v2/flutter_painter.dart';
@@ -16,6 +16,7 @@ import 'flutter_painter_v2/flutter_painter_extensions.dart';
 import 'models/tool.dart';
 import 'drawables/constrained_text_drawable.dart';
 import 'drawables/barcode_drawable.dart';
+import 'drawables/image_box_drawable.dart';
 import 'widgets/tool_panel.dart';
 import 'widgets/inspector_panel.dart';
 import 'widgets/canvas_area.dart';
@@ -57,12 +58,10 @@ class _PainterPageState extends State<PainterPage> {
 
   Tool currentTool = Tool.pen;
 
-  // 스타일
   Color strokeColor = Colors.black;
   double strokeWidth = 4.0;
   Color fillColor = const Color(0x00000000);
 
-  // 텍스트 기본
   String textFontFamily = 'Roboto';
   double textFontSize = 24.0;
   bool textBold = false;
@@ -70,7 +69,6 @@ class _PainterPageState extends State<PainterPage> {
   TxtAlign defaultTextAlign = TxtAlign.left;
   double defaultTextMaxWidth = 300;
 
-  // 바코드 기본
   String barcodeData = '123456789012';
   BarcodeType barcodeType = BarcodeType.Code128;
   bool barcodeShowValue = true;
@@ -79,12 +77,10 @@ class _PainterPageState extends State<PainterPage> {
   Color barcodeBackground = Colors.white;
   double printerDpi = 300;
 
-  // 옵션
   bool lockRatio = false;
   bool angleSnap = true;
   bool endpointDragRotates = true;
 
-  // 스냅 상태
   final double _snapStep = math.pi / 4;
   final double _snapTol = math.pi / 36;
   double? _dragSnapAngle;
@@ -95,30 +91,26 @@ class _PainterPageState extends State<PainterPage> {
   Timer? _pressSnapTimer;
   double _lastRawAngle = 0.0;
 
-  // 생성 드래그
   Offset? dragStart;
   Drawable? previewShape;
 
-  // 선택/조작
   Drawable? selectedDrawable;
   DragAction dragAction = DragAction.none;
   Rect? dragStartBounds;
-  Offset? dragStartPointer;   // 월드 좌표
-  Offset? dragFixedCorner;    // 월드 좌표(회전 반영된 코너)
+  Offset? dragStartPointer;
+  Offset? dragFixedCorner;
   double? startAngle;
+  double? _startPointerAngle;
 
-  // 핸들 렌더
   final double handleSize = 10.0;
   final double handleTouchRadius = 16.0;
   final double rotateHandleOffset = 28.0;
 
-  // 탭/드래그 가드
   bool _pressOnSelection = false;
   bool _movedSinceDown = false;
   Offset? _downScene;
   Drawable? _downHitDrawable;
 
-  // 라인/화살표 리사이즈 상태
   Offset? _laFixedEnd;
   double? _laAngle;
   Offset? _laDir;
@@ -153,22 +145,19 @@ class _PainterPageState extends State<PainterPage> {
     super.dispose();
   }
 
-  // 좌표 변환
   Offset _sceneFromGlobal(Offset global) {
     final renderObject = _painterKey.currentContext?.findRenderObject();
     if (renderObject is! RenderBox) return global;
     final local = renderObject.globalToLocal(global);
     return controller.transformationController.toScene(local);
-  }
+    }
 
-  // 페인트
   Paint _strokePaint(Color c, double w) => Paint()
     ..color = c
     ..style = PaintingStyle.stroke
     ..strokeWidth = w * (scalePercent / 100.0);
   Paint _fillPaint(Color c) => Paint()..color = c..style = PaintingStyle.fill;
 
-  // 라인 헬퍼/바운즈
   Offset _lineStart(Drawable d) {
     if (d is LineDrawable) {
       final dir = Offset(math.cos(d.rotationAngle), math.sin(d.rotationAngle));
@@ -203,6 +192,9 @@ class _PainterPageState extends State<PainterPage> {
     if (d is BarcodeDrawable) {
       return Rect.fromCenter(center: d.position, width: d.size.width, height: d.size.height);
     }
+    if (d is ImageBoxDrawable) {
+      return Rect.fromCenter(center: d.position, width: d.size.width, height: d.size.height);
+    }
     if (d is LineDrawable) {
       final a = _lineStart(d), b = _lineEnd(d);
       return Rect.fromPoints(a, b);
@@ -222,7 +214,6 @@ class _PainterPageState extends State<PainterPage> {
     return Rect.zero;
   }
 
-  // 툴 전환
   bool get _isPainterGestureTool => currentTool == Tool.pen || currentTool == Tool.eraser || currentTool == Tool.select;
 
   void _setTool(Tool t) {
@@ -242,6 +233,7 @@ class _PainterPageState extends State<PainterPage> {
           controller.scalingEnabled = true;
           break;
         case Tool.text:
+        case Tool.image:
           controller.freeStyleMode = FreeStyleMode.none;
           controller.scalingEnabled = false;
           break;
@@ -251,9 +243,13 @@ class _PainterPageState extends State<PainterPage> {
           break;
       }
     });
+
+    if (t == Tool.image) {
+      _pickImageAndAdd();
+      _setTool(Tool.select);
+    }
   }
 
-  // 스냅
   double _normalizeAngle(double rad) {
     final twoPi = 2 * math.pi;
     double a = rad % twoPi;
@@ -262,7 +258,7 @@ class _PainterPageState extends State<PainterPage> {
     return a;
   }
 
-  double _nearestStep(double raw) => (_normalizeAngle(raw / _snapStep).roundToDouble()) * _snapStep;
+  double _nearestStep(double raw) => (_normalizeAngle(raw / (_snapStep)).roundToDouble()) * _snapStep;
 
   double _snapAngle(double raw) {
     if (!angleSnap) return raw;
@@ -281,9 +277,8 @@ class _PainterPageState extends State<PainterPage> {
     return norm;
   }
 
-  // 도형 생성
   void _onPanStartCreate(DragStartDetails d) {
-    if (_isPainterGestureTool || currentTool == Tool.text) return;
+    if (_isPainterGestureTool || currentTool == Tool.text || currentTool == Tool.image) return;
     _dragSnapAngle = null;
     _isCreatingLineLike = (currentTool == Tool.line || currentTool == Tool.arrow);
     _firstAngleLockPending = _isCreatingLineLike;
@@ -304,7 +299,7 @@ class _PainterPageState extends State<PainterPage> {
   }
 
   void _onPanUpdateCreate(DragUpdateDetails d) {
-    if (_isPainterGestureTool || currentTool == Tool.text) return;
+    if (_isPainterGestureTool || currentTool == Tool.text || currentTool == Tool.image) return;
     if (dragStart == null || previewShape == null) return;
     final current = _sceneFromGlobal(d.globalPosition);
 
@@ -321,7 +316,7 @@ class _PainterPageState extends State<PainterPage> {
   }
 
   void _onPanEndCreate() {
-    if (_isPainterGestureTool || currentTool == Tool.text) return;
+    if (_isPainterGestureTool || currentTool == Tool.text || currentTool == Tool.image) return;
     _pressSnapTimer?.cancel();
     _dragSnapAngle = null;
     _isCreatingLineLike = false;
@@ -414,7 +409,6 @@ class _PainterPageState extends State<PainterPage> {
     }
   }
 
-  // 히트 테스트
   bool _hitTest(Drawable d, Offset p) {
     final rect = _boundsOf(d).inflate(math.max(8, strokeWidth));
     if (d is LineDrawable || d is ArrowDrawable) {
@@ -479,10 +473,9 @@ class _PainterPageState extends State<PainterPage> {
       return DragAction.none;
     }
 
-    // 바코드 + 텍스트: 포인터를 언회전 좌표로 보정해서 코너 핸들 판정
     Offset p2 = p;
     final d = selectedDrawable;
-    if (d is BarcodeDrawable || d is ConstrainedTextDrawable || d is TextDrawable) {
+    if (d is BarcodeDrawable || d is ConstrainedTextDrawable || d is TextDrawable || d is ImageBoxDrawable) {
       final angle = (d as ObjectDrawable).rotationAngle;
       if (angle != 0) {
         final center = bounds.center;
@@ -511,14 +504,12 @@ class _PainterPageState extends State<PainterPage> {
 
   Offset _rotateHandlePos(Rect r) => Offset(r.center.dx, r.top - rotateHandleOffset);
 
-  // 도우미: 한 점을 center 기준 +angle로 회전
   Offset _rotPoint(Offset point, Offset center, double angle) {
     final v = point - center;
     final ca = math.cos(angle), sa = math.sin(angle);
     return Offset(ca * v.dx - sa * v.dy, sa * v.dx + ca * v.dy) + center;
   }
 
-  // 로컬(언회전) 벡터 변환
   Offset _toLocalVec(Offset worldPoint, Offset center, double angle) {
     final v = worldPoint - center;
     final cosA = math.cos(-angle), sinA = math.sin(-angle);
@@ -531,7 +522,6 @@ class _PainterPageState extends State<PainterPage> {
     return center + w;
   }
 
-  // PointerDown: select/text
   void _handlePointerDownSelect(PointerDownEvent e) async {
     if (currentTool == Tool.text) {
       final scenePoint = _sceneFromGlobal(e.position);
@@ -560,7 +550,6 @@ class _PainterPageState extends State<PainterPage> {
     return null;
   }
 
-  // Select overlay
   void _onOverlayPanStart(DragStartDetails details) {
     if (currentTool != Tool.select) return;
 
@@ -598,28 +587,32 @@ class _PainterPageState extends State<PainterPage> {
 
     clearLineResize();
 
-    if (current != null) {
-      final rect = _boundsOf(current);
-      final action = _hitHandle(rect, localScene);
+    void prime(ObjectDrawable obj, Rect rect, DragAction action) {
       dragAction = action;
       dragStartBounds = rect;
       dragStartPointer = localScene;
 
-      if (action == DragAction.rotate && current is ObjectDrawable) {
-        startAngle = current.rotationAngle;
+      if (action == DragAction.rotate) {
+        startAngle = obj.rotationAngle;
+        final center = obj.position;
+        _startPointerAngle = math.atan2(
+          (localScene - center).dy,
+          (localScene - center).dx,
+        );
       } else {
         startAngle = null;
+        _startPointerAngle = null;
       }
 
-      // 바코드 + 텍스트: 리사이즈 시작 시 고정 코너를 "회전된 코너"로 저장
-      if (current is BarcodeDrawable ||
-          current is ConstrainedTextDrawable ||
-          current is TextDrawable) {
+      if (obj is BarcodeDrawable ||
+          obj is ConstrainedTextDrawable ||
+          obj is TextDrawable ||
+          obj is ImageBoxDrawable) {
         if (action == DragAction.resizeNW ||
             action == DragAction.resizeNE ||
             action == DragAction.resizeSW ||
             action == DragAction.resizeSE) {
-          final angle = (current as ObjectDrawable).rotationAngle;
+          final angle = obj.rotationAngle;
           final opp = _fixedCornerForAction(rect, action);
           dragFixedCorner = _rotPoint(opp, rect.center, angle);
         } else {
@@ -628,86 +621,39 @@ class _PainterPageState extends State<PainterPage> {
       } else {
         dragFixedCorner = null;
       }
+    }
 
+    if (current is ObjectDrawable) {
+      final rect = _boundsOf(current);
+      final action = _hitHandle(rect, localScene);
+      prime(current, rect, action);
       prepareLineResize(current, action);
 
       if (action == DragAction.none && !rect.inflate(4).contains(localScene)) {
         final hit = _pickTopAt(localScene);
-        if (hit != null && hit != current) {
+        if (hit is ObjectDrawable && hit != current) {
           setState(() => selectedDrawable = hit);
           final r2 = _boundsOf(hit);
           final a2 = _hitHandle(r2, localScene);
-          dragAction = a2;
-          dragStartBounds = r2;
-          dragStartPointer = localScene;
-
-          if (a2 == DragAction.rotate && hit is ObjectDrawable) {
-            startAngle = hit.rotationAngle;
-          } else {
-            startAngle = null;
-          }
-
-          if (hit is BarcodeDrawable ||
-              hit is ConstrainedTextDrawable ||
-              hit is TextDrawable) {
-            if (a2 == DragAction.resizeNW ||
-                a2 == DragAction.resizeNE ||
-                a2 == DragAction.resizeSW ||
-                a2 == DragAction.resizeSE) {
-              final angle = (hit as ObjectDrawable).rotationAngle;
-              final opp = _fixedCornerForAction(r2, a2);
-              dragFixedCorner = _rotPoint(opp, r2.center, angle);
-            } else {
-              dragFixedCorner = null;
-            }
-          } else {
-            dragFixedCorner = null;
-          }
-
+          prime(hit, r2, a2);
           prepareLineResize(hit, a2);
         }
       }
     } else {
       final hit = _pickTopAt(localScene);
-      if (hit != null) {
+      if (hit is ObjectDrawable) {
         setState(() => selectedDrawable = hit);
         final r2 = _boundsOf(hit);
         final a2 = _hitHandle(r2, localScene);
-        dragAction = a2;
-        dragStartBounds = r2;
-        dragStartPointer = localScene;
-
-        if (a2 == DragAction.rotate && hit is ObjectDrawable) {
-          startAngle = hit.rotationAngle;
-        } else {
-          startAngle = null;
-        }
-
-        if (hit is BarcodeDrawable ||
-            hit is ConstrainedTextDrawable ||
-            hit is TextDrawable) {
-          if (a2 == DragAction.resizeNW ||
-              a2 == DragAction.resizeNE ||
-              a2 == DragAction.resizeSW ||
-              a2 == DragAction.resizeSE) {
-            final angle = (hit as ObjectDrawable).rotationAngle;
-            final opp = _fixedCornerForAction(r2, a2);
-            dragFixedCorner = _rotPoint(opp, r2.center, angle);
-          } else {
-            dragFixedCorner = null;
-          }
-        } else {
-          dragFixedCorner = null;
-        }
-
+        prime(hit, r2, a2);
         prepareLineResize(hit, a2);
       } else {
         dragAction = DragAction.none;
         dragStartBounds = null;
         dragStartPointer = null;
         startAngle = null;
+        _startPointerAngle = null;
         dragFixedCorner = null;
-        clearLineResize();
       }
     }
 
@@ -718,7 +664,6 @@ class _PainterPageState extends State<PainterPage> {
     if (selectedDrawable == null || dragAction == DragAction.none) return;
     _movedSinceDown = true;
 
-    // ---- 월드/로컬 좌표 분리 (핵심 수정) ----
     final scenePtWorld = _sceneFromGlobal(details.globalPosition);
     var scenePtLocal = scenePtWorld;
 
@@ -727,8 +672,7 @@ class _PainterPageState extends State<PainterPage> {
     final startPtWorld = dragStartPointer!;
     Drawable? replaced;
 
-    // 바코드/텍스트의 "리사이즈"에서만 로컬 좌표(언회전) 사용
-    final isTextLike = original is BarcodeDrawable || original is ConstrainedTextDrawable || original is TextDrawable;
+    final isTextLike = original is BarcodeDrawable || original is ConstrainedTextDrawable || original is TextDrawable || original is ImageBoxDrawable;
     final isCornerResize = (dragAction == DragAction.resizeNW || dragAction == DragAction.resizeNE || dragAction == DragAction.resizeSW || dragAction == DragAction.resizeSE);
 
     if (isTextLike && isCornerResize) {
@@ -741,7 +685,6 @@ class _PainterPageState extends State<PainterPage> {
       }
     }
 
-    // --- MOVE (항상 월드 좌표) ---
     if (dragAction == DragAction.move) {
       final delta = scenePtWorld - startPtWorld;
       if (original is RectangleDrawable) {
@@ -758,29 +701,39 @@ class _PainterPageState extends State<PainterPage> {
         replaced = original.copyWith(position: startRect.center + delta);
       } else if (original is TextDrawable) {
         replaced = original.copyWith(position: startRect.center + delta);
+      } else if (original is ImageBoxDrawable) {
+        replaced = original.copyWithExt(position: startRect.center + delta);
       }
     }
-    // --- ROTATE (항상 월드 좌표) ---
     else if (dragAction == DragAction.rotate) {
       if (original is ObjectDrawable) {
         final center = original.position;
-        var ang = math.atan2((scenePtWorld - center).dy, (scenePtWorld - center).dx);
-        ang = _snapAngle(ang);
+
+        final curPointerAngle = math.atan2(
+          (scenePtWorld - center).dy,
+          (scenePtWorld - center).dx,
+        );
+        final baseObjAngle = startAngle ?? original.rotationAngle;
+        final basePointerAngle = _startPointerAngle ?? curPointerAngle;
+
+        var newAngle = baseObjAngle + (curPointerAngle - basePointerAngle);
+        newAngle = _snapAngle(newAngle);
 
         if (original is LineDrawable) {
-          replaced = original.copyWith(rotation: ang);
+          replaced = original.copyWith(rotation: newAngle);
         } else if (original is ArrowDrawable) {
-          replaced = original.copyWith(rotation: ang);
+          replaced = original.copyWith(rotation: newAngle);
         } else if (original is ConstrainedTextDrawable) {
-          replaced = original.copyWith(rotation: ang);
+          replaced = original.copyWith(rotation: newAngle);
         } else if (original is TextDrawable) {
-          replaced = original.copyWith(rotation: ang);
+          replaced = original.copyWith(rotation: newAngle);
         } else if (original is BarcodeDrawable) {
-          replaced = original.copyWith(rotation: ang);
+          replaced = original.copyWith(rotation: newAngle);
+        } else if (original is ImageBoxDrawable) {
+          replaced = original.copyWithExt(rotation: newAngle);
         }
       }
     }
-    // --- RESIZE ---
     else {
       if (original is RectangleDrawable || original is OvalDrawable) {
         final fixed = dragFixedCorner ?? _fixedCornerForAction(startRect, dragAction);
@@ -869,6 +822,37 @@ class _PainterPageState extends State<PainterPage> {
 
           replaced = original.copyWith(position: newCenterWorld, rotation: angle);
         }
+      } else if (original is ImageBoxDrawable) {
+        if (isCornerResize) {
+          final angle = original.rotationAngle;
+          final center0 = startRect.center;
+
+          final worldFixed = dragFixedCorner!;
+          final worldMove = scenePtWorld;
+
+          final vFixed = _toLocalVec(worldFixed, center0, angle);
+          final vMove  = _toLocalVec(worldMove,  center0, angle);
+
+          Offset vCenter = (vFixed + vMove) / 2;
+          Size newSize = Size((vMove.dx - vFixed.dx).abs(), (vMove.dy - vFixed.dy).abs());
+
+          if (lockRatio) {
+            final m = math.max(newSize.width, newSize.height);
+            final signX = (vMove.dx - vFixed.dx) >= 0 ? 1.0 : -1.0;
+            final signY = (vMove.dy - vFixed.dy) >= 0 ? 1.0 : -1.0;
+            final vMoveLocked = Offset(vFixed.dx + signX * m, vFixed.dy + signY * m);
+            vCenter = (vFixed + vMoveLocked) / 2;
+            newSize = Size(m, m);
+          }
+
+          final newCenterWorld = _fromLocalVec(vCenter, center0, angle);
+
+          replaced = original.copyWithExt(
+            position: newCenterWorld,
+            size: newSize,
+            rotation: angle,
+          );
+        }
       } else if (original is LineDrawable || original is ArrowDrawable) {
         if (_laFixedEnd != null) {
           final fixed = _laFixedEnd!;
@@ -906,6 +890,7 @@ class _PainterPageState extends State<PainterPage> {
 
     if (replaced != null) {
       controller.replaceDrawable(original, replaced);
+      controller.notifyListeners(); // ✅ 인스펙트/드래그 모두에서 캔버스 즉시 리렌더
       setState(() => selectedDrawable = replaced);
     }
   }
@@ -920,6 +905,7 @@ class _PainterPageState extends State<PainterPage> {
     dragStartPointer = null;
     dragFixedCorner = null;
     startAngle = null;
+    _startPointerAngle = null;
 
     _laFixedEnd = null;
     _laAngle = null;
@@ -941,7 +927,6 @@ class _PainterPageState extends State<PainterPage> {
     }
   }
 
-  // 텍스트 생성(기존)
   Future<void> _createTextAt(Offset scenePoint) async {
     final controllerText = TextEditingController();
     double tempSize = textFontSize;
@@ -1096,18 +1081,47 @@ class _PainterPageState extends State<PainterPage> {
     );
   }
 
+  Future<void> _pickImageAndAdd() async {
+    final typeGroup = const XTypeGroup(
+      label: 'images',
+      extensions: ['png', 'jpg', 'jpeg', 'bmp', 'webp'],
+    );
+    final file = await openFile(acceptedTypeGroups: [typeGroup]);
+    if (file == null) return;
+
+    final data = await file.readAsBytes();
+    final ui.Codec codec = await ui.instantiateImageCodec(Uint8List.fromList(data));
+    final ui.FrameInfo fi = await codec.getNextFrame();
+    final ui.Image image = fi.image;
+
+    const double maxSide = 320;
+    double w = image.width.toDouble();
+    double h = image.height.toDouble();
+    final scale = (w > h) ? (maxSide / w) : (maxSide / h);
+    if (scale < 1.0) { w *= scale; h *= scale; }
+
+    final imgDrawable = ImageBoxDrawable(
+      position: const Offset(320, 320),
+      image: image,
+      size: Size(w, h),
+      rotationAngle: 0,
+      strokeWidth: 0,
+    );
+
+    controller.addDrawables([imgDrawable]);
+    setState(() {
+      selectedDrawable = imgDrawable;
+      currentTool = Tool.select;
+      controller.freeStyleMode = FreeStyleMode.none;
+      controller.scalingEnabled = true;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text.rich(
-          TextSpan(
-            children: [
-              TextSpan(text: '$appTitle ', style: const TextStyle(fontSize: 20)),
-              TextSpan(text: 'v$appVersion', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.normal)),
-            ],
-          ),
-        ),
+        title: Text('$appTitle v$appVersion'),
         actions: [
           IconButton(onPressed: controller.canUndo ? controller.undo : null, icon: const Icon(Icons.undo)),
           IconButton(onPressed: controller.canRedo ? controller.redo : null, icon: const Icon(Icons.redo)),
@@ -1197,24 +1211,33 @@ class _PainterPageState extends State<PainterPage> {
           ),
           const VerticalDivider(width: 1),
           InspectorPanel(
-            selected: selectedDrawable,
-            strokeWidth: strokeWidth,
-            onApplyStroke: _applyInspector,
-            onReplaceDrawable: (original, replacement) {
-              controller.replaceDrawable(original, replacement);
-              setState(() => selectedDrawable = replacement);
-            },
-            angleSnap: angleSnap,
-            snapAngle: _snapAngle,
-            textDefaults: TextDefaults(
-              fontFamily: textFontFamily,
-              fontSize: textFontSize,
-              bold: textBold,
-              italic: textItalic,
-              align: defaultTextAlign,
-              maxWidth: defaultTextMaxWidth,
-            ),
-          ),
+						selected: selectedDrawable,
+						strokeWidth: strokeWidth,
+						onApplyStroke: _applyInspector,
+						onReplaceDrawable: (original, replacement) {
+							controller.replaceDrawable(original, replacement);
+							setState(() => selectedDrawable = replacement);
+						},
+						angleSnap: angleSnap,
+						snapAngle: _snapAngle,
+						textDefaults: TextDefaults(
+							fontFamily: textFontFamily,
+							fontSize: textFontSize,
+							bold: textBold,
+							italic: textItalic,
+							align: defaultTextAlign,
+							maxWidth: defaultTextMaxWidth,
+						),
+						// ★ 최신 선택 객체 기준으로 안전하게 갱신
+						mutateSelected: (rewriter) {
+							final cur = selectedDrawable;
+							if (cur == null) return;
+							final replacement = rewriter(cur);
+							if (identical(replacement, cur)) return;
+							controller.replaceDrawable(cur, replacement);
+							setState(() => selectedDrawable = replacement);
+						},
+					),
         ],
       ),
     );
@@ -1260,11 +1283,14 @@ class _PainterPageState extends State<PainterPage> {
     } else if (d is ConstrainedTextDrawable || d is TextDrawable) {
       return;
     } else if (d is BarcodeDrawable) {
-      return; // 바코드의 색/배경은 Inspector에서 변경하지 않음
+      return;
+    } else if (d is ImageBoxDrawable) {
+      return;
     }
 
     if (replaced != null) {
       controller.replaceDrawable(d, replaced);
+      controller.notifyListeners(); // ✅
       setState(() {
         selectedDrawable = replaced;
         if (newStrokeColor != null) strokeColor = newStrokeColor;

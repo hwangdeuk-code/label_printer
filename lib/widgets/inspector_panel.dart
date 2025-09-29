@@ -1,10 +1,10 @@
 import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 import 'package:barcode/barcode.dart';
 
 import '../drawables/constrained_text_drawable.dart';
 import '../drawables/barcode_drawable.dart';
+import '../drawables/image_box_drawable.dart';
 import '../flutter_painter_v2/flutter_painter.dart';
 import '../models/tool.dart';
 import 'color_dot.dart';
@@ -37,6 +37,7 @@ class InspectorPanel extends StatelessWidget {
     required this.angleSnap,
     required this.snapAngle,
     required this.textDefaults,
+    required this.mutateSelected,        // ★ 추가
   });
 
   final Drawable? selected;
@@ -47,6 +48,9 @@ class InspectorPanel extends StatelessWidget {
   final double Function(double) snapAngle;
   final TextDefaults textDefaults;
 
+  /// 최신 선택 객체로 안전하게 변형/치환
+  final void Function(Drawable Function(Drawable current)) mutateSelected; // ★ 추가
+
   static const _swatchColors = [
     Colors.black,
     Colors.red,
@@ -54,6 +58,16 @@ class InspectorPanel extends StatelessWidget {
     Colors.green,
     Colors.orange,
   ];
+
+  // 연속 회전 지원을 위한 넓은 슬라이더 범위
+  static const double _angleMin = -8 * math.pi;
+  static const double _angleMax =  8 * math.pi;
+
+  String _degLabel(double radians) {
+    final deg = radians * 180 / math.pi;
+    final norm = ((deg % 360) + 360) % 360; // 0..360
+    return '${norm.toStringAsFixed(0)}°';
+    }
 
   @override
   Widget build(BuildContext context) {
@@ -69,53 +83,67 @@ class InspectorPanel extends StatelessWidget {
           else ...[
             _kv('Type', selected!.runtimeType.toString()),
             const SizedBox(height: 12),
-            if (selected is! ConstrainedTextDrawable && selected is! TextDrawable && selected is! BarcodeDrawable)
-              ..._buildShapeControls(selected!),
+            if (selected is RectangleDrawable) ..._buildRectControls(selected as RectangleDrawable),
+            if (selected is OvalDrawable) ..._buildOvalControls(selected as OvalDrawable),
             if (selected is ConstrainedTextDrawable)
               ..._buildConstrainedTextControls(selected as ConstrainedTextDrawable),
             if (selected is TextDrawable)
               ..._buildPlainTextControls(selected as TextDrawable),
             if (selected is BarcodeDrawable)
               ..._buildBarcodeControls(selected as BarcodeDrawable),
+            if (selected is ImageBoxDrawable)
+              ..._buildImageControls(selected as ImageBoxDrawable),
+            if (selected is LineDrawable || selected is ArrowDrawable)
+              ..._buildLineLikeRotation(selected as ObjectDrawable),
           ],
         ],
       ),
     );
   }
 
-  List<Widget> _buildShapeControls(Drawable drawable) {
+  List<Widget> _buildRectControls(RectangleDrawable r) {
     return [
       const Text('Stroke Color'),
       const SizedBox(height: 4),
       Wrap(
-        spacing: 8,
-        runSpacing: 8,
+        spacing: 8, runSpacing: 8,
         children: [
           for (final c in _swatchColors)
-            ColorDot(
-              color: c,
-              onTap: () => onApplyStroke(newStrokeColor: c),
-            ),
+            ColorDot(color: c, onTap: () => onApplyStroke(newStrokeColor: c)),
         ],
       ),
       const SizedBox(height: 12),
       const Text('Stroke Width'),
       Slider(
-        min: 1,
-        max: 24,
-        value: strokeWidth,
+        min: 1, max: 24, value: strokeWidth,
         onChanged: (v) => onApplyStroke(newStrokeWidth: v),
       ),
-      if (drawable is RectangleDrawable) ...[
-        const SizedBox(height: 12),
-        const Text('Corner Radius (Rect)'),
-        Slider(
-          min: 0,
-          max: 40,
-          value: drawable.borderRadius.topLeft.x.clamp(0.0, 40.0),
-          onChanged: (v) => onApplyStroke(newCornerRadius: v),
-        ),
-      ],
+      const SizedBox(height: 12),
+      const Text('Corner Radius'),
+      Slider(
+        min: 0, max: 40, value: r.borderRadius.topLeft.x.clamp(0.0, 40.0),
+        onChanged: (v) => onApplyStroke(newCornerRadius: v),
+      ),
+    ];
+  }
+
+  List<Widget> _buildOvalControls(OvalDrawable o) {
+    return [
+      const Text('Stroke Color'),
+      const SizedBox(height: 4),
+      Wrap(
+        spacing: 8, runSpacing: 8,
+        children: [
+          for (final c in _swatchColors)
+            ColorDot(color: c, onTap: () => onApplyStroke(newStrokeColor: c)),
+        ],
+      ),
+      const SizedBox(height: 12),
+      const Text('Stroke Width'),
+      Slider(
+        min: 1, max: 24, value: strokeWidth,
+        onChanged: (v) => onApplyStroke(newStrokeWidth: v),
+      ),
     ];
   }
 
@@ -123,61 +151,52 @@ class InspectorPanel extends StatelessWidget {
     final controller = TextEditingController(text: td.text);
     Color currentColor = td.style.color ?? Colors.black;
     double currentSize = td.style.fontSize ?? textDefaults.fontSize;
-    bool currentBold =
-        (td.style.fontWeight ?? FontWeight.normal) == FontWeight.bold;
-    bool currentItalic =
-        (td.style.fontStyle ?? FontStyle.normal) == FontStyle.italic;
+    bool currentBold = (td.style.fontWeight ?? FontWeight.normal) == FontWeight.bold;
+    bool currentItalic = (td.style.fontStyle ?? FontStyle.normal) == FontStyle.italic;
     String currentFamily = td.style.fontFamily ?? textDefaults.fontFamily;
     TxtAlign currentAlign = td.align;
     double currentMaxWidth = td.maxWidth;
     double currentAngle = td.rotationAngle;
 
-    void commit() {
-      final style = TextStyle(
-        color: currentColor,
-        fontSize: currentSize,
-        fontWeight: currentBold ? FontWeight.bold : FontWeight.normal,
-        fontStyle: currentItalic ? FontStyle.italic : FontStyle.normal,
-        fontFamily: currentFamily,
-      );
-      final replacement = td.copyWith(
-        text: controller.text,
-        style: style,
-        align: currentAlign,
-        maxWidth: currentMaxWidth,
-        rotation: currentAngle,
-      );
-      onReplaceDrawable(td, replacement);
+    void commitAll() {
+      mutateSelected((d) {
+        final cur = d as ConstrainedTextDrawable;
+        final style = TextStyle(
+          color: currentColor,
+          fontSize: currentSize,
+          fontWeight: currentBold ? FontWeight.bold : FontWeight.normal,
+          fontStyle: currentItalic ? FontStyle.italic : FontStyle.normal,
+          fontFamily: currentFamily,
+        );
+        return cur.copyWith(
+          text: controller.text,
+          style: style,
+          align: currentAlign,
+          maxWidth: currentMaxWidth,
+          rotation: currentAngle,
+        );
+      });
     }
 
     return [
       const Text('Content'),
       const SizedBox(height: 4),
       TextField(
-        controller: controller,
-        minLines: 1,
-        maxLines: 6,
-        decoration: const InputDecoration(
-          border: OutlineInputBorder(),
-          isDense: true,
-        ),
-        onSubmitted: (_) => commit(),
+        controller: controller, minLines: 1, maxLines: 6,
+        decoration: const InputDecoration(border: OutlineInputBorder(), isDense: true),
+        onSubmitted: (_) => commitAll(),
+        onChanged: (_) => commitAll(),
       ),
       const SizedBox(height: 12),
       const Text('Color'),
       const SizedBox(height: 4),
       Wrap(
-        spacing: 8,
-        runSpacing: 8,
+        spacing: 8, runSpacing: 8,
         children: [
           for (final c in _swatchColors)
             ColorDot(
-              color: c,
-              selected: currentColor == c,
-              onTap: () {
-                currentColor = c;
-                commit();
-              },
+              color: c, selected: currentColor == c,
+              onTap: () { currentColor = c; commitAll(); },
             ),
         ],
       ),
@@ -185,47 +204,21 @@ class InspectorPanel extends StatelessWidget {
       Row(
         children: [
           const Text('Size'),
-          Expanded(
-            child: Slider(
-              min: 8,
-              max: 96,
-              value: currentSize,
-              onChanged: (v) {
-                currentSize = v;
-                commit();
-              },
-            ),
-          ),
+          Expanded(child: Slider(min: 8, max: 96, value: currentSize, onChanged: (v) { currentSize = v; commitAll(); })),
           SizedBox(width: 42, child: Text(currentSize.toStringAsFixed(0))),
         ],
       ),
       Wrap(
-        spacing: 8,
-        runSpacing: 8,
+        spacing: 8, runSpacing: 8,
         children: [
-          FilterChip(
-            label: const Text('Bold'),
-            selected: currentBold,
-            onSelected: (v) {
-              currentBold = v;
-              commit();
-            },
-          ),
-          FilterChip(
-            label: const Text('Italic'),
-            selected: currentItalic,
-            onSelected: (v) {
-              currentItalic = v;
-              commit();
-            },
-          ),
+          FilterChip(label: const Text('Bold'), selected: currentBold, onSelected: (v) { currentBold = v; commitAll(); }),
+          FilterChip(label: const Text('Italic'), selected: currentItalic, onSelected: (v) { currentItalic = v; commitAll(); }),
         ],
       ),
       const SizedBox(height: 8),
       Row(
         children: [
-          const Text('Font'),
-          const SizedBox(width: 8),
+          const Text('Font'), const SizedBox(width: 8),
           DropdownButton<String>(
             value: currentFamily,
             items: const [
@@ -233,19 +226,13 @@ class InspectorPanel extends StatelessWidget {
               DropdownMenuItem(value: 'NotoSans', child: Text('NotoSans')),
               DropdownMenuItem(value: 'Monospace', child: Text('Monospace')),
             ],
-            onChanged: (v) {
-              if (v != null) {
-                currentFamily = v;
-                commit();
-              }
-            },
+            onChanged: (v) { if (v != null) { currentFamily = v; commitAll(); } },
           ),
         ],
       ),
       Row(
         children: [
-          const Text('Align'),
-          const SizedBox(width: 8),
+          const Text('Align'), const SizedBox(width: 8),
           DropdownButton<TxtAlign>(
             value: currentAlign,
             items: const [
@@ -253,47 +240,122 @@ class InspectorPanel extends StatelessWidget {
               DropdownMenuItem(value: TxtAlign.center, child: Text('Center')),
               DropdownMenuItem(value: TxtAlign.right, child: Text('Right')),
             ],
-            onChanged: (v) {
-              if (v != null) {
-                currentAlign = v;
-                commit();
-              }
-            },
+            onChanged: (v) { if (v != null) { currentAlign = v; commitAll(); } },
           ),
         ],
       ),
       Row(
         children: [
           const Text('Max Width'),
-          Expanded(
-            child: Slider(
-              min: 40,
-              max: 1200,
-              value: currentMaxWidth,
-              onChanged: (v) {
-                currentMaxWidth = v;
-                commit();
-              },
-            ),
-          ),
+          Expanded(child: Slider(min: 40, max: 1200, value: currentMaxWidth, onChanged: (v) { currentMaxWidth = v; commitAll(); })),
           SizedBox(width: 56, child: Text(currentMaxWidth.toStringAsFixed(0))),
         ],
       ),
-      // === 앵글: 바코드와 동일한 90° 회전 버튼 방식 ===
       Row(
         children: [
           const Text('Angle'),
-          IconButton(
-            icon: const Icon(Icons.rotate_right),
-            tooltip: 'Rotate 90°',
-            onPressed: () {
-              currentAngle = ((currentAngle + (math.pi / 2)) % (2 * math.pi));
-              commit();
-            },
+          IconButton(icon: const Icon(Icons.rotate_right), tooltip: 'Rotate 90°', onPressed: () { currentAngle = ((currentAngle + (math.pi / 2)) % (2 * math.pi)); commitAll(); }),
+          Expanded(
+            child: Slider(
+              min: _angleMin, max: _angleMax, value: currentAngle.clamp(_angleMin, _angleMax),
+              onChanged: (v) { currentAngle = v; commitAll(); },
+            ),
           ),
-          const SizedBox(width: 8),
-          Text('${(currentAngle * 180 / math.pi).toStringAsFixed(0)}°'),
+          SizedBox(width: 44, child: Text(_degLabel(currentAngle))),
         ],
+      ),
+    ];
+  }
+
+  List<Widget> _buildPlainTextControls(TextDrawable td) {
+    final controller = TextEditingController(text: td.text);
+    Color currentColor = td.style.color ?? Colors.black;
+    double currentSize = td.style.fontSize ?? textDefaults.fontSize;
+    bool currentBold = (td.style.fontWeight ?? FontWeight.normal) == FontWeight.bold;
+    bool currentItalic = (td.style.fontStyle ?? FontStyle.normal) == FontStyle.italic;
+    String currentFamily = td.style.fontFamily ?? textDefaults.fontFamily;
+    double currentAngle = td.rotationAngle;
+
+    void commitAll() {
+      mutateSelected((d) {
+        final cur = d as TextDrawable;
+        final style = TextStyle(
+          color: currentColor,
+          fontSize: currentSize,
+          fontWeight: currentBold ? FontWeight.bold : FontWeight.normal,
+          fontStyle: currentItalic ? FontStyle.italic : FontStyle.normal,
+          fontFamily: currentFamily,
+        );
+        return cur.copyWith(text: controller.text, style: style, rotation: currentAngle);
+      });
+    }
+
+    return [
+      const Text('Content'),
+      const SizedBox(height: 4),
+      TextField(
+        controller: controller, minLines: 1, maxLines: 6,
+        decoration: const InputDecoration(border: OutlineInputBorder(), isDense: true),
+        onSubmitted: (_) => commitAll(),
+        onChanged: (_) => commitAll(),
+      ),
+      const SizedBox(height: 12),
+      const Text('Color'),
+      const SizedBox(height: 4),
+      Wrap(
+        spacing: 8, runSpacing: 8,
+        children: [
+          for (final c in _swatchColors)
+            ColorDot(color: c, selected: currentColor == c, onTap: () { currentColor = c; commitAll(); }),
+        ],
+      ),
+      const SizedBox(height: 12),
+      Row(
+        children: [
+          const Text('Size'),
+          Expanded(child: Slider(min: 8, max: 96, value: currentSize, onChanged: (v) { currentSize = v; commitAll(); })),
+          SizedBox(width: 42, child: Text(currentSize.toStringAsFixed(0))),
+        ],
+      ),
+      Wrap(
+        spacing: 8, runSpacing: 8,
+        children: [
+          FilterChip(label: const Text('Bold'), selected: currentBold, onSelected: (v) { currentBold = v; commitAll(); }),
+          FilterChip(label: const Text('Italic'), selected: currentItalic, onSelected: (v) { currentItalic = v; commitAll(); }),
+        ],
+      ),
+      const SizedBox(height: 8),
+      Row(
+        children: [
+          const Text('Font'), const SizedBox(width: 8),
+          DropdownButton<String>(
+            value: currentFamily,
+            items: const [
+              DropdownMenuItem(value: 'Roboto', child: Text('Roboto')),
+              DropdownMenuItem(value: 'NotoSans', child: Text('NotoSans')),
+              DropdownMenuItem(value: 'Monospace', child: Text('Monospace')),
+            ],
+            onChanged: (v) { if (v != null) { currentFamily = v; commitAll(); } },
+          ),
+        ],
+      ),
+      Row(
+        children: [
+          const Text('Angle'),
+          IconButton(icon: const Icon(Icons.rotate_right), tooltip: 'Rotate 90°', onPressed: () { currentAngle = ((currentAngle + (math.pi / 2)) % (2 * math.pi)); commitAll(); }),
+          Expanded(
+            child: Slider(
+              min: _angleMin, max: _angleMax, value: currentAngle.clamp(_angleMin, _angleMax),
+              onChanged: (v) { currentAngle = v; commitAll(); },
+            ),
+          ),
+          SizedBox(width: 44, child: Text(_degLabel(currentAngle))),
+        ],
+      ),
+      const SizedBox(height: 4),
+      const Text(
+        'TextDrawable는 크기박스/정렬/최대폭을 지원하지 않습니다.\n폭 제어는 ConstrainedText를 사용하세요.',
+        style: TextStyle(fontSize: 12, color: Colors.black54),
       ),
     ];
   }
@@ -305,7 +367,6 @@ class InspectorPanel extends StatelessWidget {
     BarcodeType.PDF417,
     BarcodeType.DataMatrix,
   ];
-
   static const _barcodeLabels = <BarcodeType, String>{
     BarcodeType.Code128: 'Code 128',
     BarcodeType.Code39: 'Code 39',
@@ -313,158 +374,7 @@ class InspectorPanel extends StatelessWidget {
     BarcodeType.PDF417: 'PDF417',
     BarcodeType.DataMatrix: 'Data Matrix',
   };
-
-  static const _barcodeBgChoices = <Color>[
-    Color(0x00FFFFFF),
-    Color(0xFFFFFFFF),
-    Color(0xFFF4F4F4),
-    Color(0xFFE8F0FE),
-    Color(0xFFFFF8E1),
-    Color(0xFFE8F5E9),
-  ];
-
-  List<Widget> _buildPlainTextControls(TextDrawable td) {
-    final controller = TextEditingController(text: td.text);
-    Color currentColor = td.style.color ?? Colors.black;
-    double currentSize = td.style.fontSize ?? textDefaults.fontSize;
-    bool currentBold =
-        (td.style.fontWeight ?? FontWeight.normal) == FontWeight.bold;
-    bool currentItalic =
-        (td.style.fontStyle ?? FontStyle.normal) == FontStyle.italic;
-    String currentFamily = td.style.fontFamily ?? textDefaults.fontFamily;
-    double currentAngle = td.rotationAngle;
-
-    void commit() {
-      final style = TextStyle(
-        color: currentColor,
-        fontSize: currentSize,
-        fontWeight: currentBold ? FontWeight.bold : FontWeight.normal,
-        fontStyle: currentItalic ? FontStyle.italic : FontStyle.normal,
-        fontFamily: currentFamily,
-      );
-      final replacement = td.copyWith(
-        text: controller.text,
-        style: style,
-        rotation: currentAngle,
-      );
-      onReplaceDrawable(td, replacement);
-    }
-
-    return [
-      const Text('Content'),
-      const SizedBox(height: 4),
-      TextField(
-        controller: controller,
-        minLines: 1,
-        maxLines: 6,
-        decoration: const InputDecoration(
-          border: OutlineInputBorder(),
-          isDense: true,
-        ),
-        onSubmitted: (_) => commit(),
-      ),
-      const SizedBox(height: 12),
-      const Text('Color'),
-      const SizedBox(height: 4),
-      Wrap(
-        spacing: 8,
-        runSpacing: 8,
-        children: [
-          for (final c in _swatchColors)
-            ColorDot(
-              color: c,
-              selected: currentColor == c,
-              onTap: () {
-                currentColor = c;
-                commit();
-              },
-            ),
-        ],
-      ),
-      const SizedBox(height: 12),
-      Row(
-        children: [
-          const Text('Size'),
-          Expanded(
-            child: Slider(
-              min: 8,
-              max: 96,
-              value: currentSize,
-              onChanged: (v) {
-                currentSize = v;
-                commit();
-              },
-            ),
-          ),
-          SizedBox(width: 42, child: Text(currentSize.toStringAsFixed(0))),
-        ],
-      ),
-      Wrap(
-        spacing: 8,
-        runSpacing: 8,
-        children: [
-          FilterChip(
-            label: const Text('Bold'),
-            selected: currentBold,
-            onSelected: (v) {
-              currentBold = v;
-              commit();
-            },
-          ),
-          FilterChip(
-            label: const Text('Italic'),
-            selected: currentItalic,
-            onSelected: (v) {
-              currentItalic = v;
-              commit();
-            },
-          ),
-        ],
-      ),
-      const SizedBox(height: 8),
-      Row(
-        children: [
-          const Text('Font'),
-          const SizedBox(width: 8),
-          DropdownButton<String>(
-            value: currentFamily,
-            items: const [
-              DropdownMenuItem(value: 'Roboto', child: Text('Roboto')),
-              DropdownMenuItem(value: 'NotoSans', child: Text('NotoSans')),
-              DropdownMenuItem(value: 'Monospace', child: Text('Monospace')),
-            ],
-            onChanged: (v) {
-              if (v != null) {
-                currentFamily = v;
-                commit();
-              }
-            },
-          ),
-        ],
-      ),
-      // === 앵글: 바코드와 동일한 90° 회전 버튼 방식 ===
-      Row(
-        children: [
-          const Text('Angle'),
-          IconButton(
-            icon: const Icon(Icons.rotate_right),
-            tooltip: 'Rotate 90°',
-            onPressed: () {
-              currentAngle = ((currentAngle + (math.pi / 2)) % (2 * math.pi));
-              commit();
-            },
-          ),
-          const SizedBox(width: 8),
-          Text('${(currentAngle * 180 / math.pi).toStringAsFixed(0)}°'),
-        ],
-      ),
-      const SizedBox(height: 4),
-      const Text(
-        'TextDrawable (simple text)는 크기박스/정렬/최대폭을 지원하지 않습니다.\n폭 제어가 필요하면 ConstrainedText를 사용하세요.',
-        style: TextStyle(fontSize: 12, color: Colors.black54),
-      ),
-    ];
-  }
+  static String _barcodeLabel(BarcodeType type) => _barcodeLabels[type] ?? type.name;
 
   List<Widget> _buildBarcodeControls(BarcodeDrawable barcode) {
     final valueController = TextEditingController(text: barcode.data);
@@ -481,16 +391,13 @@ class InspectorPanel extends StatelessWidget {
     bool autoMaxWidth = barcode.maxTextWidth <= 0;
     double currentAngle = barcode.rotationAngle;
 
-    double clampWidth(double value) =>
-        math.max(40.0, math.min(2000.0, value));
+    double clampWidth(double value) => math.max(40.0, math.min(2000.0, value));
+    double currentMaxWidth = clampWidth(autoMaxWidth ? barcode.size.width : barcode.maxTextWidth);
 
-    double currentMaxWidth =
-        clampWidth(autoMaxWidth ? barcode.size.width : barcode.maxTextWidth);
-
-    void commit() {
-      onReplaceDrawable(
-        barcode,
-        barcode.copyWith(
+    void commitAll() {
+      mutateSelected((d) {
+        final cur = d as BarcodeDrawable;
+        return cur.copyWith(
           data: currentValue,
           type: currentType,
           showValue: showValue,
@@ -503,25 +410,17 @@ class InspectorPanel extends StatelessWidget {
           textAlign: currentAlign,
           maxTextWidth: autoMaxWidth ? 0 : currentMaxWidth,
           rotation: currentAngle,
-        ),
-      );
+        );
+      });
     }
 
     return [
-      // --- Angle(회전) 버튼: 90° ---
       Row(
         children: [
           const Text('Angle'),
-          IconButton(
-            icon: const Icon(Icons.rotate_right),
-            tooltip: 'Rotate 90°',
-            onPressed: () {
-              currentAngle = ((currentAngle + (math.pi / 2)) % (2 * math.pi));
-              commit();
-            },
-          ),
-          const SizedBox(width: 8),
-          Text('${(currentAngle * 180 / math.pi).toStringAsFixed(0)}°'),
+          IconButton(icon: const Icon(Icons.rotate_right), tooltip: 'Rotate 90°', onPressed: () { currentAngle = ((currentAngle + (math.pi / 2)) % (2 * math.pi)); commitAll(); }),
+          Expanded(child: Slider(min: _angleMin, max: _angleMax, value: currentAngle.clamp(_angleMin, _angleMax), onChanged: (v){ currentAngle = v; commitAll(); })),
+          SizedBox(width: 44, child: Text(_degLabel(currentAngle))),
         ],
       ),
       const SizedBox(height: 8),
@@ -529,94 +428,46 @@ class InspectorPanel extends StatelessWidget {
       const SizedBox(height: 4),
       TextField(
         controller: valueController,
-        minLines: 1,
-        maxLines: 4,
-        decoration: const InputDecoration(
-          border: OutlineInputBorder(),
-          isDense: true,
-        ),
-        onChanged: (v) {
-          currentValue = v;
-          commit();
-        },
+        minLines: 1, maxLines: 4,
+        decoration: const InputDecoration(border: OutlineInputBorder(), isDense: true),
+        onChanged: (v) { currentValue = v; commitAll(); },
       ),
       const SizedBox(height: 12),
       Row(
         children: [
-          const Text('Type'),
-          const SizedBox(width: 8),
+          const Text('Type'), const SizedBox(width: 8),
           DropdownButton<BarcodeType>(
             value: currentType,
             items: [
-              for (final type in _barcodeTypes)
-                DropdownMenuItem(
-                  value: type,
-                  child: Text(_barcodeLabel(type)),
-                ),
+              for (final t in _barcodeTypes)
+                DropdownMenuItem(value: t, child: Text(_barcodeLabel(t))),
             ],
-            onChanged: (value) {
-              if (value != null) {
-                currentType = value;
-                commit();
-              }
-            },
+            onChanged: (v) { if (v != null) { currentType = v; commitAll(); } },
           ),
         ],
       ),
       SwitchListTile(
-        value: showValue,
-        onChanged: (v) {
-          showValue = v;
-          commit();
-        },
-        dense: true,
-        contentPadding: EdgeInsets.zero,
-        title: const Text('Show human-readable value'),
+        value: showValue, onChanged: (v) { showValue = v; commitAll(); },
+        dense: true, contentPadding: EdgeInsets.zero, title: const Text('Show human-readable value'),
       ),
       Row(
         children: [
           const Text('Font Size'),
-          Expanded(
-            child: Slider(
-              min: 8,
-              max: 64,
-              value: currentFontSize,
-              onChanged: (v) {
-                currentFontSize = v;
-                commit();
-              },
-            ),
-          ),
+          Expanded(child: Slider(min: 8, max: 64, value: currentFontSize, onChanged: (v) { currentFontSize = v; commitAll(); })),
           SizedBox(width: 48, child: Text(currentFontSize.toStringAsFixed(0))),
         ],
       ),
       Wrap(
-        spacing: 8,
-        runSpacing: 8,
+        spacing: 8, runSpacing: 8,
         children: [
-          FilterChip(
-            label: const Text('Bold'),
-            selected: currentBold,
-            onSelected: (v) {
-              currentBold = v;
-              commit();
-            },
-          ),
-          FilterChip(
-            label: const Text('Italic'),
-            selected: currentItalic,
-            onSelected: (v) {
-              currentItalic = v;
-              commit();
-            },
-          ),
+          FilterChip(label: const Text('Bold'), selected: currentBold, onSelected: (v){ currentBold = v; commitAll(); }),
+          FilterChip(label: const Text('Italic'), selected: currentItalic, onSelected: (v){ currentItalic = v; commitAll(); }),
         ],
       ),
       const SizedBox(height: 8),
       Row(
         children: [
-          const Text('Font'),
-          const SizedBox(width: 8),
+          const Text('Font'), const SizedBox(width: 8),
           DropdownButton<String>(
             value: currentFamily,
             items: const [
@@ -624,19 +475,13 @@ class InspectorPanel extends StatelessWidget {
               DropdownMenuItem(value: 'NotoSans', child: Text('NotoSans')),
               DropdownMenuItem(value: 'Monospace', child: Text('Monospace')),
             ],
-            onChanged: (v) {
-              if (v != null) {
-                currentFamily = v;
-                commit();
-              }
-            },
+            onChanged: (v) { if (v != null) { currentFamily = v; commitAll(); } },
           ),
         ],
       ),
       Row(
         children: [
-          const Text('Align'),
-          const SizedBox(width: 8),
+          const Text('Align'), const SizedBox(width: 8),
           DropdownButton<TextAlign?>(
             value: currentAlign,
             items: const [
@@ -645,95 +490,97 @@ class InspectorPanel extends StatelessWidget {
               DropdownMenuItem(value: TextAlign.center, child: Text('Center')),
               DropdownMenuItem(value: TextAlign.right, child: Text('Right')),
             ],
-            onChanged: (value) {
-              currentAlign = value;
-              commit();
-            },
+            onChanged: (v) { currentAlign = v; commitAll(); },
           ),
-        ],
-      ),
-      SwitchListTile(
-        value: autoMaxWidth,
-        onChanged: (v) {
-          autoMaxWidth = v;
-          if (autoMaxWidth) {
-            currentMaxWidth = clampWidth(barcode.size.width);
-          }
-          commit();
-        },
-        dense: true,
-        contentPadding: EdgeInsets.zero,
-        title: const Text('Auto max width'),
-      ),
-      Row(
-        children: [
-          const Text('Max Width'),
-          Expanded(
-            child: Slider(
-              min: 40,
-              max: 2000,
-              value: currentMaxWidth,
-              onChanged: (v) {
-                autoMaxWidth = false;
-                currentMaxWidth = clampWidth(v);
-                commit();
-              },
-            ),
-          ),
-          SizedBox(
-            width: 56,
-            child: Text(
-              autoMaxWidth ? 'Auto' : currentMaxWidth.toStringAsFixed(0),
-            ),
-          ),
-        ],
-      ),
-      const SizedBox(height: 12),
-      const Text('Foreground'),
-      const SizedBox(height: 4),
-      Wrap(
-        spacing: 8,
-        runSpacing: 8,
-        children: [
-          for (final c in _swatchColors)
-            ColorDot(
-              color: c,
-              selected: currentForeground == c,
-              onTap: () {
-                currentForeground = c;
-                commit();
-              },
-            ),
-        ],
-      ),
-      const SizedBox(height: 12),
-      const Text('Background'),
-      const SizedBox(height: 4),
-      Wrap(
-        spacing: 8,
-        runSpacing: 8,
-        children: [
-          for (final c in _barcodeBgChoices)
-            ColorDot(
-              color: c,
-              selected: currentBackground.value == c.value,
-              showChecker: c.alpha < 0xFF,
-              onTap: () {
-                currentBackground = c;
-                commit();
-              },
-            ),
         ],
       ),
     ];
   }
 
-  String _barcodeLabel(BarcodeType type) => _barcodeLabels[type] ?? type.name;
+  List<Widget> _buildImageControls(ImageBoxDrawable img) {
+    double currentAngle = img.rotationAngle;
+    double currentStrokeWidth = img.strokeWidth;
+    Color currentStrokeColor = img.strokeColor;
+    double currentRadius = img.borderRadius.topLeft.x;
+
+    void commitAll() {
+      mutateSelected((d) {
+        final cur = d as ImageBoxDrawable;
+        return cur.copyWithExt(
+          rotation: currentAngle,
+          strokeWidth: currentStrokeWidth,
+          strokeColor: currentStrokeColor,
+          borderRadius: BorderRadius.all(Radius.circular(currentRadius)),
+        );
+      });
+    }
+
+    return [
+      Row(
+        children: [
+          const Text('Angle'),
+          IconButton(
+            icon: const Icon(Icons.rotate_right),
+            tooltip: 'Rotate 90°',
+            onPressed: () { currentAngle = ((currentAngle + (math.pi / 2)) % (2 * math.pi)); commitAll(); },
+          ),
+          Expanded(
+            child: Slider(
+              min: _angleMin, max: _angleMax, value: currentAngle.clamp(_angleMin, _angleMax),
+              onChanged: (v) { currentAngle = v; commitAll(); },
+            ),
+          ),
+          SizedBox(width: 44, child: Text(_degLabel(currentAngle))),
+        ],
+      ),
+      const SizedBox(height: 8),
+      const Text('Stroke Color'),
+      const SizedBox(height: 4),
+      Wrap(
+        spacing: 8, runSpacing: 8,
+        children: [
+          for (final c in _swatchColors)
+            ColorDot(color: c, selected: currentStrokeColor == c, onTap: () { currentStrokeColor = c; commitAll(); }),
+        ],
+      ),
+      const SizedBox(height: 12),
+      const Text('Stroke Width'),
+      Slider(min: 0, max: 16, value: currentStrokeWidth, onChanged: (v) { currentStrokeWidth = v; commitAll(); }),
+      const SizedBox(height: 12),
+      const Text('Corner Radius'),
+      Slider(min: 0, max: 40, value: currentRadius.clamp(0.0, 40.0), onChanged: (v) { currentRadius = v; commitAll(); }),
+    ];
+  }
+
+  List<Widget> _buildLineLikeRotation(ObjectDrawable od) {
+    double currentAngle = od.rotationAngle;
+    void commitRotation() {
+      mutateSelected((d) {
+        if (d is LineDrawable) return d.copyWith(rotation: currentAngle);
+        if (d is ArrowDrawable) return d.copyWith(rotation: currentAngle);
+        return d;
+      });
+    }
+
+    return [
+      const SizedBox(height: 12),
+      const Text('Rotation'),
+      Row(
+        children: [
+          IconButton(icon: const Icon(Icons.rotate_right), tooltip: 'Rotate 90°', onPressed: () { currentAngle = ((currentAngle + (math.pi / 2)) % (2 * math.pi)); commitRotation(); }),
+          Expanded(
+            child: Slider(min: _angleMin, max: _angleMax, value: currentAngle.clamp(_angleMin, _angleMax), onChanged: (v) { currentAngle = v; commitRotation(); }),
+          ),
+          SizedBox(width: 44, child: Text(_degLabel(currentAngle))),
+        ],
+      ),
+    ];
+  }
 }
 
 Widget _kv(String k, String v) => Row(
-    children: [
-      Expanded(child: Text(k, style: const TextStyle(color: Colors.black54))),
-      Text(v),
-    ],
-  );
+      children: [
+        Expanded(child: Text(k, style: const TextStyle(color: Colors.black54))),
+        Text(v),
+      ],
+    );

@@ -92,7 +92,6 @@ class ToolPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // 캔버스 스케일 조정 슬라이더
     final scaleSlider = Row(
       children: [
         const Text('Scale'),
@@ -131,6 +130,7 @@ class ToolPanel extends StatelessWidget {
               _toolChip(Tool.arrow, 'Arrow', Icons.arrow_right_alt),
               _toolChip(Tool.text, 'Text', Icons.title),
               _toolChip(Tool.barcode, 'Barcode', Icons.qr_code_2),
+              _toolChip(Tool.image, 'Image', Icons.image),
             ],
           ),
           const SizedBox(height: 16),
@@ -387,10 +387,10 @@ class ToolPanel extends StatelessWidget {
 
   static final _fillChoices = [
     Colors.black12,
-    Colors.red.withValues(alpha: 0.2),
-    Colors.blue.withValues(alpha: 0.2),
-    Colors.green.withValues(alpha: 0.2),
-    Colors.orange.withValues(alpha: 0.2),
+    Colors.redAccent.withOpacity(0.2),
+    Colors.blueAccent.withOpacity(0.2),
+    Colors.greenAccent.withOpacity(0.2),
+    Colors.orangeAccent.withOpacity(0.2),
   ];
 
   static const _barcodeTypes = [

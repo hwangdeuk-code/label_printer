@@ -69,7 +69,8 @@ class CanvasArea extends StatelessWidget {
         currentTool == Tool.line ||
         currentTool == Tool.arrow ||
         currentTool == Tool.select ||
-        currentTool == Tool.text;
+        currentTool == Tool.text ||
+        currentTool == Tool.image;
 
     final double pixelsPerCm = printerDpi > 0 ? (printerDpi / 2.54) * (scalePercent / 100.0) : 0;
 
@@ -312,7 +313,6 @@ class _SelectionPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     if (selected == null || bounds == null) return;
 
-    // 라인/화살표: 회전 사각형 X (엔드포인트 + 회전 핸들만)
     if (selected is LineDrawable || selected is ArrowDrawable) {
       final r = bounds!;
       final boxPaint = Paint()
@@ -320,7 +320,6 @@ class _SelectionPainter extends CustomPainter {
         ..style = PaintingStyle.stroke
         ..strokeWidth = 1.2;
 
-      // 바운즈(언회전 직선의 캡슐 박스)를 그대로 표시
       canvas.drawRect(r, boxPaint);
 
       if (showEndpoints && start != null && end != null) {
@@ -334,20 +333,17 @@ class _SelectionPainter extends CustomPainter {
       return;
     }
 
-    // 그 외(ObjectDrawable 포함): 선택 박스를 1회 회전만 적용
     final r = bounds!;
     final boxPaint = Paint()
       ..color = const Color(0xFF3F51B5)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.2;
 
-    final obj = selected;
     double angle = 0.0;
-    if (obj is ObjectDrawable) {
-      angle = obj.rotationAngle;
+    if (selected is ObjectDrawable) {
+      angle = (selected as ObjectDrawable).rotationAngle;
     }
 
-    // 언회전 bounds를 기준으로 캔버스 변환 1회
     if (angle != 0) {
       canvas.save();
       canvas.translate(r.center.dx, r.center.dy);
@@ -355,17 +351,14 @@ class _SelectionPainter extends CustomPainter {
       canvas.translate(-r.center.dx, -r.center.dy);
     }
 
-    // 선택 박스
     canvas.drawRect(r, boxPaint);
 
-    // 4 코너 핸들
     final handlePaint = Paint()..color = const Color(0xFF3F51B5);
     for (final c in [r.topLeft, r.topRight, r.bottomLeft, r.bottomRight]) {
       final h = Rect.fromCenter(center: c, width: handleSize, height: handleSize);
       canvas.drawRect(h, handlePaint);
     }
 
-    // 회전 핸들 (윗 중앙에서 위로)
     final rotateCenter = Offset(r.center.dx, r.top - rotateHandleOffset);
     canvas.drawLine(r.topCenter, rotateCenter, boxPaint);
     canvas.drawCircle(rotateCenter, handleSize * 0.6, handlePaint);
