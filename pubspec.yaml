@@ -37,6 +37,8 @@ dependencies:
   cupertino_icons: ^1.0.8
   file_selector: ^1.0.4
   package_info_plus: ^9.0.0
+  screen_retriever: ^0.2.0
+  window_manager: ^0.5.1
 
 dev_dependencies:
   flutter_test:

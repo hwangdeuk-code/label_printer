@@ -1,4 +1,5 @@
 ﻿import 'dart:async';
+import 'dart:io';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 import 'dart:typed_data';
@@ -8,6 +9,8 @@ import 'package:flutter/material.dart';
 import 'package:barcode/barcode.dart';
 import 'package:file_selector/file_selector.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:screen_retriever/screen_retriever.dart';
+import 'package:window_manager/window_manager.dart';
 
 import 'flutter_painter_v2/flutter_painter.dart';
 import 'flutter_painter_v2/flutter_painter_pure.dart';
@@ -23,7 +26,53 @@ import 'widgets/canvas_area.dart';
 
 const appTitle = 'ITS&G Label Printer';
 
-void main() => runApp(const MyApp());
+Future<void> main(List<String> args) async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await windowManager.ensureInitialized();
+
+  if (Platform.isWindows || Platform.isMacOS) {
+		// 대상 모니터 인덱스
+		final targetIndex = 0;
+
+		// 모니터 목록 조회
+		final displays = await screenRetriever.getAllDisplays();
+		if (displays.isEmpty) {
+			// 모니터 정보가 없으면 기본 동작
+			runApp(const MyApp());
+			return;
+		}
+
+		final safeIndex = targetIndex.clamp(0, displays.length - 1);
+		final display = displays[safeIndex];
+
+		// 작업표시줄 제외한 표시 영역(논리 픽셀) 얻기
+		final pos = display.visiblePosition ?? const Offset(0, 0);
+		final size = display.visibleSize ?? display.size;
+
+		// 띄울 창 크기/위치 결정 (여기선 1200x800을 중앙에)
+		const winW = 1200.0;
+		const winH = 800.0;
+		final left = pos.dx + (size.width - winW) / 2;
+		final top = pos.dy + (size.height - winH) / 2;
+
+		// 창 옵션 및 표시
+		const windowOptions = WindowOptions(
+			title: 'Multi-Monitor Sample',
+			backgroundColor: Colors.transparent,
+			skipTaskbar: false,
+		);
+
+		windowManager.waitUntilReadyToShow(windowOptions, () async {
+			// 먼저 크기 → 그다음 위치 → show 순서가 깔끔
+			await windowManager.setSize(const Size(winW, winH));
+			await windowManager.setPosition(Offset(left, top));
+			await windowManager.show();
+			await windowManager.focus();
+		});
+	}
+
+  runApp(const MyApp());
+}
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
@@ -32,7 +81,7 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: appTitle,
-      debugShowCheckedModeBanner: false,
+      debugShowCheckedModeBanner: false, // Remove "DEBUG" Banner
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
         useMaterial3: true,
