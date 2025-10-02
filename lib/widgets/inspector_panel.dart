@@ -9,10 +9,13 @@ import '../drawables/constrained_text_drawable.dart';
 import '../drawables/barcode_drawable.dart';
 import '../drawables/image_box_drawable.dart';
 import '../flutter_painter_v2/flutter_painter.dart';
-import '../models/tool.dart';
+import '../models/tool.dart' as tool;
 import 'color_dot.dart';
 
 
+
+
+import '../models/tool.dart' as tool;
 class ArrowKeySlider extends StatefulWidget {
   final double min;
   final double max;
@@ -112,11 +115,20 @@ class TextDefaults {
   final double fontSize;
   final bool bold;
   final bool italic;
-  final TxtAlign align;
+  final tool.TxtAlign align;
   final double maxWidth;
 }
 
 class InspectorPanel extends StatelessWidget {
+
+  // === Quill 표 셀 스타일 섹션 연동 필드(한국어 주석) ===
+  final bool showCellQuillSection;
+  final bool quillBold;
+  final bool quillItalic;
+  final double quillFontSize;
+  final tool.TxtAlign quillAlign;
+  final void Function({bool? bold, bool? italic, double? fontSize, tool.TxtAlign? align})? onQuillStyleChanged;
+
   const InspectorPanel({
     super.key,
     required this.selected,
@@ -127,6 +139,12 @@ class InspectorPanel extends StatelessWidget {
     required this.snapAngle,
     required this.textDefaults,
     required this.mutateSelected,        // ★ 추가
+    this.showCellQuillSection = false,
+    this.quillBold = false,
+    this.quillItalic = false,
+    this.quillFontSize = 12.0,
+    this.quillAlign = tool.TxtAlign.left,
+    this.onQuillStyleChanged,
   });
 
   final Drawable? selected;
@@ -166,6 +184,39 @@ class InspectorPanel extends StatelessWidget {
         padding: const EdgeInsets.all(12),
         children: [
           const Text('Inspector', style: TextStyle(fontWeight: FontWeight.bold)),
+
+if (showCellQuillSection) ...[
+  const SizedBox(height: 12),
+  const Divider(),
+  const Text('Table Cell (Quill)', style: TextStyle(fontWeight: FontWeight.bold)),
+  const SizedBox(height: 8),
+  Row(children: [
+    const Text('Style'), const SizedBox(width: 8),
+    FilterChip(label: const Text('Bold'), selected: quillBold, onSelected: (v)=> onQuillStyleChanged?.call(bold: v)),
+    const SizedBox(width: 8),
+    FilterChip(label: const Text('Italic'), selected: quillItalic, onSelected: (v)=> onQuillStyleChanged?.call(italic: v)),
+  ]),
+  const SizedBox(height: 8),
+  Row(children: [
+    const Text('Size'), const SizedBox(width: 8),
+    Expanded(child: Slider(min: 8, max: 72, divisions: 64, value: quillFontSize, onChanged: (v)=> onQuillStyleChanged?.call(fontSize: v))),
+    SizedBox(width: 40, child: Text(quillFontSize.toStringAsFixed(0))),
+  ]),
+  const SizedBox(height: 8),
+  Row(children: [
+    const Text('Align'), const SizedBox(width: 8),
+    DropdownButton<tool.TxtAlign>(
+      value: quillAlign,
+      items: [
+        DropdownMenuItem(value: tool.TxtAlign.left, child: Text('Left')),
+        DropdownMenuItem(value: tool.TxtAlign.center, child: Text('Center')),
+        DropdownMenuItem(value: tool.TxtAlign.right, child: Text('Right')),
+      ],
+      onChanged: (v) { if (v != null) onQuillStyleChanged?.call(align: v); },
+    ),
+  ]),
+],
+
           const SizedBox(height: 8),
           if (selected == null)
             const Text('Nothing selected.\nUse Select tool and tap a shape.')
@@ -243,7 +294,7 @@ class InspectorPanel extends StatelessWidget {
     bool currentBold = (td.style.fontWeight ?? FontWeight.normal) == FontWeight.bold;
     bool currentItalic = (td.style.fontStyle ?? FontStyle.normal) == FontStyle.italic;
     String currentFamily = td.style.fontFamily ?? textDefaults.fontFamily;
-    TxtAlign currentAlign = td.align;
+    tool.TxtAlign currentAlign = td.align;
     double currentMaxWidth = td.maxWidth;
     double currentAngle = td.rotationAngle;
 
@@ -310,7 +361,7 @@ class InspectorPanel extends StatelessWidget {
           const Text('Font'), const SizedBox(width: 8),
           DropdownButton<String>(
             value: currentFamily,
-            items: const [
+            items: [
               DropdownMenuItem(value: 'Roboto', child: Text('Roboto')),
               DropdownMenuItem(value: 'NotoSans', child: Text('NotoSans')),
               DropdownMenuItem(value: 'Monospace', child: Text('Monospace')),
@@ -322,12 +373,12 @@ class InspectorPanel extends StatelessWidget {
       Row(
         children: [
           const Text('Align'), const SizedBox(width: 8),
-          DropdownButton<TxtAlign>(
+          DropdownButton<tool.TxtAlign>(
             value: currentAlign,
-            items: const [
-              DropdownMenuItem(value: TxtAlign.left, child: Text('Left')),
-              DropdownMenuItem(value: TxtAlign.center, child: Text('Center')),
-              DropdownMenuItem(value: TxtAlign.right, child: Text('Right')),
+            items: [
+              DropdownMenuItem(value: tool.TxtAlign.left, child: Text('Left')),
+              DropdownMenuItem(value: tool.TxtAlign.center, child: Text('Center')),
+              DropdownMenuItem(value: tool.TxtAlign.right, child: Text('Right')),
             ],
             onChanged: (v) { if (v != null) { currentAlign = v; commitAll(); } },
           ),
@@ -431,7 +482,7 @@ class InspectorPanel extends StatelessWidget {
           const Text('Font'), const SizedBox(width: 8),
           DropdownButton<String>(
             value: currentFamily,
-            items: const [
+            items: [
               DropdownMenuItem(value: 'Roboto', child: Text('Roboto')),
               DropdownMenuItem(value: 'NotoSans', child: Text('NotoSans')),
               DropdownMenuItem(value: 'Monospace', child: Text('Monospace')),
@@ -520,7 +571,7 @@ class InspectorPanel extends StatelessWidget {
         children: [
           const Text('Angle'),
           IconButton(icon: const Icon(Icons.rotate_right), tooltip: 'Rotate 90°', onPressed: () { currentAngle = ((currentAngle + (math.pi / 2)) % (2 * math.pi)); commitAll(); }),
-          Expanded(child: Slider(min: _angleMin, max: _angleMax, value: currentAngle.clamp(_angleMin, _angleMax), onChanged: (v){ currentAngle = v; commitAll(); })),
+          Expanded(child: Slider(min: _angleMin, max: _angleMax, value: currentAngle.clamp(_angleMin, _angleMax), onChanged: (v) { currentAngle = v; commitAll(); })),
           SizedBox(width: 44, child: Text(_degLabel(currentAngle))),
         ],
       ),
@@ -571,7 +622,7 @@ class InspectorPanel extends StatelessWidget {
           const Text('Font'), const SizedBox(width: 8),
           DropdownButton<String>(
             value: currentFamily,
-            items: const [
+            items: [
               DropdownMenuItem(value: 'Roboto', child: Text('Roboto')),
               DropdownMenuItem(value: 'NotoSans', child: Text('NotoSans')),
               DropdownMenuItem(value: 'Monospace', child: Text('Monospace')),
@@ -585,7 +636,7 @@ class InspectorPanel extends StatelessWidget {
           const Text('Align'), const SizedBox(width: 8),
           DropdownButton<TextAlign?>(
             value: currentAlign,
-            items: const [
+            items: [
               DropdownMenuItem(value: null, child: Text('Auto')),
               DropdownMenuItem(value: TextAlign.left, child: Text('Left')),
               DropdownMenuItem(value: TextAlign.center, child: Text('Center')),

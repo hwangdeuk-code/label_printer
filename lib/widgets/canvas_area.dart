@@ -35,6 +35,9 @@ class CanvasArea extends StatelessWidget {
     required this.rotateHandleOffset,
     required this.showEndpoints,
     required this.isTextSelected,
+    this.onCanvasDoubleTapDown,
+    this.inlineEditorRect,
+    this.inlineEditor,
     this.printerDpi = 300,
     this.scalePercent = 100.0,
   });
@@ -60,6 +63,9 @@ class CanvasArea extends StatelessWidget {
   final bool isTextSelected;
   final double printerDpi;
   final double scalePercent;
+  final void Function(TapDownDetails)? onCanvasDoubleTapDown;
+  final Rect? inlineEditorRect;
+  final Widget? inlineEditor;
 
   @override
   Widget build(BuildContext context) {
@@ -79,6 +85,15 @@ class CanvasArea extends StatelessWidget {
       height: _canvasDimension,
       child: Stack(
         children: [
+                  // 인라인 편집기 오버레이
+                  if (inlineEditor != null && inlineEditorRect != null)
+                    Positioned(
+                      left: inlineEditorRect!.left * (scalePercent/100.0),
+                      top: inlineEditorRect!.top * (scalePercent/100.0),
+                      width: inlineEditorRect!.width * (scalePercent/100.0),
+                      height: inlineEditorRect!.height * (scalePercent/100.0),
+                      child: inlineEditor!,
+                    ),
           Positioned.fill(child: Container(color: Colors.white)),
           Positioned.fill(
             child: DecoratedBox(
@@ -132,6 +147,7 @@ class CanvasArea extends StatelessWidget {
                           dragStartBehavior: DragStartBehavior.down,
                           behavior: HitTestBehavior.opaque,
                           onTap: onCanvasTap,
+                          onDoubleTapDown: onCanvasDoubleTapDown,
                           onPanStart: (details) {
                             if (currentTool == Tool.select) {
                               onOverlayPanStart(details);

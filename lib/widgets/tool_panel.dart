@@ -1,5 +1,7 @@
 import 'package:barcode/barcode.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
+import 'package:flutter/gestures.dart';
 
 import '../models/tool.dart';
 import 'color_dot.dart';
@@ -11,6 +13,7 @@ class ToolPanel extends StatelessWidget {
     super.key,
     required this.currentTool,
     required this.onToolSelected,
+    required this.onTableCreate,
     required this.strokeColor,
     required this.onStrokeColorChanged,
     required this.strokeWidth,
@@ -53,6 +56,7 @@ class ToolPanel extends StatelessWidget {
 
   final Tool currentTool;
   final ValueChanged<Tool> onToolSelected;
+  final void Function(int rows, int columns) onTableCreate;
   final Color strokeColor;
   final ValueChanged<Color> onStrokeColorChanged;
   final double strokeWidth;
@@ -129,6 +133,7 @@ class ToolPanel extends StatelessWidget {
               _toolChip(Tool.line, 'Line', Icons.show_chart),
               _toolChip(Tool.arrow, 'Arrow', Icons.arrow_right_alt),
               _toolChip(Tool.text, 'Text', Icons.title),
+              _TableToolButton(onCreate: onTableCreate),
               _toolChip(Tool.barcode, 'Barcode', Icons.qr_code_2),
               _toolChip(Tool.image, 'Image', Icons.image),
             ],
@@ -422,6 +427,299 @@ class ToolPanel extends StatelessWidget {
 }
 
 
+class _TableToolButton extends StatefulWidget {
+  const _TableToolButton({required this.onCreate});
+
+  final void Function(int rows, int columns) onCreate;
+
+  @override
+  State<_TableToolButton> createState() => _TableToolButtonState();
+}
+
+class _TableToolButtonState extends State<_TableToolButton> {
+  OverlayEntry? _overlay;
+  bool _active = false;
+
+  void _showOverlay() {
+    if (_overlay != null) return;
+    final overlayState = Overlay.of(context);
+    final renderBox = context.findRenderObject() as RenderBox?;
+    if (overlayState == null || renderBox == null || !renderBox.attached) return;
+
+    final origin = renderBox.localToGlobal(Offset.zero);
+    final buttonSize = renderBox.size;
+    final screenSize = MediaQuery.of(context).size;
+
+    const padding = 8.0;
+    final popupWidth = _TablePickerOverlay.popupWidth(_TablePickerOverlay.defaultGridColumns);
+    final popupHeight = _TablePickerOverlay.popupHeight(_TablePickerOverlay.defaultGridRows);
+
+    var left = origin.dx;
+    var top = origin.dy + buttonSize.height + padding;
+
+    if (left + popupWidth + padding > screenSize.width) {
+      left = screenSize.width - popupWidth - padding;
+    }
+    if (left < padding) {
+      left = padding;
+    }
+
+    if (top + popupHeight + padding > screenSize.height) {
+      final above = origin.dy - popupHeight - padding;
+      top = above >= padding ? above : screenSize.height - popupHeight - padding;
+    }
+    if (top < padding) {
+      top = padding;
+    }
+
+    _overlay = OverlayEntry(
+      builder: (ctx) {
+        return Stack(
+          children: [
+            Positioned.fill(
+              child: GestureDetector(
+                behavior: HitTestBehavior.translucent,
+                onTap: _hideOverlay,
+              ),
+            ),
+            Positioned(
+              left: left,
+              top: top,
+              child: _TablePickerOverlay(
+                onConfirm: (rows, columns) {
+                  widget.onCreate(rows, columns);
+                  _hideOverlay();
+                },
+                onCancel: _hideOverlay,
+              ),
+            ),
+          ],
+        );
+      },
+    );
+
+    overlayState.insert(_overlay!);
+    setState(() => _active = true);
+  }
+
+  void _hideOverlay() {
+    _overlay?.remove();
+    _overlay = null;
+    if (mounted) {
+      setState(() => _active = false);
+    }
+  }
+
+  @override
+  void dispose() {
+    _hideOverlay();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final bg = _active ? theme.colorScheme.primary.withOpacity(0.12) : Colors.transparent;
+    final fg = _active ? theme.colorScheme.primary : theme.colorScheme.onSurface;
+    final borderColor = _active ? theme.colorScheme.primary : Colors.black26;
+
+    return Material(
+      color: bg,
+      shape: StadiumBorder(side: BorderSide(color: borderColor)),
+      child: InkWell(
+        mouseCursor: SystemMouseCursors.click,
+        customBorder: const StadiumBorder(),
+        onTap: () {
+          if (_overlay != null) {
+            _hideOverlay();
+          } else {
+            _showOverlay();
+          }
+        },
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.table_chart, size: 16, color: fg),
+              const SizedBox(width: 6),
+              Text('Table', style: TextStyle(color: fg)),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _TablePickerOverlay extends StatefulWidget {
+  const _TablePickerOverlay({
+    required this.onConfirm,
+    required this.onCancel,
+    this.maxRows = defaultGridRows,
+    this.maxColumns = defaultGridColumns,
+    this.initialRows = 1,
+    this.initialColumns = 1,
+  });
+
+  final void Function(int rows, int columns) onConfirm;
+  final VoidCallback onCancel;
+  final int maxRows;
+  final int maxColumns;
+  final int initialRows;
+  final int initialColumns;
+
+  static const int defaultGridRows = 10;
+  static const int defaultGridColumns = 10;
+  static const double cellSize = 24.0;
+  static const double cellGap = 2.0;
+  static const double padding = 8.0;
+  static const double labelHeight = 22.0;
+
+  static double popupWidth(int columns) =>
+      columns * cellSize + (columns - 1) * cellGap + padding * 2;
+
+  static double popupHeight(int rows) =>
+      rows * cellSize + (rows - 1) * cellGap + padding * 2 + labelHeight;
+
+  @override
+  State<_TablePickerOverlay> createState() => _TablePickerOverlayState();
+}
+
+class _TablePickerOverlayState extends State<_TablePickerOverlay> {
+  late int _rows;
+  late int _columns;
+  bool _dragging = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _rows = widget.initialRows.clamp(1, widget.maxRows);
+    _columns = widget.initialColumns.clamp(1, widget.maxColumns);
+  }
+
+  void _updateFromPosition(Offset local) {
+    final dx = local.dx - _TablePickerOverlay.padding;
+    final dy = local.dy - _TablePickerOverlay.padding;
+    final col = _indexForOffset(dx, widget.maxColumns);
+    final row = _indexForOffset(dy, widget.maxRows);
+    setState(() {
+      _columns = col + 1;
+      _rows = row + 1;
+    });
+  }
+
+  int _indexForOffset(double value, int maxCount) {
+    final span = _TablePickerOverlay.cellSize + _TablePickerOverlay.cellGap;
+    var idx = (value / span).floor();
+    if (value < 0) idx = 0;
+    if (idx >= maxCount) idx = maxCount - 1;
+    if (idx < 0) idx = 0;
+    return idx;
+  }
+
+  void _handlePointerDown(PointerDownEvent event) {
+    _dragging = true;
+    _updateFromPosition(event.localPosition);
+  }
+
+  void _handlePointerMove(PointerMoveEvent event) {
+    if (_dragging) {
+      _updateFromPosition(event.localPosition);
+    }
+  }
+
+  void _handlePointerHover(PointerHoverEvent event) {
+    if (_dragging) return;
+    _updateFromPosition(event.localPosition);
+  }
+
+  void _handlePointerUp(PointerUpEvent event) {
+    if (_dragging) {
+      _updateFromPosition(event.localPosition);
+      widget.onConfirm(_rows, _columns);
+    }
+    _dragging = false;
+  }
+
+  void _handlePointerCancel(PointerCancelEvent event) {
+    _dragging = false;
+    widget.onCancel();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final fillColor = theme.colorScheme.primary.withOpacity(0.18);
+    final borderActive = theme.colorScheme.primary;
+    final borderInactive = theme.dividerColor;
+
+    final rows = <Widget>[];
+    for (var r = 0; r < widget.maxRows; r++) {
+      rows.add(
+        Padding(
+          padding: EdgeInsets.only(
+            bottom: r == widget.maxRows - 1 ? 0 : _TablePickerOverlay.cellGap,
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              for (var c = 0; c < widget.maxColumns; c++)
+                Padding(
+                  padding: EdgeInsets.only(
+                    right: c == widget.maxColumns - 1 ? 0 : _TablePickerOverlay.cellGap,
+                  ),
+                  child: Container(
+                    width: _TablePickerOverlay.cellSize,
+                    height: _TablePickerOverlay.cellSize,
+                    decoration: BoxDecoration(
+                      color: r < _rows && c < _columns ? fillColor : theme.colorScheme.surface,
+                      border: Border.all(
+                        color: r < _rows && c < _columns ? borderActive : borderInactive,
+                      ),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return Material(
+      elevation: 6,
+      borderRadius: BorderRadius.circular(8),
+      child: Listener(
+        behavior: HitTestBehavior.opaque,
+        onPointerDown: _handlePointerDown,
+        onPointerMove: _handlePointerMove,
+        onPointerHover: _handlePointerHover,
+        onPointerUp: _handlePointerUp,
+        onPointerCancel: _handlePointerCancel,
+        child: Container(
+          padding: const EdgeInsets.all(_TablePickerOverlay.padding),
+          decoration: BoxDecoration(
+            color: theme.colorScheme.surface,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              ...rows,
+              const SizedBox(height: 8),
+              Text(
+                '${_rows} x ${_columns}',
+                style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.primary),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
 class _ToolChip extends StatelessWidget {
   const _ToolChip({
     required this.currentTool,
@@ -465,4 +763,3 @@ class _ToolChip extends StatelessWidget {
     );
   }
 }
-

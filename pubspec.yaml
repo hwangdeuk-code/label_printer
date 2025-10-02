@@ -36,6 +36,7 @@ dependencies:
   barcode: ^2.2.9
   cupertino_icons: ^1.0.8
   file_selector: ^1.0.4
+  flutter_quill: ^11.4.2
   package_info_plus: ^9.0.0
   screen_retriever: ^0.2.0
   window_manager: ^0.5.1
