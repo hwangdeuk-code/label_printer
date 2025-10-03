@@ -106,6 +106,12 @@ class _PainterPageState extends State<PainterPage> {
   final FocusNode _quillFocus = FocusNode();
   Rect? _inlineEditorRectScene; // 씬 좌표 기준
 
+  /// 한글 주석: 표 셀 선택 상태
+  bool _isShiftPressed = false;
+  final FocusNode _keyboardFocus = FocusNode();
+  (int, int)? _selectionAnchorCell; // (row, col)
+  (int, int)? _selectionFocusCell; // (row, col)
+
   @override
   void initState() {
     super.initState();
@@ -145,6 +151,7 @@ class _PainterPageState extends State<PainterPage> {
   @override
   void dispose() {
     
+    _keyboardFocus.dispose();
     _quillFocus.dispose();
 _pressSnapTimer?.cancel();
     controller.dispose();
@@ -197,7 +204,7 @@ _pressSnapTimer?.cancel();
       _editingCellCol = null;
       _inlineEditorRectScene = null;
       _quillController = null;
-      selectedDrawable = null; // ✅ 편집 종료 시 선택 객체 초기화
+      _clearCellSelection(); // ✅ 편집 종료 시 셀 선택도 초기화
     });
   }
 
@@ -667,7 +674,12 @@ _pressSnapTimer?.cancel();
   _quillController = quill.QuillController(
     document: doc,
     selection: const TextSelection.collapsed(offset: 0),
-  );
+    );
+
+    setState(() {
+      _selectionAnchorCell = (row, col);
+      _selectionFocusCell = (row, col);
+  });
 
   setState(() {
     _editingTable = d;
@@ -703,8 +715,16 @@ _pressSnapTimer?.cancel();
 
     final hit = _pickTopAt(scenePoint);
     _downHitDrawable = hit;
-    if (hit != null && hit != selectedDrawable) {
+    
+    // Shift 키를 누르고 테이블을 클릭하는 경우는 다중 선택이므로, selectedDrawable을 변경하지 않습니다.
+    final isMultiSelectingTable = _isShiftPressed && hit is TableDrawable;
+    if (hit != null && hit != selectedDrawable && !isMultiSelectingTable) {
       setState(() => selectedDrawable = hit);
+    }
+    // 다른 객체를 선택하면 셀 선택 해제
+    // Shift 키를 누르고 테이블을 클릭하는 경우는 다중 선택을 위한 것이므로 셀 선택을 유지합니다.
+    if (hit is! TableDrawable && !isMultiSelectingTable) {
+      _clearCellSelection();
     }
   }
 
@@ -1464,16 +1484,29 @@ _pressSnapTimer?.cancel();
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text('$appTitle v$appVersion'),
-        actions: [
-          IconButton(onPressed: controller.canUndo ? controller.undo : null, icon: const Icon(Icons.undo)),
-          IconButton(onPressed: controller.canRedo ? controller.redo : null, icon: const Icon(Icons.redo)),
-          IconButton(onPressed: _clearAll, icon: const Icon(Icons.layers_clear), tooltip: 'Clear'),
-          IconButton(onPressed: () => _saveAsPng(context), icon: const Icon(Icons.save_alt)),
-        ],
-      ),
-      body: Row(
+      appBar: AppBar(title: Text('$appTitle v$appVersion'), actions: [
+        IconButton(onPressed: controller.canUndo ? controller.undo : null, icon: const Icon(Icons.undo)),
+        IconButton(onPressed: controller.canRedo ? controller.redo : null, icon: const Icon(Icons.redo)),
+        IconButton(onPressed: _clearAll, icon: const Icon(Icons.layers_clear), tooltip: 'Clear'),
+        IconButton(onPressed: () => _saveAsPng(context), icon: const Icon(Icons.save_alt)),
+      ]),
+      body: _buildBody(context),
+    );
+  }
+
+  Widget _buildBody(BuildContext context) {
+    return RawKeyboardListener(
+      focusNode: _keyboardFocus,
+      autofocus: true,
+      onKey: (event) {
+        final isShift = event.isShiftPressed;
+        if (isShift != _isShiftPressed) {
+          setState(() {
+            _isShiftPressed = isShift;
+          });
+        }
+      },
+      child: Row(
         children: [
           ToolPanel(
             currentTool: currentTool,
@@ -1547,6 +1580,8 @@ _pressSnapTimer?.cancel();
               onCreatePanEnd: _onPanEndCreate,
               selectedDrawable: selectedDrawable,
               selectionBounds: selectedDrawable == null ? null : _boundsOf(selectedDrawable!),
+              selectionAnchorCell: _selectionAnchorCell,
+              selectionFocusCell: _selectionFocusCell,
               selectionStart: selectedDrawable is LineDrawable || selectedDrawable is ArrowDrawable ? _lineStart(selectedDrawable!) : null,
               selectionEnd: selectedDrawable is LineDrawable || selectedDrawable is ArrowDrawable ? _lineEnd(selectedDrawable!) : null,
               handleSize: handleSize,
@@ -1576,83 +1611,6 @@ _pressSnapTimer?.cancel();
               align: defaultTextAlign,
               maxWidth: defaultTextMaxWidth,
             ),
-            // ★ 최신 선택 객체 기준으로 안전하게 갱신
-            showCellQuillSection: _editingTable != null && _editingCellRow != null && _editingCellCol != null,
-            quillBold: (() {
-              final d = _editingTable;
-              final r = _editingCellRow;
-              final c = _editingCellCol;
-              if (d == null || r == null || c == null) return false;
-              return (d.styleOf(r, c)['bold'] as bool);
-            })(),
-            quillItalic: (() {
-              final d = _editingTable;
-              final r = _editingCellRow;
-              final c = _editingCellCol;
-              if (d == null || r == null || c == null) return false;
-              return (d.styleOf(r, c)['italic'] as bool);
-            })(),
-            quillFontSize: (() {
-              final d = _editingTable;
-              final r = _editingCellRow;
-              final c = _editingCellCol;
-              if (d == null || r == null || c == null) return 12.0;
-              return (d.styleOf(r, c)['fontSize'] as double);
-            })(),
-            quillAlign: (() {
-              final d = _editingTable;
-              final r = _editingCellRow;
-              final c = _editingCellCol;
-              if (d == null || r == null || c == null) return tool.TxtAlign.left;
-              final a = (d.styleOf(r, c)['align'] as String);
-              return a == 'center'
-                  ? tool.TxtAlign.center
-                  : a == 'right'
-                      ? tool.TxtAlign.right
-                      : tool.TxtAlign.left;
-            })(),
-            onQuillStyleChanged: ({bool? bold, bool? italic, double? fontSize, tool.TxtAlign? align}) {
-              final d = _editingTable;
-              final r = _editingCellRow;
-              final c = _editingCellCol;
-              if (d == null || r == null || c == null) return;
-
-              final cur = d.styleOf(r, c);
-              final next = {
-                'fontSize': (fontSize ?? cur['fontSize']) as double,
-                'bold': (bold ?? cur['bold']) as bool,
-                'italic': (italic ?? cur['italic']) as bool,
-                'align': (align != null)
-                    ? (align == tool.TxtAlign.center
-                        ? 'center'
-                        : (align == tool.TxtAlign.right ? 'right' : 'left'))
-                    : (cur['align'] as String),
-              };
-              d.setStyle(r, c, next);
-
-              if (_quillController != null) {
-                if (fontSize != null) {
-                  _quillController!.formatSelection(
-                    quill.SizeAttribute(fontSize.round().toString()),
-                  );
-                }
-                if (bold != null) {
-                  _quillController!.formatSelection(bold ? quill.Attribute.bold : quill.Attribute.clone(quill.Attribute.bold, null));
-                }
-                if (italic != null) {
-                  _quillController!.formatSelection(italic ? quill.Attribute.italic : quill.Attribute.clone(quill.Attribute.italic, null));
-                }
-                if (align != null) {
-                  _quillController!.formatSelection(align == tool.TxtAlign.left ? quill.Attribute.leftAlignment : (align == tool.TxtAlign.center ? quill.Attribute.centerAlignment : quill.Attribute.rightAlignment));
-                }
-              }
-              
-              // setState를 호출하여 InspectorPanel의 UI를 업데이트합니다.
-              setState(() {});
-              // 포커스가 setState로 인해 일시적으로 사라지므로, 즉시 복원 요청을 합니다.
-              // 이렇게 하면 사용자는 포커스 상실을 인지하지 못하고 편집을 계속할 수 있습니다.
-              _quillFocus.requestFocus();
-            },
             mutateSelected: (rewriter) {
               final cur = selectedDrawable;
               if (cur == null) return;
@@ -1669,17 +1627,69 @@ _pressSnapTimer?.cancel();
 
   void _handleCanvasTap() {
     if (currentTool != tool.Tool.select) return;
+
     final hadHit = _downHitDrawable != null;
+
+    // Case 1: 객체를 클릭하지 않은 경우 -> 모든 선택 해제
     if (!hadHit && !_pressOnSelection && !_movedSinceDown) {
       setState(() {
         selectedDrawable = null;
         dragAction = DragAction.none;
+        _clearCellSelection();
       });
     }
+    // Case 2: 테이블 객체를 클릭한 경우 -> 셀 선택 처리
+    else if (hadHit && _downHitDrawable is TableDrawable) {
+      final table = _downHitDrawable as TableDrawable;
+      final scenePoint = _downScene!;
+
+      // 로컬 좌표로 변환하여 셀 인덱스 계산
+      final local = _toLocal(scenePoint, table.position, table.rotationAngle);
+      final rect = Rect.fromCenter(center: Offset.zero, width: table.size.width, height: table.size.height);
+
+      if (rect.contains(local)) {
+        final colFractions = table.columnFractions;
+        final colWidths = colFractions.map((f) => rect.width * f).toList();
+        double x = rect.left;
+        int col = -1;
+        for (int c = 0; c < colWidths.length; c++) {
+          if (local.dx >= x && local.dx <= x + colWidths[c]) {
+            col = c;
+            break;
+          }
+          x += colWidths[c];
+        }
+        final rowH = rect.height / table.rows;
+        int row = ((local.dy - rect.top) / rowH).floor().clamp(0, table.rows - 1);
+
+        if (col != -1) {
+          setState(() {
+            if (_isShiftPressed && _selectionAnchorCell != null) {
+              // Shift 키 누른 상태: 포커스 셀만 업데이트
+              _selectionFocusCell = (row, col);
+            } else {
+              // 일반 클릭: 앵커와 포커스 모두 업데이트
+              _selectionAnchorCell = (row, col);
+              _selectionFocusCell = (row, col);
+            }
+          });
+        }
+      }
+    }
+
     _pressOnSelection = false;
     _movedSinceDown = false;
     _downScene = null;
     _downHitDrawable = null;
+  }
+
+  void _clearCellSelection() {
+    if (_selectionAnchorCell != null || _selectionFocusCell != null) {
+      setState(() {
+        _selectionAnchorCell = null;
+        _selectionFocusCell = null;
+      });
+    }
   }
 
   void _applyInspector({Color? newStrokeColor, double? newStrokeWidth, double? newCornerRadius}) {

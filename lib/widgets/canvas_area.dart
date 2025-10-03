@@ -1,9 +1,11 @@
-
+import 'dart:ui' show PointerDeviceKind; // 더블클릭 감지용
 import 'package:flutter/gestures.dart';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../flutter_painter_v2/flutter_painter.dart';
 import '../models/tool.dart';
+import '../drawables/table_drawable.dart';
 
 const double _canvasDimension = 640;
 const double _rulerThickness = 24;
@@ -14,7 +16,7 @@ const TextStyle _rulerLabelStyle = TextStyle(
   color: Colors.black87,
 );
 
-class CanvasArea extends StatelessWidget {
+class CanvasArea extends StatefulWidget {
   const CanvasArea({
     super.key,
     required this.currentTool,
@@ -30,6 +32,8 @@ class CanvasArea extends StatelessWidget {
     required this.onCreatePanEnd,
     required this.selectedDrawable,
     required this.selectionBounds,
+    this.selectionAnchorCell,
+    this.selectionFocusCell,
     required this.selectionStart,
     required this.selectionEnd,
     required this.handleSize,
@@ -56,6 +60,8 @@ class CanvasArea extends StatelessWidget {
   final VoidCallback onCreatePanEnd;
   final Drawable? selectedDrawable;
   final Rect? selectionBounds;
+  final (int, int)? selectionAnchorCell;
+  final (int, int)? selectionFocusCell;
   final Offset? selectionStart;
   final Offset? selectionEnd;
   final double handleSize;
@@ -69,31 +75,66 @@ class CanvasArea extends StatelessWidget {
   final Widget? inlineEditor;
 
   @override
+  State<CanvasArea> createState() => _CanvasAreaState();
+}
+
+class _CanvasAreaState extends State<CanvasArea> {
+  // 데스크톱 더블클릭 수동 감지
+  DateTime? _lastClickAt;
+  Offset? _lastClickPos;
+  static const _dblThreshold = Duration(milliseconds: 300);
+  static const _dblDistance = 6.0;
+
+  void _handlePointerDown(PointerDownEvent e) {
+    // 기존 선택 로직 유지
+    widget.onPointerDownSelect(e);
+
+    // 마우스 좌클릭에 대해서만 더블클릭 수동 감지
+    if (e.kind == PointerDeviceKind.mouse && e.buttons == kPrimaryMouseButton) {
+      final now = DateTime.now();
+      final isDbl = _lastClickAt != null &&
+          now.difference(_lastClickAt!) <= _dblThreshold &&
+          _lastClickPos != null &&
+          (e.position - _lastClickPos!).distance <= _dblDistance;
+
+      if (isDbl && widget.onCanvasDoubleTapDown != null) {
+        widget.onCanvasDoubleTapDown!(
+          TapDownDetails(globalPosition: e.position, kind: PointerDeviceKind.mouse),
+        );
+      }
+      _lastClickAt = now;
+      _lastClickPos = e.position;
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final overlayIgnored = currentTool == Tool.pen || currentTool == Tool.eraser;
-    final absorbPainter = currentTool == Tool.rect ||
-        currentTool == Tool.oval ||
-        currentTool == Tool.line ||
-        currentTool == Tool.arrow ||
-        currentTool == Tool.select ||
-        currentTool == Tool.text ||
-        currentTool == Tool.image;
+    final overlayIgnored = widget.currentTool == Tool.pen || widget.currentTool == Tool.eraser;
+    final absorbPainter = widget.currentTool == Tool.rect ||
+        widget.currentTool == Tool.oval ||
+        widget.currentTool == Tool.line ||
+        widget.currentTool == Tool.arrow ||
+        widget.currentTool == Tool.select ||
+        widget.currentTool == Tool.text ||
+        widget.currentTool == Tool.image;
 
-    final bool isEditing = inlineEditor != null && inlineEditorRect != null;
-
-    final double pixelsPerCm = printerDpi > 0 ? (printerDpi / 2.54) * (scalePercent / 100.0) : 0;
+    final double pixelsPerCm = widget.printerDpi > 0
+        ? (widget.printerDpi / 2.54) * (widget.scalePercent / 100.0)
+        : 0;
 
     return SizedBox(
       width: _canvasDimension,
       height: _canvasDimension,
       child: Stack(
         children: [
+          // 바탕
           Positioned.fill(child: Container(color: Colors.white)),
           Positioned.fill(
             child: DecoratedBox(
               decoration: BoxDecoration(border: Border.all(color: Colors.black12)),
             ),
           ),
+          // 눈금자
           Positioned(
             left: _rulerThickness,
             right: 0,
@@ -111,6 +152,8 @@ class CanvasArea extends StatelessWidget {
           const Positioned(
             left: 0, top: 0, width: _rulerThickness, height: _rulerThickness, child: _RulerCorner(),
           ),
+
+          // 캔버스 + 오버레이
           Positioned(
             left: _rulerThickness,
             top: _rulerThickness,
@@ -120,67 +163,69 @@ class CanvasArea extends StatelessWidget {
               decoration: BoxDecoration(border: Border.all(color: Colors.black12)),
               child: Stack(
                 children: [
+                  // 실제 페인터
                   AbsorbPointer(
                     absorbing: absorbPainter,
                     child: RepaintBoundary(
-                      key: painterKey,
+                      key: widget.painterKey,
                       child: Transform.scale(
-                        scale: scalePercent / 100.0,
+                        scale: widget.scalePercent / 100.0,
                         alignment: Alignment.topLeft,
-                        child: FlutterPainter(controller: controller),
+                        child: FlutterPainter(controller: widget.controller),
                       ),
                     ),
                   ),
-                  // Overlay for selection / drag / create. Disable while inline editor is shown.
+
+                  // 선택/드래그 오버레이
                   Positioned.fill(
                     child: IgnorePointer(
-                      ignoring: overlayIgnored || isEditing,
+                      ignoring: overlayIgnored,
                       child: Listener(
                         behavior: HitTestBehavior.opaque,
-                        onPointerDown: isEditing ? null : onPointerDownSelect,
+                        onPointerDown: _handlePointerDown, // ← 더블클릭 보강
                         child: GestureDetector(
                           dragStartBehavior: DragStartBehavior.down,
                           behavior: HitTestBehavior.opaque,
-                          onTap: isEditing ? null : onCanvasTap,
-                          onDoubleTapDown: isEditing ? null : onCanvasDoubleTapDown,
+                          onTap: widget.onCanvasTap,
+                          // onDoubleTapDown은 모바일/웹에서도 계속 사용
+                          onDoubleTapDown: widget.onCanvasDoubleTapDown,
                           onPanStart: (details) {
-                            if (isEditing) return;
-                            if (currentTool == Tool.select) {
-                              onOverlayPanStart(details);
+                            if (widget.currentTool == Tool.select) {
+                              widget.onOverlayPanStart(details);
                             } else {
-                              onCreatePanStart(details);
+                              widget.onCreatePanStart(details);
                             }
                           },
                           onPanUpdate: (details) {
-                            if (isEditing) return;
-                            if (currentTool == Tool.select) {
-                              onOverlayPanUpdate(details);
+                            if (widget.currentTool == Tool.select) {
+                              widget.onOverlayPanUpdate(details);
                             } else {
-                              onCreatePanUpdate(details);
+                              widget.onCreatePanUpdate(details);
                             }
                           },
                           onPanEnd: (_) {
-                            if (isEditing) return;
-                            if (currentTool == Tool.select) {
-                              onOverlayPanEnd();
+                            if (widget.currentTool == Tool.select) {
+                              widget.onOverlayPanEnd();
                             } else {
-                              onCreatePanEnd();
+                              widget.onCreatePanEnd();
                             }
                           },
                           child: Transform.scale(
-                            scale: scalePercent / 100.0,
+                            scale: widget.scalePercent / 100.0,
                             alignment: Alignment.topLeft,
                             child: CustomPaint(
                               painter: _SelectionPainter(
-                                selected: selectedDrawable,
-                                bounds: selectionBounds,
-                                handleSize: handleSize,
-                                rotateHandleOffset: rotateHandleOffset,
-                                showEndpoints: showEndpoints,
-                                start: selectionStart,
-                                end: selectionEnd,
-                                endpointRadius: handleSize * 0.7,
-                                isText: isTextSelected,
+                                selected: widget.selectedDrawable,
+                                anchorCell: widget.selectionAnchorCell,
+                                focusCell: widget.selectionFocusCell,
+                                bounds: widget.selectionBounds,
+                                handleSize: widget.handleSize,
+                                rotateHandleOffset: widget.rotateHandleOffset,
+                                showEndpoints: widget.showEndpoints,
+                                start: widget.selectionStart,
+                                end: widget.selectionEnd,
+                                endpointRadius: widget.handleSize * 0.7,
+                                isText: widget.isTextSelected,
                               ),
                             ),
                           ),
@@ -188,14 +233,15 @@ class CanvasArea extends StatelessWidget {
                       ),
                     ),
                   ),
-                  // Inline editor must be the LAST child so it's on top of everything.
-                  if (isEditing)
+
+                  // ✅ 인라인 편집기 오버레이는 가장 위에!
+                  if (widget.inlineEditor != null && widget.inlineEditorRect != null)
                     Positioned(
-                      left: inlineEditorRect!.left * (scalePercent/100.0),
-                      top: inlineEditorRect!.top * (scalePercent/100.0),
-                      width: inlineEditorRect!.width * (scalePercent/100.0),
-                      height: inlineEditorRect!.height * (scalePercent/100.0),
-                      child: inlineEditor!,
+                      left: widget.inlineEditorRect!.left * (widget.scalePercent / 100.0),
+                      top: widget.inlineEditorRect!.top * (widget.scalePercent / 100.0),
+                      width: widget.inlineEditorRect!.width * (widget.scalePercent / 100.0),
+                      height: widget.inlineEditorRect!.height * (widget.scalePercent / 100.0),
+                      child: widget.inlineEditor!,
                     ),
                 ],
               ),
@@ -312,6 +358,8 @@ class _VerticalRulerPainter extends CustomPainter {
 class _SelectionPainter extends CustomPainter {
   final Drawable? selected;
   final Rect? bounds;
+  final (int, int)? anchorCell;
+  final (int, int)? focusCell;
   final double handleSize;
   final double rotateHandleOffset;
   final bool showEndpoints;
@@ -323,6 +371,8 @@ class _SelectionPainter extends CustomPainter {
   const _SelectionPainter({
     required this.selected,
     required this.bounds,
+    this.anchorCell,
+    this.focusCell,
     required this.handleSize,
     required this.rotateHandleOffset,
     this.showEndpoints = false,
@@ -335,6 +385,40 @@ class _SelectionPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     if (selected == null || bounds == null) return;
+
+    // 셀 선택 하이라이트 그리기
+    if (selected is TableDrawable && anchorCell != null && focusCell != null) {
+      final table = selected as TableDrawable;
+      final anchor = anchorCell!;
+      final focus = focusCell!;
+
+      final r1 = math.min(anchor.$1, focus.$1);
+      final r2 = math.max(anchor.$1, focus.$1);
+      final c1 = math.min(anchor.$2, focus.$2);
+      final c2 = math.max(anchor.$2, focus.$2);
+
+      final paint = Paint()
+        ..color = Colors.blue.withOpacity(0.3)
+        ..style = PaintingStyle.fill;
+
+      for (int r = r1; r <= r2; r++) {
+        for (int c = c1; c <= c2; c++) {
+          // 1. 테이블의 로컬 좌표계 기준 셀 사각형을 구합니다.
+          final localRect = table.localCellRect(r, c, bounds!.size);
+
+          // 2. 셀 사각형을 월드 좌표계로 변환합니다.
+          final path = Path()..addRect(localRect);
+          final matrix = Matrix4.identity()
+            ..translate(table.position.dx, table.position.dy)
+            ..rotateZ(table.rotationAngle);
+          final transformedPath = path.transform(matrix.storage);
+
+          canvas.drawPath(transformedPath, paint);
+        }
+      }
+    }
+
+    // --- 기존 선택 핸들 그리기 ---
 
     if (selected is LineDrawable || selected is ArrowDrawable) {
       final r = bounds!;
@@ -395,6 +479,8 @@ class _SelectionPainter extends CustomPainter {
   bool shouldRepaint(covariant _SelectionPainter old) {
     return old.selected != selected ||
         old.bounds != bounds ||
+        old.anchorCell != anchorCell ||
+        old.focusCell != focusCell ||
         old.start != start ||
         old.end != end ||
         old.handleSize != handleSize ||
