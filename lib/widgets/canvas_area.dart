@@ -1,3 +1,4 @@
+
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
@@ -78,6 +79,8 @@ class CanvasArea extends StatelessWidget {
         currentTool == Tool.text ||
         currentTool == Tool.image;
 
+    final bool isEditing = inlineEditor != null && inlineEditorRect != null;
+
     final double pixelsPerCm = printerDpi > 0 ? (printerDpi / 2.54) * (scalePercent / 100.0) : 0;
 
     return SizedBox(
@@ -85,15 +88,6 @@ class CanvasArea extends StatelessWidget {
       height: _canvasDimension,
       child: Stack(
         children: [
-                  // 인라인 편집기 오버레이
-                  if (inlineEditor != null && inlineEditorRect != null)
-                    Positioned(
-                      left: inlineEditorRect!.left * (scalePercent/100.0),
-                      top: inlineEditorRect!.top * (scalePercent/100.0),
-                      width: inlineEditorRect!.width * (scalePercent/100.0),
-                      height: inlineEditorRect!.height * (scalePercent/100.0),
-                      child: inlineEditor!,
-                    ),
           Positioned.fill(child: Container(color: Colors.white)),
           Positioned.fill(
             child: DecoratedBox(
@@ -137,18 +131,20 @@ class CanvasArea extends StatelessWidget {
                       ),
                     ),
                   ),
+                  // Overlay for selection / drag / create. Disable while inline editor is shown.
                   Positioned.fill(
                     child: IgnorePointer(
-                      ignoring: overlayIgnored,
+                      ignoring: overlayIgnored || isEditing,
                       child: Listener(
                         behavior: HitTestBehavior.opaque,
-                        onPointerDown: onPointerDownSelect,
+                        onPointerDown: isEditing ? null : onPointerDownSelect,
                         child: GestureDetector(
                           dragStartBehavior: DragStartBehavior.down,
                           behavior: HitTestBehavior.opaque,
-                          onTap: onCanvasTap,
-                          onDoubleTapDown: onCanvasDoubleTapDown,
+                          onTap: isEditing ? null : onCanvasTap,
+                          onDoubleTapDown: isEditing ? null : onCanvasDoubleTapDown,
                           onPanStart: (details) {
+                            if (isEditing) return;
                             if (currentTool == Tool.select) {
                               onOverlayPanStart(details);
                             } else {
@@ -156,6 +152,7 @@ class CanvasArea extends StatelessWidget {
                             }
                           },
                           onPanUpdate: (details) {
+                            if (isEditing) return;
                             if (currentTool == Tool.select) {
                               onOverlayPanUpdate(details);
                             } else {
@@ -163,6 +160,7 @@ class CanvasArea extends StatelessWidget {
                             }
                           },
                           onPanEnd: (_) {
+                            if (isEditing) return;
                             if (currentTool == Tool.select) {
                               onOverlayPanEnd();
                             } else {
@@ -190,6 +188,15 @@ class CanvasArea extends StatelessWidget {
                       ),
                     ),
                   ),
+                  // Inline editor must be the LAST child so it's on top of everything.
+                  if (isEditing)
+                    Positioned(
+                      left: inlineEditorRect!.left * (scalePercent/100.0),
+                      top: inlineEditorRect!.top * (scalePercent/100.0),
+                      width: inlineEditorRect!.width * (scalePercent/100.0),
+                      height: inlineEditorRect!.height * (scalePercent/100.0),
+                      child: inlineEditor!,
+                    ),
                 ],
               ),
             ),

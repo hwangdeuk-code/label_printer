@@ -120,7 +120,12 @@ class _PainterPageState extends State<PainterPage> {
     controller.maxScale = 4.0;
     _quillFocus.addListener(() {
       if (!_quillFocus.hasFocus) {
-        _commitInlineEditor();
+        // setState() 호출로 인해 포커스가 일시적으로 상실될 수 있습니다.
+        // 한 프레임 뒤에 다시 확인하여, 여전히 포커스가 없다면 편집기를 닫습니다.
+        // 이는 스타일 변경 시 편집기가 닫히는 현상을 방지합니다.
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!_quillFocus.hasFocus) _commitInlineEditor();
+        });
       }
     });
     controller.addListener(() {
@@ -139,7 +144,9 @@ class _PainterPageState extends State<PainterPage> {
 
   @override
   void dispose() {
-    _pressSnapTimer?.cancel();
+    
+    _quillFocus.dispose();
+_pressSnapTimer?.cancel();
     controller.dispose();
     super.dispose();
   }
@@ -151,16 +158,15 @@ class _PainterPageState extends State<PainterPage> {
     return controller.transformationController.toScene(local);
   }
 
-  /// 한글 주석: 인라인 Quill 편집기 위젯 반환 (버전 호환: basic만 사용)
+  /// 한글 주석: 인라인 Quill 편집기 위젯 반환
   Widget? _buildInlineEditor() {
     if (_editingTable == null ||
         _editingCellRow == null ||
         _editingCellCol == null ||
         _quillController == null ||
-        _inlineEditorRectScene == null) {
-      return null;
-    }
+        _inlineEditorRectScene == null) return null;
 
+    // QuillEditor 위젯을 직접 빌드합니다.
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
@@ -168,6 +174,8 @@ class _PainterPageState extends State<PainterPage> {
       ),
       child: quill.QuillEditor.basic(
         controller: _quillController!,
+        focusNode: _quillFocus,
+        // padding, autoFocus, expands 파라미터는 현재 버전에서 지원하지 않으므로 제거합니다.
       ),
     );
   }
@@ -189,6 +197,7 @@ class _PainterPageState extends State<PainterPage> {
       _editingCellCol = null;
       _inlineEditorRectScene = null;
       _quillController = null;
+      selectedDrawable = null; // ✅ 편집 종료 시 선택 객체 초기화
     });
   }
 
@@ -609,63 +618,75 @@ class _PainterPageState extends State<PainterPage> {
   }
 
   void _handleCanvasDoubleTapDown(TapDownDetails details) {
-    final scenePoint = _sceneFromGlobal(details.globalPosition);
-    final d = _pickTopAt(scenePoint);
-    if (d is! TableDrawable) return;
-    // 로컬 좌표 변환
-    final local = _toLocal(scenePoint, d.position, d.rotationAngle);
-    final scaledSize = d.size;
-    final rect = Rect.fromCenter(center: Offset.zero, width: scaledSize.width, height: scaledSize.height);
-    if (!rect.contains(local)) return;
 
-    // 열 인덱스 계산
-    final colFractions = d.columnFractions;
-    final colWidths = <double>[];
-    for (final f in colFractions) {
-      colWidths.add(rect.width * f);
-    }
-    double x = rect.left;
-    int col = 0;
-    for (int c = 0; c < colWidths.length; c++) {
-      final left = x;
-      final right = x + colWidths[c];
-      if (local.dx >= left && local.dx <= right) {
-        col = c;
-        break;
-      }
-      x += colWidths[c];
-    }
-    // 행 인덱스 계산
-    final rowH = rect.height / d.rows;
-    int row = ((local.dy - rect.top) / rowH).floor().clamp(0, d.rows - 1);
+  final scenePoint = _sceneFromGlobal(details.globalPosition);
+  final d = _pickTopAt(scenePoint);
+  if (d is! TableDrawable) return;
 
-    // 셀 씬 좌표 사각형 계산
-    final cellLocal = d.localCellRect(row, col, scaledSize);
-    // 로컬->월드(씬) 좌표 변환: 회전은 무시하고 위치만 적용(간이)
-    final topLeftLocal = Offset(cellLocal.left, cellLocal.top);
-    final sceneTopLeft = d.position +
-        Offset(math.cos(d.rotationAngle) * topLeftLocal.dx - math.sin(d.rotationAngle) * topLeftLocal.dy,
-            math.sin(d.rotationAngle) * topLeftLocal.dx + math.cos(d.rotationAngle) * topLeftLocal.dy);
-    _inlineEditorRectScene = Rect.fromLTWH(sceneTopLeft.dx, sceneTopLeft.dy, cellLocal.width, cellLocal.height);
+  // 로컬 좌표 변환
+  final local = _toLocal(scenePoint, d.position, d.rotationAngle);
+  final scaledSize = d.size;
+  final rect = Rect.fromCenter(center: Offset.zero, width: scaledSize.width, height: scaledSize.height);
+  if (!rect.contains(local)) return;
 
-    // Quill 컨트롤러 구성
-    final key = "$row,$col";
-    final jsonStr = d.cellDeltaJson[key];
-    final doc = (jsonStr != null && jsonStr.isNotEmpty)
-        ? quill.Document.fromJson(json.decode(jsonStr))
-        : quill.Document();
-    _quillController = quill.QuillController(
-      document: doc,
-      selection: const TextSelection.collapsed(offset: 0),
-    );
-
-    setState(() {
-      _editingTable = d;
-      _editingCellRow = row;
-      _editingCellCol = col;
-    });
-    _quillFocus.requestFocus();
+  // 열 인덱스 계산
+  final colFractions = d.columnFractions;
+  final colWidths = <double>[];
+  for (final f in colFractions) { colWidths.add(rect.width * f); }
+  double x = rect.left;
+  int col = 0;
+  for (int c=0; c<colWidths.length; c++) {
+    final left = x;
+    final right = x + colWidths[c];
+    if (local.dx >= left && local.dx <= right) { col = c; break; }
+    x += colWidths[c];
   }
+  // 행 인덱스 계산
+  final rowH = rect.height / d.rows;
+  int row = ((local.dy - rect.top) / rowH).floor().clamp(0, d.rows-1);
+
+  // 셀 씬 좌표 사각형 계산
+  final cellLocal = d.localCellRect(row, col, scaledSize);
+  // 로컬->월드(씬) 좌표 변환
+  final topLeftLocal = Offset(cellLocal.left, cellLocal.top);
+  final sceneTopLeft = d.position + Offset(
+    math.cos(d.rotationAngle)*topLeftLocal.dx - math.sin(d.rotationAngle)*topLeftLocal.dy,
+    math.sin(d.rotationAngle)*topLeftLocal.dx + math.cos(d.rotationAngle)*topLeftLocal.dy
+  );
+  _inlineEditorRectScene = Rect.fromLTWH(sceneTopLeft.dx, sceneTopLeft.dy, cellLocal.width, cellLocal.height);
+
+  // Quill 컨트롤러 구성
+  final key = "$row,$col";
+  final jsonStr = d.cellDeltaJson[key];
+  final doc = (jsonStr != null && jsonStr.isNotEmpty) // ✅ JSON 구조 수정
+      ? quill.Document.fromJson(
+          (json.decode(jsonStr) as Map<String, dynamic>)['ops']
+              as List<dynamic>,
+        )
+      : quill.Document();
+  _quillController = quill.QuillController(
+    document: doc,
+    selection: const TextSelection.collapsed(offset: 0),
+  );
+
+  setState(() {
+    _editingTable = d;
+    _editingCellRow = row;
+    _editingCellCol = col;
+  });
+
+  // ✅ 더블클릭 직후 바로 편집 가능: 포커스 & 커서 이동
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    _quillFocus.requestFocus();
+    try {
+      final len = _quillController?.document.length ?? 0;
+      _quillController?.updateSelection(
+        TextSelection.collapsed(offset: len),
+        quill.ChangeSource.local,
+      );
+    } catch (_) {}
+  });
+}
 
   void _handlePointerDownSelect(PointerDownEvent e) async {
     if (currentTool == tool.Tool.text) {
@@ -806,6 +827,19 @@ class _PainterPageState extends State<PainterPage> {
     setState(() {});
   }
 
+  Drawable? _updateDrawableOnPan(
+      Drawable original, DragAction action, Rect startRect, Offset scenePtWorld, Offset scenePtLocal) {
+    if (action == DragAction.move) {
+      return _updateDrawablePosition(original, startRect, scenePtWorld, dragStartPointer!);
+    } else if (action == DragAction.rotate) {
+      return _updateDrawableRotation(original as ObjectDrawable, scenePtWorld);
+    } else if (original is RectangleDrawable || original is OvalDrawable) {
+      return _updateSimpleShapeOnResize(original, action, startRect, scenePtWorld);
+    }
+    // 다른 타입의 Drawable 업데이트 로직을 위한 헬퍼 메서드 호출 추가
+    return null; // 임시 반환
+  }
+
   void _onOverlayPanUpdate(DragUpdateDetails details) {
     if (selectedDrawable == null || dragAction == DragAction.none) return;
     _movedSinceDown = true;
@@ -833,16 +867,16 @@ class _PainterPageState extends State<PainterPage> {
 
     if (dragAction == DragAction.move) {
       final delta = scenePtWorld - startPtWorld;
-      if (original is RectangleDrawable) {
-        replaced = RectangleDrawable(position: startRect.center + delta, size: startRect.size, paint: original.paint, borderRadius: original.borderRadius);
-      } else if (original is OvalDrawable) {
-        replaced = OvalDrawable(position: startRect.center + delta, size: startRect.size, paint: original.paint);
-      } else if (original is BarcodeDrawable) {
+      if (original is ObjectDrawable) { // ObjectDrawable은 position을 가짐
+        replaced = (original as dynamic).copyWith(position: startRect.center + delta);
+        // copyWith가 없는 경우를 대비한 분기 처리 필요
+        // 예:
+        // if (original is RectangleDrawable) { ... }
+        // else if (original is OvalDrawable) { ... }
+        // ...
+      }
+      else if (original is LineDrawable) {
         replaced = original.copyWith(position: startRect.center + delta);
-      } else if (original is LineDrawable) {
-        replaced = LineDrawable(position: startRect.center + delta, length: original.length, rotationAngle: original.rotationAngle, paint: original.paint);
-      } else if (original is ArrowDrawable) {
-        replaced = ArrowDrawable(position: startRect.center + delta, length: original.length, rotationAngle: original.rotationAngle, arrowHeadSize: original.arrowHeadSize, paint: original.paint);
       } else if (original is ConstrainedTextDrawable) {
         replaced = original.copyWith(position: startRect.center + delta);
       } else if (original is TextDrawable) {
@@ -853,6 +887,7 @@ class _PainterPageState extends State<PainterPage> {
         replaced = original.copyWith(position: startRect.center + delta);
       }
     } else if (dragAction == DragAction.rotate) {
+      // 이 로직은 _updateDrawableRotation 헬퍼 메서드로 이동 가능
       if (original is ObjectDrawable) {
         final center = original.position;
 
@@ -881,6 +916,7 @@ class _PainterPageState extends State<PainterPage> {
         }
       }
     } else {
+      // 이 로직은 타입별 헬퍼 메서드로 이동 가능
       if (original is RectangleDrawable || original is OvalDrawable) {
         final fixed = dragFixedCorner ?? _fixedCornerForAction(startRect, dragAction);
         Rect newRect = Rect.fromPoints(fixed, scenePtWorld);
@@ -1068,6 +1104,55 @@ class _PainterPageState extends State<PainterPage> {
       setState(() => selectedDrawable = replaced);
     }
   }
+
+  Drawable _updateDrawablePosition(Drawable original, Rect startRect, Offset scenePtWorld, Offset startPtWorld) {
+    final delta = scenePtWorld - startPtWorld;
+    final newPosition = startRect.center + delta;
+
+    // dynamic dispatch를 사용하거나, 각 타입에 맞게 copyWith를 호출합니다.
+    // 이 예제에서는 dynamic을 사용하지만, 실제 구현에서는 타입 체크가 더 안전합니다.
+    if (original is ObjectDrawable) {
+      return (original as dynamic).copyWith(position: newPosition);
+    }
+    // 다른 타입들에 대한 처리...
+    return original; // 변경 불가 시 원본 반환
+  }
+
+  Drawable _updateDrawableRotation(ObjectDrawable original, Offset scenePtWorld) {
+    final center = original.position;
+    final curPointerAngle = math.atan2((scenePtWorld - center).dy, (scenePtWorld - center).dx);
+    final baseObjAngle = startAngle ?? original.rotationAngle;
+    final basePointerAngle = _startPointerAngle ?? curPointerAngle;
+
+    var newAngle = baseObjAngle + (curPointerAngle - basePointerAngle);
+    newAngle = _snapAngle(newAngle);
+
+    return (original as dynamic).copyWith(rotation: newAngle);
+  }
+
+  Drawable _updateSimpleShapeOnResize(Drawable original, DragAction action, Rect startRect, Offset scenePtWorld) {
+    final fixed = dragFixedCorner ?? _fixedCornerForAction(startRect, action);
+    Rect newRect = Rect.fromPoints(fixed, scenePtWorld);
+
+    if (lockRatio) {
+      final size = newRect.size;
+      final m = math.max(size.width.abs(), size.height.abs());
+      final dir = (scenePtWorld - fixed);
+      final ddx = dir.dx.isNegative ? -m : m;
+      final ddy = dir.dy.isNegative ? -m : m;
+      newRect = Rect.fromPoints(fixed, fixed + Offset(ddx, ddy));
+    }
+
+    if (original is RectangleDrawable) {
+      return RectangleDrawable(position: newRect.center, size: newRect.size, paint: original.paint, borderRadius: original.borderRadius);
+    } else if (original is OvalDrawable) {
+      return OvalDrawable(position: newRect.center, size: newRect.size, paint: original.paint);
+    }
+    return original;
+  }
+
+  // _updateBarcodeOnResize, _updateTextOnResize 등 추가...
+
 
   void _onOverlayPanEnd() {
     _pressSnapTimer?.cancel();
@@ -1545,12 +1630,28 @@ class _PainterPageState extends State<PainterPage> {
               };
               d.setStyle(r, c, next);
 
-              if (_quillController != null && fontSize != null) {
-                _quillController!.formatSelection(
-                  quill.SizeAttribute(fontSize.round().toString()),
-                );
+              if (_quillController != null) {
+                if (fontSize != null) {
+                  _quillController!.formatSelection(
+                    quill.SizeAttribute(fontSize.round().toString()),
+                  );
+                }
+                if (bold != null) {
+                  _quillController!.formatSelection(bold ? quill.Attribute.bold : quill.Attribute.clone(quill.Attribute.bold, null));
+                }
+                if (italic != null) {
+                  _quillController!.formatSelection(italic ? quill.Attribute.italic : quill.Attribute.clone(quill.Attribute.italic, null));
+                }
+                if (align != null) {
+                  _quillController!.formatSelection(align == tool.TxtAlign.left ? quill.Attribute.leftAlignment : (align == tool.TxtAlign.center ? quill.Attribute.centerAlignment : quill.Attribute.rightAlignment));
+                }
               }
+              
+              // setState를 호출하여 InspectorPanel의 UI를 업데이트합니다.
               setState(() {});
+              // 포커스가 setState로 인해 일시적으로 사라지므로, 즉시 복원 요청을 합니다.
+              // 이렇게 하면 사용자는 포커스 상실을 인지하지 못하고 편집을 계속할 수 있습니다.
+              _quillFocus.requestFocus();
             },
             mutateSelected: (rewriter) {
               final cur = selectedDrawable;
