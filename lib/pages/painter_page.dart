@@ -198,11 +198,21 @@ _pressSnapTimer?.cancel();
         border: Border.all(color: Colors.blueAccent, width: 1),
       ),
       child: FocusScope( // FocusScope로 감싸서 포커스 관리를 분리합니다.
-        child: quill.QuillEditor.basic(
-          controller: _quillController!,
-          focusNode: _quillFocus,
-          // padding, autoFocus, expands 파라미터는 현재 버전에서 지원하지 않으므로 제거합니다.
-        ),
+        child: Builder(builder: (ctx) {
+  double _fs = 12.0;
+  try { final st = _editingTable!.styleOf(_editingCellRow!, _editingCellCol!); _fs = (st['fontSize'] as double); } catch(_){}
+  final mq = MediaQuery.of(ctx);
+  return MediaQuery(
+    data: mq.copyWith(textScaler: const TextScaler.linear(1.0)),
+    child: DefaultTextStyle.merge(
+      style: TextStyle(fontSize: _fs),
+      child: quill.QuillEditor.basic(
+        controller: _quillController!,
+        focusNode: _quillFocus,
+      ),
+    ),
+  );
+}),
       ),
     );
   }
@@ -757,11 +767,30 @@ _clearCellSelection(); // ✅ 편집 종료 시 셀 선택도 초기화
           (json.decode(jsonStr) as Map<String, dynamic>)['ops']
               as List<dynamic>,
         )
-      : quill.Document();
+      : quill.Document.fromJson([{ 'insert': '\n', 'attributes': { 'size': (d.styleOf(row, col)["fontSize"] as double).toInt().toString() } }]);
   _quillController = quill.QuillController(
     document: doc,
     selection: const TextSelection.collapsed(offset: 0),
     );
+  // ✅ WYSIWYG: 편집용 문서 전체에 셀 기본 글자 크기 적용(Delta 'size' 속성으로 강제)
+  try {
+    final st = d.styleOf(row, col);
+    final fs = (st["fontSize"] as double);
+    final len = _quillController!.document.length;
+    _quillController!.updateSelection(
+      TextSelection(baseOffset: 0, extentOffset: len),
+      quill.ChangeSource.local,
+    );
+    _quillController!.formatSelection(
+      quill.Attribute.fromKeyValue('size', fs.toStringAsFixed(0)),
+    );
+    // 커서를 문서 끝으로 이동
+    _quillController!.updateSelection(
+      TextSelection.collapsed(offset: len),
+      quill.ChangeSource.local,
+    );
+  } catch (_){}
+
 
     setState(() {
       _selectionAnchorCell = (row, col);
