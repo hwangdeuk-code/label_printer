@@ -103,6 +103,13 @@ class _PainterPageState extends State<PainterPage> {
   int? _editingCellRow;
   int? _editingCellCol;
   quill.QuillController? _quillController;
+
+  // === Inspector snapshot for Quill (no live sync during editing) ===
+  bool _inspBold = false;
+  bool _inspItalic = false;
+  double _inspFontSize = 12.0;
+  tool.TxtAlign _inspAlign = tool.TxtAlign.left;
+
   final FocusNode _quillFocus = FocusNode();
   bool _guardSelectionDuringInspector = false;
   TextSelection? _pendingSelectionRestore;
@@ -798,11 +805,19 @@ _clearCellSelection(); // ✅ 편집 종료 시 셀 선택도 초기화
   });
 
   setState(() {
-      _editingTable = d;
-      _editingCellRow = row;
-      _editingCellCol = col;
-    });
-    try { d.beginEdit(row, col); controller.notifyListeners(); } catch (_) {}
+  _editingTable = d;
+  _editingCellRow = row;
+  _editingCellCol = col;
+  try {
+    final st = d.styleOf(row, col);
+    _inspBold = (st['bold'] as bool);
+    _inspItalic = (st['italic'] as bool);
+    _inspFontSize = (st['fontSize'] as double);
+    final a = (st['align'] as String);
+    _inspAlign = a == 'center' ? tool.TxtAlign.center : (a == 'right' ? tool.TxtAlign.right : tool.TxtAlign.left);
+  } catch (_) {}
+});
+try { d.beginEdit(row, col); controller.notifyListeners(); } catch (_) {}
 // ✅ 더블클릭 직후 바로 편집 가능: 포커스 & 커서 이동
   WidgetsBinding.instance.addPostFrameCallback((_) {
     _quillFocus.requestFocus();
@@ -1735,105 +1750,66 @@ _clearCellSelection(); // ✅ 편집 종료 시 셀 선택도 초기화
               controller.replaceDrawable(cur, replacement);
               setState(() => selectedDrawable = replacement);
             },
-            // ★ Quill 편집기 연동
+            // ★ Quill 편집기 연동 (No live sync; snapshot only)
             showCellQuillSection: _editingTable != null && _editingCellRow != null && _editingCellCol != null,
-            quillBold: (() {
-              final d = _editingTable;
-              final r = _editingCellRow;
-              final c = _editingCellCol;
-              if (d == null || r == null || c == null) return false;
-              return (d.styleOf(r, c)['bold'] as bool);
-            })(),
-            quillItalic: (() {
-              final d = _editingTable;
-              final r = _editingCellRow;
-              final c = _editingCellCol;
-              if (d == null || r == null || c == null) return false;
-              return (d.styleOf(r, c)['italic'] as bool);
-            })(),
-            quillFontSize: (() {
-              final d = _editingTable;
-              final r = _editingCellRow;
-              final c = _editingCellCol;
-              if (d == null || r == null || c == null) return 12.0;
-              return (d.styleOf(r, c)['fontSize'] as double);
-            })(),
-            quillAlign: (() {
-              final d = _editingTable;
-              final r = _editingCellRow;
-              final c = _editingCellCol;
-              if (d == null || r == null || c == null) return tool.TxtAlign.left;
-              final a = (d.styleOf(r, c)['align'] as String);
-              return a == 'center'
-                  ? tool.TxtAlign.center
-                  : a == 'right'
-                      ? tool.TxtAlign.right
-                      : tool.TxtAlign.left;
-            })(),
+            quillBold: _inspBold,
+            quillItalic: _inspItalic,
+            quillFontSize: _inspFontSize,
+            quillAlign: _inspAlign,
             onQuillStyleChanged: ({bool? bold, bool? italic, double? fontSize, tool.TxtAlign? align}) {
-              // Guard selection during inspector formatting
-              _guardSelectionDuringInspector = true;
-              _suppressCommitOnce = true;
-              // Save selection to restore after focus juggling
-              if (_quillController != null) {
-                final sel = _quillController!.selection;
-                if (sel.start != -1 && sel.end != -1 && sel.start != sel.end) {
-                  _pendingSelectionRestore = sel;
-                }
-              }
-
               final d = _editingTable;
               final r = _editingCellRow;
               final c = _editingCellCol;
               if (d == null || r == null || c == null) return;
 
+              // 1) Update snapshot for Inspector UI
+              setState(() {
+                if (bold != null) _inspBold = bold;
+                if (italic != null) _inspItalic = italic;
+                if (fontSize != null) _inspFontSize = fontSize;
+                if (align != null) _inspAlign = align;
+              });
+
+              // 2) Apply to Table style
               final cur = d.styleOf(r, c);
-              final next = {
-                'fontSize': (fontSize ?? cur['fontSize']) as double,
-                'bold': (bold ?? cur['bold']) as bool,
-                'italic': (italic ?? cur['italic']) as bool,
-                'align': (align != null)
-                    ? (align == tool.TxtAlign.center ? 'center' : (align == tool.TxtAlign.right ? 'right' : 'left'))
-                    : (cur['align'] as String),
+              final next = <String, dynamic>{
+                'bold': bold ?? cur['bold'],
+                'italic': italic ?? cur['italic'],
+                'fontSize': fontSize ?? cur['fontSize'],
+                'align': (() {
+                  final a = align ?? (cur['align'] as String == 'center'
+                      ? tool.TxtAlign.center
+                      : (cur['align'] as String == 'right' ? tool.TxtAlign.right : tool.TxtAlign.left));
+                  return a == tool.TxtAlign.center ? 'center' : (a == tool.TxtAlign.right ? 'right' : 'left');
+                })(),
               };
               d.setStyle(r, c, next);
 
-              // ✅ 스타일 적용 즉시 Delta 보존
-              _persistInlineDelta();
-
-              _suppressCommitOnce = true;
-              _suppressCommitOnce = true;
+              // 3) Apply to Quill doc (no back-sync from selection)
               if (_quillController != null) {
-                if (bold != null) _quillController!.formatSelection(bold ? quill.Attribute.bold : quill.Attribute.clone(quill.Attribute.bold, null));
-                if (italic != null) _quillController!.formatSelection(italic ? quill.Attribute.italic : quill.Attribute.clone(quill.Attribute.italic, null));
-                if (fontSize != null) _quillController!.formatSelection(quill.SizeAttribute(fontSize.round().toString()));
-                if (align != null) _quillController!.formatSelection(align == tool.TxtAlign.left ? quill.Attribute.leftAlignment : (align == tool.TxtAlign.center ? quill.Attribute.centerAlignment : quill.Attribute.rightAlignment));
-              }
-              
-              // 1. 포커스 리스너가 _commitInlineEditor를 호출하지 못하도록 먼저 포커스를 해제합니다.
-              // keep focus on editor to preserve selection
-              // 2. InspectorPanel의 UI를 업데이트합니다.
-              // no-op: avoid triggering commit via rebuild
-              // 3. UI 빌드가 완료된 후, 다시 편집기로 포커스를 복원합니다.
-              //    이렇게 하면 사용자는 포커스 변화를 인지하지 못하고 편집을 계속할 수 있습니다.
-              WidgetsBinding.instance.addPostFrameCallback((_) => _quillFocus.requestFocus());
-            
-              // After applying format, refocus and restore selection
-              WidgetsBinding.instance.addPostFrameCallback((_) {
-                if (mounted) {
-                  _quillFocus.requestFocus();
-                  if (_pendingSelectionRestore != null && _quillController != null) {
-                    _quillController!.updateSelection(
-                      _pendingSelectionRestore!,
-                      quill.ChangeSource.local,
-                    );
-                  }
+                if (bold != null) {
+                  _quillController!.formatSelection(
+                    bold ? quill.Attribute.bold : quill.Attribute.clone(quill.Attribute.bold, null));
                 }
-                _pendingSelectionRestore = null;
-                _guardSelectionDuringInspector = false;
-                _suppressCommitOnce = false;
-              });
-},
+                if (italic != null) {
+                  _quillController!.formatSelection(
+                    italic ? quill.Attribute.italic : quill.Attribute.clone(quill.Attribute.italic, null));
+                }
+                if (fontSize != null) {
+                  _quillController!.formatSelection(
+                    quill.Attribute.fromKeyValue('size', fontSize.toStringAsFixed(0)));
+                }
+                if (align != null) {
+                  final attr = align == tool.TxtAlign.center
+                      ? quill.Attribute.centerAlignment
+                      : (align == tool.TxtAlign.right ? quill.Attribute.rightAlignment : quill.Attribute.leftAlignment);
+                  _quillController!.formatSelection(attr);
+                }
+              }
+
+              // 4) Persist delta immediately
+              try { _persistInlineDelta(); } catch (_) {}
+            },
           ),
         ],
       ),
