@@ -6,6 +6,8 @@ import 'package:flutter/material.dart';
 import '../flutter_painter_v2/flutter_painter.dart';
 import '../models/tool.dart';
 import '../drawables/table_drawable.dart';
+import 'table_quill_overlay_layer.dart';
+import 'table_cell_quill_view.dart';
 
 const double _canvasDimension = 640;
 const double _rulerThickness = 24;
@@ -21,6 +23,7 @@ class CanvasArea extends StatefulWidget {
     super.key,
     required this.currentTool,
     required this.controller,
+    this.isEditingCell = false,
     required this.painterKey,
     required this.onPointerDownSelect,
     required this.onCanvasTap,
@@ -70,6 +73,7 @@ class CanvasArea extends StatefulWidget {
   final bool isTextSelected;
   final double printerDpi;
   final double scalePercent;
+  final bool isEditingCell;
   final void Function(TapDownDetails)? onCanvasDoubleTapDown;
   final Rect? inlineEditorRect;
   final Widget? inlineEditor;
@@ -163,6 +167,7 @@ class _CanvasAreaState extends State<CanvasArea> {
               decoration: BoxDecoration(border: Border.all(color: Colors.black12)),
               child: Stack(
                 children: [
+                  
                   // 실제 페인터
                   AbsorbPointer(
                     absorbing: absorbPainter,
@@ -176,7 +181,23 @@ class _CanvasAreaState extends State<CanvasArea> {
                     ),
                   ),
 
+                  // Quill read-only overlay for table cells (always visible, even during inline edit)
+                  Positioned.fill(
+                    child: IgnorePointer(
+                      ignoring: true,
+                      child: Transform.scale(
+                        scale: widget.scalePercent / 100.0,
+                        alignment: Alignment.topLeft,
+                        child: TableQuillOverlayLayer(
+                          controller: widget.controller,
+                          scalePercent: widget.scalePercent,
+                        ),
+                      ),
+                    ),
+                  ),
+
                   // 선택/드래그 오버레이
+// 선택/드래그 오버레이
                   Positioned.fill(
                     child: IgnorePointer(
                       ignoring: overlayIgnored,

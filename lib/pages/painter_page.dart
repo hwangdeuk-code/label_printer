@@ -104,7 +104,18 @@ class _PainterPageState extends State<PainterPage> {
   int? _editingCellCol;
   quill.QuillController? _quillController;
   final FocusNode _quillFocus = FocusNode();
+  bool _guardSelectionDuringInspector = false;
+  TextSelection? _pendingSelectionRestore;
+
+  Timer? _quillBlurCommitTimer;
+  bool _suppressCommitOnce = false;
   Rect? _inlineEditorRectScene; // 씬 좌표 기준
+
+  // 인라인 에디터/오버레이 엔트리 (널 허용)
+  OverlayEntry? _inlineEditor;
+  OverlayEntry? _inlineEditorEntry;
+  OverlayEntry? _editorOverlay;
+
 
   /// 한글 주석: 표 셀 선택 상태
   bool _isShiftPressed = false;
@@ -126,12 +137,19 @@ class _PainterPageState extends State<PainterPage> {
     controller.maxScale = 4.0;
     _quillFocus.addListener(() {
       if (!_quillFocus.hasFocus) {
-        // setState() 호출로 인해 포커스가 일시적으로 상실될 수 있습니다.
-        // 한 프레임 뒤에 다시 확인하여, 여전히 포커스가 없다면 편집기를 닫습니다.
-        // 이는 스타일 변경 시 편집기가 닫히는 현상을 방지합니다.
-        WidgetsBinding.instance.addPostFrameCallback((_) {
+        // If inspector is applying a format, don't disturb the selection
+        if (_guardSelectionDuringInspector) return;
+                // Immediately collapse selection so highlight disappears while editor is unfocused
+        try {
+          } catch (_) {}
+
+_quillBlurCommitTimer?.cancel();
+        _quillBlurCommitTimer = Timer(const Duration(milliseconds: 180), () {
+          if (_suppressCommitOnce) { _suppressCommitOnce = false; return; }
           if (!_quillFocus.hasFocus) _commitInlineEditor();
         });
+      } else {
+        _quillBlurCommitTimer?.cancel();
       }
     });
     controller.addListener(() {
@@ -179,16 +197,65 @@ _pressSnapTimer?.cancel();
         color: Colors.white,
         border: Border.all(color: Colors.blueAccent, width: 1),
       ),
-      child: quill.QuillEditor.basic(
-        controller: _quillController!,
-        focusNode: _quillFocus,
-        // padding, autoFocus, expands 파라미터는 현재 버전에서 지원하지 않으므로 제거합니다.
+      child: FocusScope( // FocusScope로 감싸서 포커스 관리를 분리합니다.
+        child: quill.QuillEditor.basic(
+          controller: _quillController!,
+          focusNode: _quillFocus,
+          // padding, autoFocus, expands 파라미터는 현재 버전에서 지원하지 않으므로 제거합니다.
+        ),
       ),
     );
   }
 
   /// 한글 주석: 인라인 편집 종료 및 저장
-  void _commitInlineEditor() {
+  
+  /// 한글 주석: 인라인 편집 중 현재 Quill 문서를 즉시 셀의 deltaJson에 반영(포커스/커밋 없이도 보존)
+  void _persistInlineDelta() {
+    if (_editingTable == null ||
+        _editingCellRow == null ||
+        _editingCellCol == null ||
+        _quillController == null) return;
+    final r = _editingCellRow!;
+    final c = _editingCellCol!;
+    try {
+      final delta = _quillController!.document.toDelta().toJson();
+      final jsonStr = json.encode({"ops": delta});
+      _editingTable!.setDeltaJson(r, c, jsonStr);
+      try { controller.notifyListeners(); } catch (_) {}
+    } catch (_) {
+      // ignore: any failure should not break UX
+    }
+  }
+
+void _commitInlineEditor() {
+    // Collapse any selection to prevent lingering highlight
+    try {
+      _quillController?.updateSelection(
+        const TextSelection.collapsed(offset: 0),
+        quill.ChangeSource.local,
+      );
+    } catch (_) {}
+    // Remove inline editor overlay if present
+    try { _inlineEditor?.remove(); } catch (_){ }
+    try { _inlineEditorEntry?.remove(); } catch (_){ }
+    try { _editorOverlay?.remove(); } catch (_){ }
+
+  // Collapse selection to prevent lingering highlight after leaving edit mode
+  try {
+    _quillController?.updateSelection(
+      const TextSelection.collapsed(offset: 0),
+      quill.ChangeSource.local,
+    );
+  } catch (_) {
+    try {
+      // Fallback for older flutter_quill versions
+      // ignore: deprecated_member_use
+      _quillController?.updateSelection(
+        const TextSelection.collapsed(offset: 0),
+        quill.ChangeSource.local,
+      );
+    } catch (__){ /* no-op */ }
+  }
     if (_editingTable == null ||
         _editingCellRow == null ||
         _editingCellCol == null ||
@@ -199,6 +266,22 @@ _pressSnapTimer?.cancel();
     final jsonStr = json.encode({"ops": delta});
     _editingTable!.setDeltaJson(r, c, jsonStr);
     setState(() {
+  // Collapse selection to prevent lingering highlight after leaving edit mode
+  try {
+    _quillController?.updateSelection(
+      const TextSelection.collapsed(offset: 0),
+      quill.ChangeSource.local,
+    );
+  } catch (_) {
+    try {
+      // Fallback for older flutter_quill versions
+      // ignore: deprecated_member_use
+      _quillController?.updateSelection(
+        const TextSelection.collapsed(offset: 0),
+        quill.ChangeSource.local,
+      );
+    } catch (__){ /* no-op */ }
+  }
       _editingTable = null;
       _editingCellRow = null;
       _editingCellCol = null;
@@ -1565,7 +1648,7 @@ _pressSnapTimer?.cancel();
           Expanded(
             child: CanvasArea(
               currentTool: currentTool,
-              controller: controller,
+              controller: controller, isEditingCell: _quillController != null, 
               painterKey: _painterKey,
               onPointerDownSelect: _handlePointerDownSelect,
               onCanvasTap: _handleCanvasTap,
@@ -1619,6 +1702,105 @@ _pressSnapTimer?.cancel();
               controller.replaceDrawable(cur, replacement);
               setState(() => selectedDrawable = replacement);
             },
+            // ★ Quill 편집기 연동
+            showCellQuillSection: _editingTable != null && _editingCellRow != null && _editingCellCol != null,
+            quillBold: (() {
+              final d = _editingTable;
+              final r = _editingCellRow;
+              final c = _editingCellCol;
+              if (d == null || r == null || c == null) return false;
+              return (d.styleOf(r, c)['bold'] as bool);
+            })(),
+            quillItalic: (() {
+              final d = _editingTable;
+              final r = _editingCellRow;
+              final c = _editingCellCol;
+              if (d == null || r == null || c == null) return false;
+              return (d.styleOf(r, c)['italic'] as bool);
+            })(),
+            quillFontSize: (() {
+              final d = _editingTable;
+              final r = _editingCellRow;
+              final c = _editingCellCol;
+              if (d == null || r == null || c == null) return 12.0;
+              return (d.styleOf(r, c)['fontSize'] as double);
+            })(),
+            quillAlign: (() {
+              final d = _editingTable;
+              final r = _editingCellRow;
+              final c = _editingCellCol;
+              if (d == null || r == null || c == null) return tool.TxtAlign.left;
+              final a = (d.styleOf(r, c)['align'] as String);
+              return a == 'center'
+                  ? tool.TxtAlign.center
+                  : a == 'right'
+                      ? tool.TxtAlign.right
+                      : tool.TxtAlign.left;
+            })(),
+            onQuillStyleChanged: ({bool? bold, bool? italic, double? fontSize, tool.TxtAlign? align}) {
+              // Guard selection during inspector formatting
+              _guardSelectionDuringInspector = true;
+              _suppressCommitOnce = true;
+              // Save selection to restore after focus juggling
+              if (_quillController != null) {
+                final sel = _quillController!.selection;
+                if (sel.start != -1 && sel.end != -1 && sel.start != sel.end) {
+                  _pendingSelectionRestore = sel;
+                }
+              }
+
+              final d = _editingTable;
+              final r = _editingCellRow;
+              final c = _editingCellCol;
+              if (d == null || r == null || c == null) return;
+
+              final cur = d.styleOf(r, c);
+              final next = {
+                'fontSize': (fontSize ?? cur['fontSize']) as double,
+                'bold': (bold ?? cur['bold']) as bool,
+                'italic': (italic ?? cur['italic']) as bool,
+                'align': (align != null)
+                    ? (align == tool.TxtAlign.center ? 'center' : (align == tool.TxtAlign.right ? 'right' : 'left'))
+                    : (cur['align'] as String),
+              };
+              d.setStyle(r, c, next);
+
+              // ✅ 스타일 적용 즉시 Delta 보존
+              _persistInlineDelta();
+
+              _suppressCommitOnce = true;
+              _suppressCommitOnce = true;
+              if (_quillController != null) {
+                if (bold != null) _quillController!.formatSelection(bold ? quill.Attribute.bold : quill.Attribute.clone(quill.Attribute.bold, null));
+                if (italic != null) _quillController!.formatSelection(italic ? quill.Attribute.italic : quill.Attribute.clone(quill.Attribute.italic, null));
+                if (fontSize != null) _quillController!.formatSelection(quill.SizeAttribute(fontSize.round().toString()));
+                if (align != null) _quillController!.formatSelection(align == tool.TxtAlign.left ? quill.Attribute.leftAlignment : (align == tool.TxtAlign.center ? quill.Attribute.centerAlignment : quill.Attribute.rightAlignment));
+              }
+              
+              // 1. 포커스 리스너가 _commitInlineEditor를 호출하지 못하도록 먼저 포커스를 해제합니다.
+              // keep focus on editor to preserve selection
+              // 2. InspectorPanel의 UI를 업데이트합니다.
+              // no-op: avoid triggering commit via rebuild
+              // 3. UI 빌드가 완료된 후, 다시 편집기로 포커스를 복원합니다.
+              //    이렇게 하면 사용자는 포커스 변화를 인지하지 못하고 편집을 계속할 수 있습니다.
+              WidgetsBinding.instance.addPostFrameCallback((_) => _quillFocus.requestFocus());
+            
+              // After applying format, refocus and restore selection
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (mounted) {
+                  _quillFocus.requestFocus();
+                  if (_pendingSelectionRestore != null && _quillController != null) {
+                    _quillController!.updateSelection(
+                      _pendingSelectionRestore!,
+                      quill.ChangeSource.local,
+                    );
+                  }
+                }
+                _pendingSelectionRestore = null;
+                _guardSelectionDuringInspector = false;
+                _suppressCommitOnce = false;
+              });
+},
           ),
         ],
       ),
@@ -1626,6 +1808,8 @@ _pressSnapTimer?.cancel();
   }
 
   void _handleCanvasTap() {
+    // ✅ 다른 셀/객체를 탭하기 직전에 현재 인라인 편집 내용을 보존
+    if (_quillController != null) { _commitInlineEditor(); }
     if (currentTool != tool.Tool.select) return;
 
     final hadHit = _downHitDrawable != null;

@@ -147,29 +147,8 @@ class TableDrawable extends Sized2DDrawable {
         // localCellRect는 로컬(중심 기준) → 월드로 보정
         final cellWorld = cellLocal.shift(position);
 
-        final tp = TextPainter(
-          text: TextSpan(
-            text: plain,
-            style: TextStyle(
-              fontSize: fs,
-              fontWeight: bold ? FontWeight.bold : FontWeight.normal,
-              fontStyle: italic ? FontStyle.italic : FontStyle.normal,
-              color: Colors.black,
-            ),
-          ),
-          textDirection: TextDirection.ltr,
-          textAlign: alignStr == "center" ? TextAlign.center
-                   : alignStr == "right" ? TextAlign.right : TextAlign.left,
-          maxLines: 6,
-        )..layout(maxWidth: math.max(0, cellWorld.width - 4));
-
-        double x = cellWorld.left + 2;
-        if (alignStr == "center") x = cellWorld.left + (cellWorld.width - tp.width) / 2;
-        if (alignStr == "right")  x = cellWorld.right - tp.width - 2;
-        final y = cellWorld.top + 2;
-
-        tp.paint(canvas, Offset(x, y));
-      }
+        // [disabled] cell text painting handled by Quill overlay.
+}
     }
   }
 
