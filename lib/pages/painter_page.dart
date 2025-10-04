@@ -228,6 +228,7 @@ _pressSnapTimer?.cancel();
   }
 
 void _commitInlineEditor() {
+    // 편집 중인 셀 캔버스 페인트 복구를 위해 마커 해제 예정
     // Collapse any selection to prevent lingering highlight
     try {
       _quillController?.updateSelection(
@@ -282,12 +283,13 @@ void _commitInlineEditor() {
       );
     } catch (__){ /* no-op */ }
   }
-      _editingTable = null;
-      _editingCellRow = null;
-      _editingCellCol = null;
-      _inlineEditorRectScene = null;
-      _quillController = null;
-      _clearCellSelection(); // ✅ 편집 종료 시 셀 선택도 초기화
+      try { _editingTable?.endEdit(); controller.notifyListeners(); } catch (_) {}
+_editingTable = null;
+_editingCellRow = null;
+_editingCellCol = null;
+_inlineEditorRectScene = null;
+_quillController = null;
+_clearCellSelection(); // ✅ 편집 종료 시 셀 선택도 초기화
     });
   }
 
@@ -708,6 +710,8 @@ void _commitInlineEditor() {
   }
 
   void _handleCanvasDoubleTapDown(TapDownDetails details) {
+  // 새 셀 편집 진입 전에 이전 인라인 편집을 확실히 커밋해서 겹침 방지
+  if (_quillController != null) { _commitInlineEditor(); }
 
   final scenePoint = _sceneFromGlobal(details.globalPosition);
   final d = _pickTopAt(scenePoint);
@@ -765,12 +769,12 @@ void _commitInlineEditor() {
   });
 
   setState(() {
-    _editingTable = d;
-    _editingCellRow = row;
-    _editingCellCol = col;
-  });
-
-  // ✅ 더블클릭 직후 바로 편집 가능: 포커스 & 커서 이동
+      _editingTable = d;
+      _editingCellRow = row;
+      _editingCellCol = col;
+    });
+    try { d.beginEdit(row, col); controller.notifyListeners(); } catch (_) {}
+// ✅ 더블클릭 직후 바로 편집 가능: 포커스 & 커서 이동
   WidgetsBinding.instance.addPostFrameCallback((_) {
     _quillFocus.requestFocus();
     try {

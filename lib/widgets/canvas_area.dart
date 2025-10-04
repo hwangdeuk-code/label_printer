@@ -185,14 +185,7 @@ class _CanvasAreaState extends State<CanvasArea> {
                   Positioned.fill(
                     child: IgnorePointer(
                       ignoring: true,
-                      child: Transform.scale(
-                        scale: widget.scalePercent / 100.0,
-                        alignment: Alignment.topLeft,
-                        child: TableQuillOverlayLayer(
-                          controller: widget.controller,
-                          scalePercent: widget.scalePercent,
-                        ),
-                      ),
+                      child: const SizedBox.shrink(),
                     ),
                   ),
 

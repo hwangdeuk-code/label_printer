@@ -14,6 +14,8 @@ class TableDrawable extends Sized2DDrawable {
   final List<double> columnFractions;
 
   /// 셀 별 Quill Delta(JSON) 및 간단 스타일 저장
+  int? editingRow;
+  int? editingCol;
   final Map<String, String> cellDeltaJson = {}; // key: "r,c"
   final Map<String, Map<String, dynamic>> cellStyles = {}; // key: "r,c" => {fontSize, bold, italic, align}
 
@@ -35,7 +37,17 @@ class TableDrawable extends Sized2DDrawable {
             ? List<double>.filled(columns, 1.0 / columns)
             : <double>[]);
 
-  // ===== 셀/스타일 헬퍼 =====
+  
+  // ===== 인라인 편집 표시(렌더링 제어용) =====
+  void beginEdit(int row, int col) {
+    editingRow = row;
+    editingCol = col;
+  }
+  void endEdit() {
+    editingRow = null;
+    editingCol = null;
+  }
+// ===== 셀/스타일 헬퍼 =====
 
   /// 셀 키 유틸 ("r,c")
   String _k(int r, int c) => "$r,$c";
@@ -93,6 +105,45 @@ class TableDrawable extends Sized2DDrawable {
     }
   }
 
+  
+  /// 한글 주석: Quill Delta(JSON)를 TextSpan으로 변환 (bold/italic/size 지원)
+  TextSpan _buildTextSpanFromDelta(String? jsonStr, {required double fallbackSize}) {
+    if (jsonStr == null || jsonStr.isEmpty) {
+      return const TextSpan(text: '');
+    }
+    try {
+      final obj = json.decode(jsonStr);
+      final List ops = (obj is List) ? obj : (obj is Map && obj['ops'] is List ? obj['ops'] as List : const []);
+      final List<InlineSpan> children = [];
+      for (final raw in ops) {
+        if (raw is! Map) continue;
+        final ins = raw['insert'];
+        if (ins is! String) continue;
+        final attrs = (raw['attributes'] is Map) ? (raw['attributes'] as Map) : const {};
+        final bool isBold = attrs['bold'] == true;
+        final bool isItalic = attrs['italic'] == true;
+        final String? sizeStr = attrs['size'] is String ? attrs['size'] as String : null;
+        double fontSize = fallbackSize;
+        if (sizeStr != null) {
+          final parsed = double.tryParse(sizeStr);
+          if (parsed != null && parsed > 0) fontSize = parsed;
+        }
+        children.add(TextSpan(
+          text: ins,
+          style: TextStyle(
+            fontSize: fontSize,
+            fontWeight: isBold ? FontWeight.bold : FontWeight.normal,
+            fontStyle: isItalic ? FontStyle.italic : FontStyle.normal,
+            color: Colors.black,
+          ),
+        ));
+      }
+      return TextSpan(children: children);
+    } catch (_) {
+      return const TextSpan(text: '');
+    }
+  }
+
   // ===== 필수 구현 =====
 
   /// 실제 그리기(회전/이동은 상위 ObjectDrawable.draw에서 처리됨)
@@ -133,6 +184,10 @@ class TableDrawable extends Sized2DDrawable {
     final scaledSize = size; // scale은 상위에서 좌표계에 이미 반영됨
     for (int r = 0; r < rows; r++) {
       for (int c = 0; c < columns; c++) {
+        // 편집 중인 셀은 캔버스 페인트를 생략 (에디터 위젯이 표시됨)
+        if (editingRow != null && editingCol != null && r == editingRow && c == editingCol) {
+          continue;
+        }
         final jsonStr = deltaJson(r, c);
         if (jsonStr == null || jsonStr.isEmpty) continue;
 
@@ -147,7 +202,70 @@ class TableDrawable extends Sized2DDrawable {
         // localCellRect는 로컬(중심 기준) → 월드로 보정
         final cellWorld = cellLocal.shift(position);
 
-        // [disabled] cell text painting handled by Quill overlay.
+        // === B안 적용: 캔버스에 직접 텍스트 페인트 ===
+
+
+        final align = (alignStr == 'center')
+
+
+            ? TextAlign.center
+
+
+            : (alignStr == 'right' ? TextAlign.right : TextAlign.left);
+
+
+        final span = _buildTextSpanFromDelta(jsonStr, fallbackSize: fs);
+
+
+        final tp = TextPainter(
+
+
+          text: span,
+
+
+          textAlign: align,
+
+
+          textDirection: TextDirection.ltr,
+
+
+          maxLines: null,
+
+
+        );
+
+
+        tp.layout(maxWidth: cellWorld.width);
+
+
+        double dx = cellWorld.left;
+
+
+        if (align == TextAlign.center) {
+
+
+          dx = cellWorld.left + (cellWorld.width - tp.width) / 2.0;
+
+
+        } else if (align == TextAlign.right) {
+
+
+          dx = cellWorld.right - tp.width;
+
+
+        }
+
+
+        canvas.save();
+
+
+        canvas.clipRect(cellWorld);
+
+
+        tp.paint(canvas, Offset(dx, cellWorld.top));
+
+
+        canvas.restore();
 }
     }
   }
@@ -186,6 +304,8 @@ class TableDrawable extends Sized2DDrawable {
     // 셀 데이터는 얕은 복사(내용 유지)
     next.cellDeltaJson.addAll(cellDeltaJson ?? this.cellDeltaJson);
     next.cellStyles.addAll(cellStyles ?? this.cellStyles);
+    next.editingRow = editingRow;
+    next.editingCol = editingCol;
     return next;
   }
 }
