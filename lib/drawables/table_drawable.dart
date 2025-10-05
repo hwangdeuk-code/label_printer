@@ -18,6 +18,7 @@ class TableDrawable extends Sized2DDrawable {
   final int rows;
   final int columns;
   final List<double> columnFractions;
+  final List<double> rowFractions;
 
   /// 셀 별 Quill Delta(JSON) 및 간단 스타일 저장
   int? editingRow;
@@ -32,6 +33,7 @@ class TableDrawable extends Sized2DDrawable {
     required this.rows,
     required this.columns,
     List<double>? columnFractions,
+    List<double>? rowFractions,
     required super.size,
     required super.position,
     super.rotationAngle = 0,
@@ -40,7 +42,12 @@ class TableDrawable extends Sized2DDrawable {
     super.assistPaints,
     super.locked,
     super.hidden,
-  }) : columnFractions = (columnFractions ?? const []).isNotEmpty
+  }) : rowFractions = (rowFractions ?? const []).isNotEmpty
+           ? (rowFractions!)
+           : (rows > 0 && columns > 0
+                 ? List<double>.filled(rows, 1.0 / rows)
+                 : <double>[]),
+       columnFractions = (columnFractions ?? const []).isNotEmpty
            ? (columnFractions!)
            : (rows > 0 && columns > 0
                  ? List<double>.filled(columns, 1.0 / columns)
@@ -252,11 +259,16 @@ class TableDrawable extends Sized2DDrawable {
     for (final f in columnFractions) {
       widths.add(rect.width * f);
     }
-    final left = rect.left + widths.take(c).fold(0.0, (a, b) => a + b);
-    final right = left + (c < widths.length ? widths[c] : 0.0);
-    final rowH = rows > 0 ? rect.height / rows : rect.height;
-    final top = rect.top + r * rowH;
-    final bottom = top + rowH;
+    // Normalize columns and rows to ensure stable layout
+    final double colSum = columnFractions.isEmpty ? 0.0 : columnFractions.fold(0.0, (a,b)=>a + (b.isFinite ? b : 0.0));
+    final double rowSum = rowFractions.isEmpty ? 0.0 : rowFractions.fold(0.0, (a,b)=>a + (b.isFinite ? b : 0.0));
+    final List<double> heights = rowSum > 0
+        ? rowFractions.map((f) => rect.height * (f / rowSum)).toList()
+        : List<double>.filled(rows > 0 ? rows : 1, rect.height / (rows > 0 ? rows : 1));
+    final left = rect.left + (c > 0 ? widths.take(c).fold(0.0, (a,b)=>a+b) : 0.0);
+    final right = left + ((c < widths.length) ? widths[c] : 0.0);
+    final top = rect.top + (r > 0 ? heights.take(r).fold(0.0, (a,b)=>a+b) : 0.0);
+    final bottom = top + ((r < heights.length) ? heights[r] : (rows > 0 ? rect.height / rows : rect.height));
     return Rect.fromLTRB(left, top, right, bottom);
   }
 
@@ -328,14 +340,25 @@ class TableDrawable extends Sized2DDrawable {
 
     if (rows <= 0 || columns <= 0) return;
 
-    final rowHeight = size.height / rows;
     final columnBoundaries = _columnBoundaries(rect);
-    final rowBoundaries = List<double>.generate(
-      rows + 1,
-      (index) => rect.top + rowHeight * index,
-    );
-
-    if (rows > 1) {
+// Row boundaries from rowFractions (fallback to equal heights)
+final List<double> rowBoundaries = <double>[rect.top];
+double rowSum = 0.0;
+for (final v in rowFractions) { if (v.isFinite && v > 0) rowSum += v; }
+if (rowSum <= 0 || rowFractions.length < rows) {
+  final double h = size.height / rows;
+  for (int i = 1; i <= rows; i++) {
+    rowBoundaries.add(i == rows ? rect.bottom : rect.top + h * i);
+  }
+} else {
+  double acc = rect.top;
+  for (int r = 0; r < rows; r++) {
+    final double rh = size.height * (rowFractions[r] / rowSum);
+    acc += rh;
+    rowBoundaries.add(r == rows - 1 ? rect.bottom : acc);
+  }
+}
+if (rows > 1) {
       for (int r = 1; r < rows; r++) {
         final y = rowBoundaries[r];
         double segmentStart = rect.left;
@@ -432,6 +455,7 @@ class TableDrawable extends Sized2DDrawable {
     int? rows,
     int? columns,
     List<double>? columnFractions,
+    List<double>? rowFractions,
     Map<ObjectDrawableAssist, Paint>? assistPaints,
     Map<String, String>? cellDeltaJson,
     Map<String, Map<String, dynamic>>? cellStyles,
@@ -440,6 +464,7 @@ class TableDrawable extends Sized2DDrawable {
       rows: rows ?? this.rows,
       columns: columns ?? this.columns,
       columnFractions: columnFractions ?? this.columnFractions,
+      rowFractions: rowFractions ?? this.rowFractions,
       size: size ?? this.size,
       position: position ?? this.position,
       rotationAngle: rotation ?? rotationAngle,

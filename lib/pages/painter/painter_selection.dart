@@ -557,8 +557,23 @@ void handleCanvasTap(_PainterPageState state) {
         col = table.columns - 1;
       }
 
-      final rowH = rect.height / table.rows;
-      var row = ((local.dy - rect.top) / rowH).floor().clamp(0, table.rows - 1);
+      int row;
+// Determine row by rowFractions (fallback equal)
+double sum = 0.0;
+for (final v in table.rowFractions) { if (v.isFinite && v > 0) sum += v; }
+if (sum <= 0 || table.rowFractions.length < table.rows) {
+  final rowH = rect.height / table.rows;
+  row = (((local.dy - rect.top) / rowH).floor()).clamp(0, table.rows - 1);
+} else {
+  double acc = rect.top;
+  row = 0;
+  for (int r = 0; r < table.rows; r++) {
+    final rh = rect.height * (table.rowFractions[r] / sum);
+    if (local.dy < acc + rh) { row = r; break; }
+    acc += rh;
+    if (r == table.rows - 1) row = r;
+  }
+}
 
       var range = state._rangeForCell(table, row, col);
       if (state._isShiftPressed) {

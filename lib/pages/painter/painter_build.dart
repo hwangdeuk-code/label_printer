@@ -166,6 +166,8 @@ Widget buildPainterBody(_PainterPageState state, BuildContext context) {
         const VerticalDivider(width: 1),
         InspectorPanel(
           selected: state.selectedDrawable,
+          printerDpi: state.printerDpi,
+          selectionFocusCell: state._selectionFocusCell,
           strokeWidth: state.strokeWidth,
           onApplyStroke: state._applyInspector,
           onReplaceDrawable: (original, replacement) {
