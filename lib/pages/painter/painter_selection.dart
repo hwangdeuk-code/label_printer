@@ -1,6 +1,9 @@
 part of 'painter_page.dart';
 
-void handlePointerDownSelect(_PainterPageState state, PointerDownEvent event) async {
+void handlePointerDownSelect(
+  _PainterPageState state,
+  PointerDownEvent event,
+) async {
   if (state.currentTool == tool.Tool.text) {
     final scenePoint = state._sceneFromGlobal(event.position);
     await state._createTextAt(scenePoint);
@@ -144,8 +147,12 @@ void handleOverlayPanStart(_PainterPageState state, DragStartDetails details) {
   state.setState(() {});
 }
 
-void handleOverlayPanUpdate(_PainterPageState state, DragUpdateDetails details) {
-  if (state.selectedDrawable == null || state.dragAction == DragAction.none) return;
+void handleOverlayPanUpdate(
+  _PainterPageState state,
+  DragUpdateDetails details,
+) {
+  if (state.selectedDrawable == null || state.dragAction == DragAction.none)
+    return;
   state._movedSinceDown = true;
 
   final scenePtWorld = state._sceneFromGlobal(details.globalPosition);
@@ -156,12 +163,14 @@ void handleOverlayPanUpdate(_PainterPageState state, DragUpdateDetails details) 
   final startPtWorld = state.dragStartPointer!;
   Drawable? replaced;
 
-  final isTextLike = original is BarcodeDrawable ||
+  final isTextLike =
+      original is BarcodeDrawable ||
       original is ConstrainedTextDrawable ||
       original is TextDrawable ||
       original is ImageBoxDrawable ||
       original is TableDrawable;
-  final isCornerResize = state.dragAction == DragAction.resizeNW ||
+  final isCornerResize =
+      state.dragAction == DragAction.resizeNW ||
       state.dragAction == DragAction.resizeNE ||
       state.dragAction == DragAction.resizeSW ||
       state.dragAction == DragAction.resizeSE;
@@ -181,7 +190,9 @@ void handleOverlayPanUpdate(_PainterPageState state, DragUpdateDetails details) 
   if (state.dragAction == DragAction.move) {
     final delta = scenePtWorld - startPtWorld;
     if (original is ObjectDrawable) {
-      replaced = (original as dynamic).copyWith(position: startRect.center + delta);
+      replaced = (original as dynamic).copyWith(
+        position: startRect.center + delta,
+      );
     } else if (original is LineDrawable) {
       replaced = original.copyWith(position: startRect.center + delta);
     } else if (original is ConstrainedTextDrawable) {
@@ -223,7 +234,8 @@ void handleOverlayPanUpdate(_PainterPageState state, DragUpdateDetails details) 
     }
   } else {
     if (original is RectangleDrawable || original is OvalDrawable) {
-      final fixed = state.dragFixedCorner ??
+      final fixed =
+          state.dragFixedCorner ??
           _fixedCornerForAction(startRect, state.dragAction);
       Rect newRect = Rect.fromPoints(fixed, scenePtWorld);
 
@@ -262,13 +274,19 @@ void handleOverlayPanUpdate(_PainterPageState state, DragUpdateDetails details) 
         final vMove = state._toLocalVec(worldMove, center0, angle);
 
         Offset vCenter = (vFixed + vMove) / 2;
-        Size newSize = Size((vMove.dx - vFixed.dx).abs(), (vMove.dy - vFixed.dy).abs());
+        Size newSize = Size(
+          (vMove.dx - vFixed.dx).abs(),
+          (vMove.dy - vFixed.dy).abs(),
+        );
 
         if (state.lockRatio) {
           final size = math.max(newSize.width, newSize.height);
           final signX = (vMove.dx - vFixed.dx) >= 0 ? 1.0 : -1.0;
           final signY = (vMove.dy - vFixed.dy) >= 0 ? 1.0 : -1.0;
-          final vMoveLocked = Offset(vFixed.dx + signX * size, vFixed.dy + signY * size);
+          final vMoveLocked = Offset(
+            vFixed.dx + signX * size,
+            vFixed.dy + signY * size,
+          );
           vCenter = (vFixed + vMoveLocked) / 2;
           newSize = Size(size, size);
         }
@@ -331,13 +349,19 @@ void handleOverlayPanUpdate(_PainterPageState state, DragUpdateDetails details) 
         final vMove = state._toLocalVec(worldMove, center0, angle);
 
         Offset vCenter = (vFixed + vMove) / 2;
-        Size newSize = Size((vMove.dx - vFixed.dx).abs(), (vMove.dy - vFixed.dy).abs());
+        Size newSize = Size(
+          (vMove.dx - vFixed.dx).abs(),
+          (vMove.dy - vFixed.dy).abs(),
+        );
 
         if (state.lockRatio) {
           final size = math.max(newSize.width, newSize.height);
           final signX = (vMove.dx - vFixed.dx) >= 0 ? 1.0 : -1.0;
           final signY = (vMove.dy - vFixed.dy) >= 0 ? 1.0 : -1.0;
-          final vMoveLocked = Offset(vFixed.dx + signX * size, vFixed.dy + signY * size);
+          final vMoveLocked = Offset(
+            vFixed.dx + signX * size,
+            vFixed.dy + signY * size,
+          );
           vCenter = (vFixed + vMoveLocked) / 2;
           newSize = Size(size, size);
         }
@@ -363,11 +387,20 @@ void handleOverlayPanUpdate(_PainterPageState state, DragUpdateDetails details) 
 
         final minWidth = original.columns * 16.0;
         final minHeight = original.rows * 16.0;
-        final width = (vMove.dx - vFixed.dx).abs().clamp(minWidth, double.infinity);
-        final height = (vMove.dy - vFixed.dy).abs().clamp(minHeight, double.infinity);
+        final width = (vMove.dx - vFixed.dx).abs().clamp(
+          minWidth,
+          double.infinity,
+        );
+        final height = (vMove.dy - vFixed.dy).abs().clamp(
+          minHeight,
+          double.infinity,
+        );
         final signX = (vMove.dx - vFixed.dx) >= 0 ? 1.0 : -1.0;
         final signY = (vMove.dy - vFixed.dy) >= 0 ? 1.0 : -1.0;
-        final vMoveAdjusted = Offset(vFixed.dx + signX * width, vFixed.dy + signY * height);
+        final vMoveAdjusted = Offset(
+          vFixed.dx + signX * width,
+          vFixed.dy + signY * height,
+        );
         final vCenter = (vFixed + vMoveAdjusted) / 2;
 
         final newCenterWorld = state._fromLocalVec(vCenter, center0, angle);
@@ -388,13 +421,24 @@ void handleOverlayPanUpdate(_PainterPageState state, DragUpdateDetails details) 
         if (state.endpointDragRotates) {
           ang = math.atan2((pnt - fixed).dy, (pnt - fixed).dx);
           ang = state._snapAngle(ang);
-          len = (pnt - fixed).distance.clamp(_PainterPageState._laMinLen, double.infinity);
+          len = (pnt - fixed).distance.clamp(
+            _PainterPageState._laMinLen,
+            double.infinity,
+          );
         } else {
-          final dir = state._laDir ?? Offset(math.cos(state._laAngle ?? 0), math.sin(state._laAngle ?? 0));
+          final dir =
+              state._laDir ??
+              Offset(
+                math.cos(state._laAngle ?? 0),
+                math.sin(state._laAngle ?? 0),
+              );
           final v = pnt - fixed;
           final t = v.dx * dir.dx + v.dy * dir.dy;
           ang = state._laAngle ?? math.atan2(dir.dy, dir.dx);
-          len = (dir * t).distance.clamp(_PainterPageState._laMinLen, double.infinity);
+          len = (dir * t).distance.clamp(
+            _PainterPageState._laMinLen,
+            double.infinity,
+          );
         }
 
         final dir2 = Offset(math.cos(ang), math.sin(ang));
@@ -402,9 +446,17 @@ void handleOverlayPanUpdate(_PainterPageState state, DragUpdateDetails details) 
         final newCenter = (fixed + movingEnd) / 2;
 
         if (original is LineDrawable) {
-          replaced = original.copyWith(position: newCenter, length: len, rotation: ang);
+          replaced = original.copyWith(
+            position: newCenter,
+            length: len,
+            rotation: ang,
+          );
         } else if (original is ArrowDrawable) {
-          replaced = original.copyWith(position: newCenter, length: len, rotation: ang);
+          replaced = original.copyWith(
+            position: newCenter,
+            length: len,
+            rotation: ang,
+          );
         }
 
         state._laAngle = ang;
@@ -476,7 +528,11 @@ void handleCanvasTap(_PainterPageState state) {
     final table = state._downHitDrawable as TableDrawable;
     final scenePoint = state._downScene!;
 
-    final local = state._toLocal(scenePoint, table.position, table.rotationAngle);
+    final local = state._toLocal(
+      scenePoint,
+      table.position,
+      table.rotationAngle,
+    );
     final rect = Rect.fromCenter(
       center: Offset.zero,
       width: table.size.width,
@@ -484,30 +540,40 @@ void handleCanvasTap(_PainterPageState state) {
     );
 
     if (rect.contains(local)) {
-      final colFractions = table.columnFractions;
-      final colWidths = colFractions.map((f) => rect.width * f).toList();
       double x = rect.left;
       var col = -1;
-      for (var c = 0; c < colWidths.length; c++) {
-        if (local.dx >= x && local.dx <= x + colWidths[c]) {
+      for (var c = 0; c < table.columns; c++) {
+        final double width = c < table.columnFractions.length
+            ? rect.width * table.columnFractions[c]
+            : rect.right - x;
+        final double xRight = (c == table.columns - 1) ? rect.right : x + width;
+        if (local.dx >= x && local.dx <= xRight) {
           col = c;
           break;
         }
-        x += colWidths[c];
+        x = xRight;
       }
-      final rowH = rect.height / table.rows;
-      final row = ((local.dy - rect.top) / rowH).floor().clamp(0, table.rows - 1);
+      if (col == -1) {
+        col = table.columns - 1;
+      }
 
-      if (col != -1) {
-        state.setState(() {
-          if (state._isShiftPressed && state._selectionAnchorCell != null) {
-            state._selectionFocusCell = (row, col);
-          } else {
-            state._selectionAnchorCell = (row, col);
-            state._selectionFocusCell = (row, col);
-          }
-        });
+      final rowH = rect.height / table.rows;
+      var row = ((local.dy - rect.top) / rowH).floor().clamp(0, table.rows - 1);
+
+      var range = state._rangeForCell(table, row, col);
+      if (state._isShiftPressed) {
+        final current = state._currentCellSelectionRange();
+        if (current != null) {
+          range = state._expandRangeForMerges(table, current.union(range));
+        }
+      } else {
+        range = state._expandRangeForMerges(table, range);
       }
+
+      state.setState(() {
+        state._selectionAnchorCell = (range.topRow, range.leftCol);
+        state._selectionFocusCell = (range.bottomRow, range.rightCol);
+      });
     }
   }
 
@@ -540,7 +606,10 @@ void applyInspector(
     replaced = RectangleDrawable(
       position: drawable.position,
       size: drawable.size,
-      paint: state._strokePaint(newStrokeColor ?? state.strokeColor, newStrokeWidth ?? state.strokeWidth),
+      paint: state._strokePaint(
+        newStrokeColor ?? state.strokeColor,
+        newStrokeWidth ?? state.strokeWidth,
+      ),
       borderRadius: BorderRadius.all(
         Radius.circular(newCornerRadius ?? drawable.borderRadius.topLeft.x),
       ),
@@ -549,15 +618,24 @@ void applyInspector(
     replaced = OvalDrawable(
       position: drawable.position,
       size: drawable.size,
-      paint: state._strokePaint(newStrokeColor ?? state.strokeColor, newStrokeWidth ?? state.strokeWidth),
+      paint: state._strokePaint(
+        newStrokeColor ?? state.strokeColor,
+        newStrokeWidth ?? state.strokeWidth,
+      ),
     );
   } else if (drawable is LineDrawable) {
     replaced = drawable.copyWith(
-      paint: state._strokePaint(newStrokeColor ?? state.strokeColor, newStrokeWidth ?? state.strokeWidth),
+      paint: state._strokePaint(
+        newStrokeColor ?? state.strokeColor,
+        newStrokeWidth ?? state.strokeWidth,
+      ),
     );
   } else if (drawable is ArrowDrawable) {
     replaced = drawable.copyWith(
-      paint: state._strokePaint(newStrokeColor ?? state.strokeColor, newStrokeWidth ?? state.strokeWidth),
+      paint: state._strokePaint(
+        newStrokeColor ?? state.strokeColor,
+        newStrokeWidth ?? state.strokeWidth,
+      ),
     );
   } else {
     return;
@@ -605,18 +683,24 @@ Future<void> createTextAt(_PainterPageState state, Offset scenePoint) async {
                   maxLines: 6,
                 ),
                 const SizedBox(height: 12),
-                Row(children: [
-                  const Text('Size'),
-                  Expanded(
-                    child: Slider(
-                      min: 8,
-                      max: 96,
-                      value: tempSize,
-                      onChanged: (value) => setStateDialog(() => tempSize = value),
+                Row(
+                  children: [
+                    const Text('Size'),
+                    Expanded(
+                      child: Slider(
+                        min: 8,
+                        max: 96,
+                        value: tempSize,
+                        onChanged: (value) =>
+                            setStateDialog(() => tempSize = value),
+                      ),
                     ),
-                  ),
-                  SizedBox(width: 40, child: Text(tempSize.toStringAsFixed(0))),
-                ]),
+                    SizedBox(
+                      width: 40,
+                      child: Text(tempSize.toStringAsFixed(0)),
+                    ),
+                  ],
+                ),
                 Wrap(
                   spacing: 8,
                   runSpacing: 8,
@@ -624,60 +708,90 @@ Future<void> createTextAt(_PainterPageState state, Offset scenePoint) async {
                     FilterChip(
                       label: const Text('Bold'),
                       selected: tempBold,
-                      onSelected: (value) => setStateDialog(() => tempBold = value),
+                      onSelected: (value) =>
+                          setStateDialog(() => tempBold = value),
                     ),
                     FilterChip(
                       label: const Text('Italic'),
                       selected: tempItalic,
-                      onSelected: (value) => setStateDialog(() => tempItalic = value),
+                      onSelected: (value) =>
+                          setStateDialog(() => tempItalic = value),
                     ),
                   ],
                 ),
                 const SizedBox(height: 8),
-                Row(children: [
-                  const Text('Font'),
-                  const SizedBox(width: 8),
-                  DropdownButton<String>(
-                    value: tempFamily,
-                    items: const [
-                      DropdownMenuItem(value: 'Roboto', child: Text('Roboto')),
-                      DropdownMenuItem(value: 'NotoSans', child: Text('NotoSans')),
-                      DropdownMenuItem(value: 'Monospace', child: Text('Monospace')),
-                    ],
-                    onChanged: (value) => setStateDialog(() {
-                      if (value != null) tempFamily = value;
-                    }),
-                  ),
-                ]),
-                const SizedBox(height: 8),
-                Row(children: [
-                  const Text('Align'),
-                  const SizedBox(width: 8),
-                  DropdownButton<tool.TxtAlign>(
-                    value: tempAlign,
-                    items: const [
-                      DropdownMenuItem(value: tool.TxtAlign.left, child: Text('Left')),
-                      DropdownMenuItem(value: tool.TxtAlign.center, child: Text('Center')),
-                      DropdownMenuItem(value: tool.TxtAlign.right, child: Text('Right')),
-                    ],
-                    onChanged: (value) => setStateDialog(() {
-                      if (value != null) tempAlign = value;
-                    }),
-                  ),
-                ]),
-                const SizedBox(height: 8),
-                Row(children: [
-                  const Text('Max Width'),
-                  Expanded(
-                    child: Slider(
-                      min: 40,
-                      max: 800,
-                      value: tempMaxWidth,
-                      onChanged: (value) => setStateDialog(() => tempMaxWidth = value),
+                Row(
+                  children: [
+                    const Text('Font'),
+                    const SizedBox(width: 8),
+                    DropdownButton<String>(
+                      value: tempFamily,
+                      items: const [
+                        DropdownMenuItem(
+                          value: 'Roboto',
+                          child: Text('Roboto'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'NotoSans',
+                          child: Text('NotoSans'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'Monospace',
+                          child: Text('Monospace'),
+                        ),
+                      ],
+                      onChanged: (value) => setStateDialog(() {
+                        if (value != null) tempFamily = value;
+                      }),
                     ),
-                  ),
-                  SizedBox(width: 56, child: Text(tempMaxWidth.toStringAsFixed(0))),
-                ]),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    const Text('Align'),
+                    const SizedBox(width: 8),
+                    DropdownButton<tool.TxtAlign>(
+                      value: tempAlign,
+                      items: const [
+                        DropdownMenuItem(
+                          value: tool.TxtAlign.left,
+                          child: Text('Left'),
+                        ),
+                        DropdownMenuItem(
+                          value: tool.TxtAlign.center,
+                          child: Text('Center'),
+                        ),
+                        DropdownMenuItem(
+                          value: tool.TxtAlign.right,
+                          child: Text('Right'),
+                        ),
+                      ],
+                      onChanged: (value) => setStateDialog(() {
+                        if (value != null) tempAlign = value;
+                      }),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    const Text('Max Width'),
+                    Expanded(
+                      child: Slider(
+                        min: 40,
+                        max: 800,
+                        value: tempMaxWidth,
+                        onChanged: (value) =>
+                            setStateDialog(() => tempMaxWidth = value),
+                      ),
+                    ),
+                    SizedBox(
+                      width: 56,
+                      child: Text(tempMaxWidth.toStringAsFixed(0)),
+                    ),
+                  ],
+                ),
               ],
             ),
           ),
@@ -748,10 +862,7 @@ void createTableDrawable(_PainterPageState state, int rows, int columns) {
     painterSize = const Size(640, 640);
   }
 
-  final tableSize = Size(
-    painterSize.width,
-    math.max(32.0, rows * 32.0),
-  );
+  final tableSize = Size(painterSize.width, math.max(32.0, rows * 32.0));
 
   final fractions = List<double>.filled(columns, 1.0 / columns);
 

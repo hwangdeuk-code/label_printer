@@ -29,6 +29,11 @@ Widget buildPainterScaffold(_PainterPageState state, BuildContext context) {
 }
 
 Widget buildPainterBody(_PainterPageState state, BuildContext context) {
+  final tableDrawable = state.selectedDrawable is TableDrawable
+      ? state.selectedDrawable as TableDrawable
+      : null;
+  final canMergeCells = tableDrawable != null && state._canMergeCells;
+  final canUnmergeCells = tableDrawable != null && state._canUnmergeCells;
   return RawKeyboardListener(
     focusNode: state._keyboardFocus,
     autofocus: true,
@@ -135,19 +140,23 @@ Widget buildPainterBody(_PainterPageState state, BuildContext context) {
                 : state._boundsOf(state.selectedDrawable!),
             selectionAnchorCell: state._selectionAnchorCell,
             selectionFocusCell: state._selectionFocusCell,
-            selectionStart: state.selectedDrawable is LineDrawable ||
+            selectionStart:
+                state.selectedDrawable is LineDrawable ||
                     state.selectedDrawable is ArrowDrawable
                 ? state._lineStart(state.selectedDrawable!)
                 : null,
-            selectionEnd: state.selectedDrawable is LineDrawable ||
+            selectionEnd:
+                state.selectedDrawable is LineDrawable ||
                     state.selectedDrawable is ArrowDrawable
                 ? state._lineEnd(state.selectedDrawable!)
                 : null,
             handleSize: state.handleSize,
             rotateHandleOffset: state.rotateHandleOffset,
-            showEndpoints: state.selectedDrawable is LineDrawable ||
+            showEndpoints:
+                state.selectedDrawable is LineDrawable ||
                 state.selectedDrawable is ArrowDrawable,
-            isTextSelected: state.selectedDrawable is ConstrainedTextDrawable ||
+            isTextSelected:
+                state.selectedDrawable is ConstrainedTextDrawable ||
                 state.selectedDrawable is TextDrawable,
             isEditingCell: state._quillController != null,
             printerDpi: state.printerDpi,
@@ -181,79 +190,95 @@ Widget buildPainterBody(_PainterPageState state, BuildContext context) {
             state.controller.replaceDrawable(current, replacement);
             state.setState(() => state.selectedDrawable = replacement);
           },
-          showCellQuillSection: state._editingTable != null &&
+          showCellQuillSection:
+              state._editingTable != null &&
               state._editingCellRow != null &&
               state._editingCellCol != null,
+          canMergeCells: canMergeCells,
+          canUnmergeCells: canUnmergeCells,
+          onMergeCells: canMergeCells ? state._mergeSelectedCells : null,
+          onUnmergeCells: canUnmergeCells ? state._unmergeSelectedCells : null,
           quillBold: state._inspBold,
           quillItalic: state._inspItalic,
           quillFontSize: state._inspFontSize,
           quillAlign: state._inspAlign,
-          onQuillStyleChanged: ({bool? bold, bool? italic, double? fontSize, tool.TxtAlign? align}) {
-            final table = state._editingTable;
-            final row = state._editingCellRow;
-            final col = state._editingCellCol;
-            if (table == null || row == null || col == null) return;
+          onQuillStyleChanged:
+              ({
+                bool? bold,
+                bool? italic,
+                double? fontSize,
+                tool.TxtAlign? align,
+              }) {
+                final table = state._editingTable;
+                final row = state._editingCellRow;
+                final col = state._editingCellCol;
+                if (table == null || row == null || col == null) return;
 
-            state.setState(() {
-              if (bold != null) state._inspBold = bold;
-              if (italic != null) state._inspItalic = italic;
-              if (fontSize != null) state._inspFontSize = fontSize;
-              if (align != null) state._inspAlign = align;
-            });
+                state.setState(() {
+                  if (bold != null) state._inspBold = bold;
+                  if (italic != null) state._inspItalic = italic;
+                  if (fontSize != null) state._inspFontSize = fontSize;
+                  if (align != null) state._inspAlign = align;
+                });
 
-            final current = table.styleOf(row, col);
-            final next = <String, dynamic>{
-              'bold': bold ?? current['bold'],
-              'italic': italic ?? current['italic'],
-              'fontSize': fontSize ?? current['fontSize'],
-              'align': (() {
-                final a = align ?? (current['align'] as String == 'center'
-                    ? tool.TxtAlign.center
-                    : (current['align'] as String == 'right'
-                        ? tool.TxtAlign.right
-                        : tool.TxtAlign.left));
-                return a == tool.TxtAlign.center
-                    ? 'center'
-                    : (a == tool.TxtAlign.right ? 'right' : 'left');
-              })(),
-            };
-            table.setStyle(row, col, next);
+                final current = table.styleOf(row, col);
+                final next = <String, dynamic>{
+                  'bold': bold ?? current['bold'],
+                  'italic': italic ?? current['italic'],
+                  'fontSize': fontSize ?? current['fontSize'],
+                  'align': (() {
+                    final a =
+                        align ??
+                        (current['align'] as String == 'center'
+                            ? tool.TxtAlign.center
+                            : (current['align'] as String == 'right'
+                                  ? tool.TxtAlign.right
+                                  : tool.TxtAlign.left));
+                    return a == tool.TxtAlign.center
+                        ? 'center'
+                        : (a == tool.TxtAlign.right ? 'right' : 'left');
+                  })(),
+                };
+                table.setStyle(row, col, next);
 
-            final controller = state._quillController;
-            if (controller != null) {
-              if (bold != null) {
-                controller.formatSelection(
-                  bold
-                      ? quill.Attribute.bold
-                      : quill.Attribute.clone(quill.Attribute.bold, null),
-                );
-              }
-              if (italic != null) {
-                controller.formatSelection(
-                  italic
-                      ? quill.Attribute.italic
-                      : quill.Attribute.clone(quill.Attribute.italic, null),
-                );
-              }
-              if (fontSize != null) {
-                controller.formatSelection(
-                  quill.Attribute.fromKeyValue('size', fontSize.toStringAsFixed(0)),
-                );
-              }
-              if (align != null) {
-                final attr = align == tool.TxtAlign.center
-                    ? quill.Attribute.centerAlignment
-                    : (align == tool.TxtAlign.right
-                        ? quill.Attribute.rightAlignment
-                        : quill.Attribute.leftAlignment);
-                controller.formatSelection(attr);
-              }
-            }
+                final controller = state._quillController;
+                if (controller != null) {
+                  if (bold != null) {
+                    controller.formatSelection(
+                      bold
+                          ? quill.Attribute.bold
+                          : quill.Attribute.clone(quill.Attribute.bold, null),
+                    );
+                  }
+                  if (italic != null) {
+                    controller.formatSelection(
+                      italic
+                          ? quill.Attribute.italic
+                          : quill.Attribute.clone(quill.Attribute.italic, null),
+                    );
+                  }
+                  if (fontSize != null) {
+                    controller.formatSelection(
+                      quill.Attribute.fromKeyValue(
+                        'size',
+                        fontSize.toStringAsFixed(0),
+                      ),
+                    );
+                  }
+                  if (align != null) {
+                    final attr = align == tool.TxtAlign.center
+                        ? quill.Attribute.centerAlignment
+                        : (align == tool.TxtAlign.right
+                              ? quill.Attribute.rightAlignment
+                              : quill.Attribute.leftAlignment);
+                    controller.formatSelection(attr);
+                  }
+                }
 
-            try {
-              state._persistInlineDelta();
-            } catch (_) {}
-          },
+                try {
+                  state._persistInlineDelta();
+                } catch (_) {}
+              },
         ),
       ],
     ),

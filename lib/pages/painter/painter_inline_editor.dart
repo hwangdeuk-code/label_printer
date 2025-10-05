@@ -19,7 +19,10 @@ Widget? buildInlineEditor(_PainterPageState state) {
         builder: (context) {
           var fontSize = 12.0;
           try {
-            final style = state._editingTable!.styleOf(state._editingCellRow!, state._editingCellCol!);
+            final style = state._editingTable!.styleOf(
+              state._editingCellRow!,
+              state._editingCellCol!,
+            );
             fontSize = style['fontSize'] as double;
           } catch (_) {}
 
@@ -107,7 +110,10 @@ void commitInlineEditor(_PainterPageState state) {
   });
 }
 
-void handleCanvasDoubleTapDown(_PainterPageState state, TapDownDetails details) {
+void handleCanvasDoubleTapDown(
+  _PainterPageState state,
+  TapDownDetails details,
+) {
   if (state._quillController != null) {
     state._commitInlineEditor();
   }
@@ -116,7 +122,11 @@ void handleCanvasDoubleTapDown(_PainterPageState state, TapDownDetails details) 
   final drawable = state._pickTopAt(scenePoint);
   if (drawable is! TableDrawable) return;
 
-  final local = state._toLocal(scenePoint, drawable.position, drawable.rotationAngle);
+  final local = state._toLocal(
+    scenePoint,
+    drawable.position,
+    drawable.rotationAngle,
+  );
   final scaledSize = drawable.size;
   final rect = Rect.fromCenter(
     center: Offset.zero,
@@ -125,56 +135,46 @@ void handleCanvasDoubleTapDown(_PainterPageState state, TapDownDetails details) 
   );
   if (!rect.contains(local)) return;
 
-  final columnFractions = drawable.columnFractions;
-  final columnWidths = <double>[];
-  for (final fraction in columnFractions) {
-    columnWidths.add(rect.width * fraction);
-  }
-
   var x = rect.left;
   var column = 0;
-  for (var c = 0; c < columnWidths.length; c++) {
-    final left = x;
-    final right = x + columnWidths[c];
-    if (local.dx >= left && local.dx <= right) {
+  for (var c = 0; c < drawable.columns; c++) {
+    final double width = c < drawable.columnFractions.length
+        ? rect.width * drawable.columnFractions[c]
+        : rect.right - x;
+    final double right = (c == drawable.columns - 1) ? rect.right : x + width;
+    if (local.dx >= x && local.dx <= right) {
       column = c;
       break;
     }
-    x += columnWidths[c];
+    x = right;
   }
 
   final rowHeight = rect.height / drawable.rows;
-  final row = ((local.dy - rect.top) / rowHeight).floor().clamp(0, drawable.rows - 1);
+  var row = ((local.dy - rect.top) / rowHeight).floor();
+  row = row.clamp(0, drawable.rows - 1);
 
-  final cellLocal = drawable.localCellRect(row, column, scaledSize);
-  final topLeftLocal = Offset(cellLocal.left, cellLocal.top);
-  final sceneTopLeft = drawable.position + Offset(
-    math.cos(drawable.rotationAngle) * topLeftLocal.dx -
-        math.sin(drawable.rotationAngle) * topLeftLocal.dy,
-    math.sin(drawable.rotationAngle) * topLeftLocal.dx +
-        math.cos(drawable.rotationAngle) * topLeftLocal.dy,
-  );
-  state._inlineEditorRectScene = Rect.fromLTWH(
-    sceneTopLeft.dx,
-    sceneTopLeft.dy,
-    cellLocal.width,
-    cellLocal.height,
-  );
+  final root = drawable.resolveRoot(row, column);
+  row = root.$1;
+  column = root.$2;
+  final editorRect = drawable.mergedWorldRect(row, column, drawable.size);
+  state._inlineEditorRectScene = editorRect;
 
   final key = '$row,$column';
   final jsonStr = drawable.cellDeltaJson[key];
   final document = (jsonStr != null && jsonStr.isNotEmpty)
       ? quill.Document.fromJson(
-          (json.decode(jsonStr) as Map<String, dynamic>)['ops'] as List<dynamic>,
+          (json.decode(jsonStr) as Map<String, dynamic>)['ops']
+              as List<dynamic>,
         )
       : quill.Document.fromJson([
           {
             'insert': '\n',
             'attributes': {
-              'size':
-                  (drawable.styleOf(row, column)['fontSize'] as double).toInt().toString(),
-            }
-          }
+              'size': (drawable.styleOf(row, column)['fontSize'] as double)
+                  .toInt()
+                  .toString(),
+            },
+          },
         ]);
 
   state._quillController = quill.QuillController(
@@ -200,21 +200,18 @@ void handleCanvasDoubleTapDown(_PainterPageState state, TapDownDetails details) 
   } catch (_) {}
 
   state.setState(() {
-    state._selectionAnchorCell = (row, column);
-    state._selectionFocusCell = (row, column);
+    final selectionRange = state._rangeForCell(drawable, row, column);
+    state._selectionAnchorCell = (
+      selectionRange.topRow,
+      selectionRange.leftCol,
+    );
+    state._selectionFocusCell = (
+      selectionRange.bottomRow,
+      selectionRange.rightCol,
+    );
     state._editingTable = drawable;
     state._editingCellRow = row;
     state._editingCellCol = column;
-    try {
-      final style = drawable.styleOf(row, column);
-      state._inspBold = style['bold'] as bool;
-      state._inspItalic = style['italic'] as bool;
-      state._inspFontSize = style['fontSize'] as double;
-      final align = style['align'] as String;
-      state._inspAlign = align == 'center'
-          ? tool.TxtAlign.center
-          : (align == 'right' ? tool.TxtAlign.right : tool.TxtAlign.left);
-    } catch (_) {}
   });
 
   try {

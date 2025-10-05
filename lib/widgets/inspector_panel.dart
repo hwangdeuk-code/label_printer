@@ -12,10 +12,8 @@ import '../flutter_painter_v2/flutter_painter.dart';
 import '../models/tool.dart' as tool;
 import 'color_dot.dart';
 
-
-
-
 import '../models/tool.dart' as tool;
+
 class ArrowKeySlider extends StatefulWidget {
   final double min;
   final double max;
@@ -44,7 +42,11 @@ class _ArrowKeySliderState extends State<ArrowKeySlider> {
   @override
   void initState() {
     super.initState();
-    _focusNode = FocusNode(canRequestFocus: true, skipTraversal: false, debugLabel: 'ArrowKeySlider');
+    _focusNode = FocusNode(
+      canRequestFocus: true,
+      skipTraversal: false,
+      debugLabel: 'ArrowKeySlider',
+    );
 
     super.initState();
     _value = widget.value;
@@ -61,19 +63,20 @@ class _ArrowKeySliderState extends State<ArrowKeySlider> {
   void _nudge(int dir) {
     final step = widget.step ?? (widget.max - widget.min) / 100.0;
     final nv = (_value + step * dir).clamp(widget.min, widget.max);
-    setState(() { _value = nv; });
+    setState(() {
+      _value = nv;
+    });
     widget.onChanged(nv);
   }
 
   @override
-  
   @override
   void dispose() {
     _arrowKeySliderFocusNode.dispose();
     super.dispose();
   }
 
-Widget build(BuildContext context) {
+  Widget build(BuildContext context) {
     return RawKeyboardListener(
       focusNode: _arrowKeySliderFocusNode,
       onKey: (event) {
@@ -94,13 +97,16 @@ Widget build(BuildContext context) {
         max: widget.max,
         value: _value.clamp(widget.min, widget.max),
         onChanged: (v) {
-          setState(() { _value = v; });
+          setState(() {
+            _value = v;
+          });
           widget.onChanged(v);
         },
       ),
     );
   }
 }
+
 class TextDefaults {
   const TextDefaults({
     required this.fontFamily,
@@ -120,14 +126,23 @@ class TextDefaults {
 }
 
 class InspectorPanel extends StatelessWidget {
-
   // === Quill 표 셀 스타일 섹션 연동 필드(한국어 주석) ===
   final bool showCellQuillSection;
   final bool quillBold;
   final bool quillItalic;
   final double quillFontSize;
   final tool.TxtAlign quillAlign;
-  final void Function({bool? bold, bool? italic, double? fontSize, tool.TxtAlign? align})? onQuillStyleChanged;
+  final void Function({
+    bool? bold,
+    bool? italic,
+    double? fontSize,
+    tool.TxtAlign? align,
+  })?
+  onQuillStyleChanged;
+  final bool canMergeCells;
+  final bool canUnmergeCells;
+  final VoidCallback? onMergeCells;
+  final VoidCallback? onUnmergeCells;
 
   const InspectorPanel({
     super.key,
@@ -138,25 +153,36 @@ class InspectorPanel extends StatelessWidget {
     required this.angleSnap,
     required this.snapAngle,
     required this.textDefaults,
-    required this.mutateSelected,        // ★ 추가
+    required this.mutateSelected, // ★ 추가
     this.showCellQuillSection = false,
     this.quillBold = false,
     this.quillItalic = false,
     this.quillFontSize = 12.0,
     this.quillAlign = tool.TxtAlign.left,
     this.onQuillStyleChanged,
+    this.canMergeCells = false,
+    this.canUnmergeCells = false,
+    this.onMergeCells,
+    this.onUnmergeCells,
   });
 
   final Drawable? selected;
   final double strokeWidth;
-  final void Function({Color? newStrokeColor, double? newStrokeWidth, double? newCornerRadius}) onApplyStroke;
-  final void Function(Drawable original, Drawable replacement) onReplaceDrawable;
+  final void Function({
+    Color? newStrokeColor,
+    double? newStrokeWidth,
+    double? newCornerRadius,
+  })
+  onApplyStroke;
+  final void Function(Drawable original, Drawable replacement)
+  onReplaceDrawable;
   final bool angleSnap;
   final double Function(double) snapAngle;
   final TextDefaults textDefaults;
 
   /// 최신 선택 객체로 안전하게 변형/치환
-  final void Function(Drawable Function(Drawable current)) mutateSelected; // ★ 추가
+  final void Function(Drawable Function(Drawable current))
+  mutateSelected; // ★ 추가
 
   static const _swatchColors = [
     Colors.black,
@@ -168,13 +194,13 @@ class InspectorPanel extends StatelessWidget {
 
   // 연속 회전 지원을 위한 넓은 슬라이더 범위
   static const double _angleMin = -8 * math.pi;
-  static const double _angleMax =  8 * math.pi;
+  static const double _angleMax = 8 * math.pi;
 
   String _degLabel(double radians) {
     final deg = radians * 180 / math.pi;
     final norm = ((deg % 360) + 360) % 360; // 0..360
     return '${norm.toStringAsFixed(0)}°';
-    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -183,39 +209,107 @@ class InspectorPanel extends StatelessWidget {
       child: ListView(
         padding: const EdgeInsets.all(12),
         children: [
-          const Text('Inspector', style: TextStyle(fontWeight: FontWeight.bold)),
+          const Text(
+            'Inspector',
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
 
-if (showCellQuillSection) ...[
-  const SizedBox(height: 12),
-  const Divider(),
-  const Text('Table Cell (Quill)', style: TextStyle(fontWeight: FontWeight.bold)),
-  const SizedBox(height: 8),
-  Row(children: [
-    const Text('Style'), const SizedBox(width: 8),
-    FilterChip(label: const Text('Bold'), selected: quillBold, onSelected: (v)=> onQuillStyleChanged?.call(bold: v)),
-    const SizedBox(width: 8),
-    FilterChip(label: const Text('Italic'), selected: quillItalic, onSelected: (v)=> onQuillStyleChanged?.call(italic: v)),
-  ]),
-  const SizedBox(height: 8),
-  Row(children: [
-    const Text('Size'), const SizedBox(width: 8),
-    Expanded(child: Slider(min: 8, max: 72, divisions: 64, value: quillFontSize, onChanged: (v)=> onQuillStyleChanged?.call(fontSize: v))),
-    SizedBox(width: 40, child: Text(quillFontSize.toStringAsFixed(0))),
-  ]),
-  const SizedBox(height: 8),
-  Row(children: [
-    const Text('Align'), const SizedBox(width: 8),
-    DropdownButton<tool.TxtAlign>(
-      value: quillAlign,
-      items: [
-        DropdownMenuItem(value: tool.TxtAlign.left, child: Text('Left')),
-        DropdownMenuItem(value: tool.TxtAlign.center, child: Text('Center')),
-        DropdownMenuItem(value: tool.TxtAlign.right, child: Text('Right')),
-      ],
-      onChanged: (v) { if (v != null) onQuillStyleChanged?.call(align: v); },
-    ),
-  ]),
-],
+          if (showCellQuillSection) ...[
+            const SizedBox(height: 12),
+            const Divider(),
+            const Text(
+              'Table Cell (Quill)',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                const Text('Style'),
+                const SizedBox(width: 8),
+                FilterChip(
+                  label: const Text('Bold'),
+                  selected: quillBold,
+                  onSelected: (v) => onQuillStyleChanged?.call(bold: v),
+                ),
+                const SizedBox(width: 8),
+                FilterChip(
+                  label: const Text('Italic'),
+                  selected: quillItalic,
+                  onSelected: (v) => onQuillStyleChanged?.call(italic: v),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                const Text('Size'),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Slider(
+                    min: 8,
+                    max: 72,
+                    divisions: 64,
+                    value: quillFontSize,
+                    onChanged: (v) => onQuillStyleChanged?.call(fontSize: v),
+                  ),
+                ),
+                SizedBox(
+                  width: 40,
+                  child: Text(quillFontSize.toStringAsFixed(0)),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                const Text('Align'),
+                const SizedBox(width: 8),
+                DropdownButton<tool.TxtAlign>(
+                  value: quillAlign,
+                  items: const [
+                    DropdownMenuItem(
+                      value: tool.TxtAlign.left,
+                      child: Text('Left'),
+                    ),
+                    DropdownMenuItem(
+                      value: tool.TxtAlign.center,
+                      child: Text('Center'),
+                    ),
+                    DropdownMenuItem(
+                      value: tool.TxtAlign.right,
+                      child: Text('Right'),
+                    ),
+                  ],
+                  onChanged: (v) {
+                    if (v != null) onQuillStyleChanged?.call(align: v);
+                  },
+                ),
+              ],
+            ),
+          ],
+          if (canMergeCells || canUnmergeCells) ...[
+            const SizedBox(height: 12),
+            if (!showCellQuillSection) const Divider(),
+            const Text(
+              'Table Cells',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                FilledButton(
+                  onPressed: canMergeCells ? onMergeCells : null,
+                  child: const Text('Merge'),
+                ),
+                FilledButton.tonal(
+                  onPressed: canUnmergeCells ? onUnmergeCells : null,
+                  child: const Text('Unmerge'),
+                ),
+              ],
+            ),
+          ],
 
           const SizedBox(height: 8),
           if (selected == null)
@@ -223,10 +317,14 @@ if (showCellQuillSection) ...[
           else ...[
             _kv('Type', selected!.runtimeType.toString()),
             const SizedBox(height: 12),
-            if (selected is RectangleDrawable) ..._buildRectControls(selected as RectangleDrawable),
-            if (selected is OvalDrawable) ..._buildOvalControls(selected as OvalDrawable),
+            if (selected is RectangleDrawable)
+              ..._buildRectControls(selected as RectangleDrawable),
+            if (selected is OvalDrawable)
+              ..._buildOvalControls(selected as OvalDrawable),
             if (selected is ConstrainedTextDrawable)
-              ..._buildConstrainedTextControls(selected as ConstrainedTextDrawable),
+              ..._buildConstrainedTextControls(
+                selected as ConstrainedTextDrawable,
+              ),
             if (selected is TextDrawable)
               ..._buildPlainTextControls(selected as TextDrawable),
             if (selected is BarcodeDrawable)
@@ -246,22 +344,30 @@ if (showCellQuillSection) ...[
       const Text('Stroke Color'),
       const SizedBox(height: 4),
       Wrap(
-        spacing: 8, runSpacing: 8,
+        spacing: 8,
+        runSpacing: 8,
         children: [
           for (final c in _swatchColors)
-            ColorDot(color: c, onTap: () => onApplyStroke(newStrokeColor: c)),
+            ColorDot(
+              color: c,
+              onTap: () => onApplyStroke(newStrokeColor: c),
+            ),
         ],
       ),
       const SizedBox(height: 12),
       const Text('Stroke Width'),
       ArrowKeySlider(
-        min: 1, max: 24, value: strokeWidth,
+        min: 1,
+        max: 24,
+        value: strokeWidth,
         onChanged: (v) => onApplyStroke(newStrokeWidth: v),
       ),
       const SizedBox(height: 12),
       const Text('Corner Radius'),
       ArrowKeySlider(
-        min: 0, max: 40, value: r.borderRadius.topLeft.x.clamp(0.0, 40.0),
+        min: 0,
+        max: 40,
+        value: r.borderRadius.topLeft.x.clamp(0.0, 40.0),
         onChanged: (v) => onApplyStroke(newCornerRadius: v),
       ),
     ];
@@ -272,16 +378,22 @@ if (showCellQuillSection) ...[
       const Text('Stroke Color'),
       const SizedBox(height: 4),
       Wrap(
-        spacing: 8, runSpacing: 8,
+        spacing: 8,
+        runSpacing: 8,
         children: [
           for (final c in _swatchColors)
-            ColorDot(color: c, onTap: () => onApplyStroke(newStrokeColor: c)),
+            ColorDot(
+              color: c,
+              onTap: () => onApplyStroke(newStrokeColor: c),
+            ),
         ],
       ),
       const SizedBox(height: 12),
       const Text('Stroke Width'),
       ArrowKeySlider(
-        min: 1, max: 24, value: strokeWidth,
+        min: 1,
+        max: 24,
+        value: strokeWidth,
         onChanged: (v) => onApplyStroke(newStrokeWidth: v),
       ),
     ];
@@ -291,8 +403,10 @@ if (showCellQuillSection) ...[
     final controller = TextEditingController(text: td.text);
     Color currentColor = td.style.color ?? Colors.black;
     double currentSize = td.style.fontSize ?? textDefaults.fontSize;
-    bool currentBold = (td.style.fontWeight ?? FontWeight.normal) == FontWeight.bold;
-    bool currentItalic = (td.style.fontStyle ?? FontStyle.normal) == FontStyle.italic;
+    bool currentBold =
+        (td.style.fontWeight ?? FontWeight.normal) == FontWeight.bold;
+    bool currentItalic =
+        (td.style.fontStyle ?? FontStyle.normal) == FontStyle.italic;
     String currentFamily = td.style.fontFamily ?? textDefaults.fontFamily;
     tool.TxtAlign currentAlign = td.align;
     double currentMaxWidth = td.maxWidth;
@@ -322,8 +436,13 @@ if (showCellQuillSection) ...[
       const Text('Content'),
       const SizedBox(height: 4),
       TextField(
-        controller: controller, minLines: 1, maxLines: 6,
-        decoration: const InputDecoration(border: OutlineInputBorder(), isDense: true),
+        controller: controller,
+        minLines: 1,
+        maxLines: 6,
+        decoration: const InputDecoration(
+          border: OutlineInputBorder(),
+          isDense: true,
+        ),
         onSubmitted: (_) => commitAll(),
         onChanged: (_) => commitAll(),
       ),
@@ -331,12 +450,17 @@ if (showCellQuillSection) ...[
       const Text('Color'),
       const SizedBox(height: 4),
       Wrap(
-        spacing: 8, runSpacing: 8,
+        spacing: 8,
+        runSpacing: 8,
         children: [
           for (final c in _swatchColors)
             ColorDot(
-              color: c, selected: currentColor == c,
-              onTap: () { currentColor = c; commitAll(); },
+              color: c,
+              selected: currentColor == c,
+              onTap: () {
+                currentColor = c;
+                commitAll();
+              },
             ),
         ],
       ),
@@ -344,21 +468,47 @@ if (showCellQuillSection) ...[
       Row(
         children: [
           const Text('Size'),
-          Expanded(child: Slider(min: 8, max: 96, value: currentSize, onChanged: (v) { currentSize = v; commitAll(); })),
+          Expanded(
+            child: Slider(
+              min: 8,
+              max: 96,
+              value: currentSize,
+              onChanged: (v) {
+                currentSize = v;
+                commitAll();
+              },
+            ),
+          ),
           SizedBox(width: 42, child: Text(currentSize.toStringAsFixed(0))),
         ],
       ),
       Wrap(
-        spacing: 8, runSpacing: 8,
+        spacing: 8,
+        runSpacing: 8,
         children: [
-          FilterChip(label: const Text('Bold'), selected: currentBold, onSelected: (v) { currentBold = v; commitAll(); }),
-          FilterChip(label: const Text('Italic'), selected: currentItalic, onSelected: (v) { currentItalic = v; commitAll(); }),
+          FilterChip(
+            label: const Text('Bold'),
+            selected: currentBold,
+            onSelected: (v) {
+              currentBold = v;
+              commitAll();
+            },
+          ),
+          FilterChip(
+            label: const Text('Italic'),
+            selected: currentItalic,
+            onSelected: (v) {
+              currentItalic = v;
+              commitAll();
+            },
+          ),
         ],
       ),
       const SizedBox(height: 8),
       Row(
         children: [
-          const Text('Font'), const SizedBox(width: 8),
+          const Text('Font'),
+          const SizedBox(width: 8),
           DropdownButton<String>(
             value: currentFamily,
             items: [
@@ -366,56 +516,93 @@ if (showCellQuillSection) ...[
               DropdownMenuItem(value: 'NotoSans', child: Text('NotoSans')),
               DropdownMenuItem(value: 'Monospace', child: Text('Monospace')),
             ],
-            onChanged: (v) { if (v != null) { currentFamily = v; commitAll(); } },
+            onChanged: (v) {
+              if (v != null) {
+                currentFamily = v;
+                commitAll();
+              }
+            },
           ),
         ],
       ),
       Row(
         children: [
-          const Text('Align'), const SizedBox(width: 8),
+          const Text('Align'),
+          const SizedBox(width: 8),
           DropdownButton<tool.TxtAlign>(
             value: currentAlign,
             items: [
               DropdownMenuItem(value: tool.TxtAlign.left, child: Text('Left')),
-              DropdownMenuItem(value: tool.TxtAlign.center, child: Text('Center')),
-              DropdownMenuItem(value: tool.TxtAlign.right, child: Text('Right')),
+              DropdownMenuItem(
+                value: tool.TxtAlign.center,
+                child: Text('Center'),
+              ),
+              DropdownMenuItem(
+                value: tool.TxtAlign.right,
+                child: Text('Right'),
+              ),
             ],
-            onChanged: (v) { if (v != null) { currentAlign = v; commitAll(); } },
+            onChanged: (v) {
+              if (v != null) {
+                currentAlign = v;
+                commitAll();
+              }
+            },
           ),
         ],
       ),
       Row(
         children: [
           const Text('Max Width'),
-          Expanded(child: Slider(min: 40, max: 1200, value: currentMaxWidth, onChanged: (v) { currentMaxWidth = v; commitAll(); })),
+          Expanded(
+            child: Slider(
+              min: 40,
+              max: 1200,
+              value: currentMaxWidth,
+              onChanged: (v) {
+                currentMaxWidth = v;
+                commitAll();
+              },
+            ),
+          ),
           SizedBox(width: 56, child: Text(currentMaxWidth.toStringAsFixed(0))),
         ],
       ),
-      
+
       Row(
         children: [
           const Text('Rotation'),
           IconButton(
             icon: const Icon(Icons.rotate_left),
             tooltip: 'Rotate -90°',
-            onPressed: () { currentAngle = ((currentAngle - (math.pi / 2)) % (2 * math.pi)); commitAll(); },
+            onPressed: () {
+              currentAngle = ((currentAngle - (math.pi / 2)) % (2 * math.pi));
+              commitAll();
+            },
           ),
           IconButton(
             icon: const Icon(Icons.rotate_right),
             tooltip: 'Rotate +90°',
-            onPressed: () { currentAngle = ((currentAngle + (math.pi / 2)) % (2 * math.pi)); commitAll(); },
+            onPressed: () {
+              currentAngle = ((currentAngle + (math.pi / 2)) % (2 * math.pi));
+              commitAll();
+            },
           ),
           Expanded(
             child: ArrowKeySlider(
-              min: _angleMin, max: _angleMax, value: currentAngle.clamp(_angleMin, _angleMax),
-              onChanged: (v) { currentAngle = v; commitAll(); },
+              min: _angleMin,
+              max: _angleMax,
+              value: currentAngle.clamp(_angleMin, _angleMax),
+              onChanged: (v) {
+                currentAngle = v;
+                commitAll();
+              },
               step: (math.pi / 180),
             ),
           ),
           SizedBox(width: 44, child: Text(_degLabel(currentAngle))),
         ],
-      )
-    ,
+      ),
     ];
   }
 
@@ -423,8 +610,10 @@ if (showCellQuillSection) ...[
     final controller = TextEditingController(text: td.text);
     Color currentColor = td.style.color ?? Colors.black;
     double currentSize = td.style.fontSize ?? textDefaults.fontSize;
-    bool currentBold = (td.style.fontWeight ?? FontWeight.normal) == FontWeight.bold;
-    bool currentItalic = (td.style.fontStyle ?? FontStyle.normal) == FontStyle.italic;
+    bool currentBold =
+        (td.style.fontWeight ?? FontWeight.normal) == FontWeight.bold;
+    bool currentItalic =
+        (td.style.fontStyle ?? FontStyle.normal) == FontStyle.italic;
     String currentFamily = td.style.fontFamily ?? textDefaults.fontFamily;
     double currentAngle = td.rotationAngle;
 
@@ -438,7 +627,11 @@ if (showCellQuillSection) ...[
           fontStyle: currentItalic ? FontStyle.italic : FontStyle.normal,
           fontFamily: currentFamily,
         );
-        return cur.copyWith(text: controller.text, style: style, rotation: currentAngle);
+        return cur.copyWith(
+          text: controller.text,
+          style: style,
+          rotation: currentAngle,
+        );
       });
     }
 
@@ -446,8 +639,13 @@ if (showCellQuillSection) ...[
       const Text('Content'),
       const SizedBox(height: 4),
       TextField(
-        controller: controller, minLines: 1, maxLines: 6,
-        decoration: const InputDecoration(border: OutlineInputBorder(), isDense: true),
+        controller: controller,
+        minLines: 1,
+        maxLines: 6,
+        decoration: const InputDecoration(
+          border: OutlineInputBorder(),
+          isDense: true,
+        ),
         onSubmitted: (_) => commitAll(),
         onChanged: (_) => commitAll(),
       ),
@@ -455,31 +653,65 @@ if (showCellQuillSection) ...[
       const Text('Color'),
       const SizedBox(height: 4),
       Wrap(
-        spacing: 8, runSpacing: 8,
+        spacing: 8,
+        runSpacing: 8,
         children: [
           for (final c in _swatchColors)
-            ColorDot(color: c, selected: currentColor == c, onTap: () { currentColor = c; commitAll(); }),
+            ColorDot(
+              color: c,
+              selected: currentColor == c,
+              onTap: () {
+                currentColor = c;
+                commitAll();
+              },
+            ),
         ],
       ),
       const SizedBox(height: 12),
       Row(
         children: [
           const Text('Size'),
-          Expanded(child: Slider(min: 8, max: 96, value: currentSize, onChanged: (v) { currentSize = v; commitAll(); })),
+          Expanded(
+            child: Slider(
+              min: 8,
+              max: 96,
+              value: currentSize,
+              onChanged: (v) {
+                currentSize = v;
+                commitAll();
+              },
+            ),
+          ),
           SizedBox(width: 42, child: Text(currentSize.toStringAsFixed(0))),
         ],
       ),
       Wrap(
-        spacing: 8, runSpacing: 8,
+        spacing: 8,
+        runSpacing: 8,
         children: [
-          FilterChip(label: const Text('Bold'), selected: currentBold, onSelected: (v) { currentBold = v; commitAll(); }),
-          FilterChip(label: const Text('Italic'), selected: currentItalic, onSelected: (v) { currentItalic = v; commitAll(); }),
+          FilterChip(
+            label: const Text('Bold'),
+            selected: currentBold,
+            onSelected: (v) {
+              currentBold = v;
+              commitAll();
+            },
+          ),
+          FilterChip(
+            label: const Text('Italic'),
+            selected: currentItalic,
+            onSelected: (v) {
+              currentItalic = v;
+              commitAll();
+            },
+          ),
         ],
       ),
       const SizedBox(height: 8),
       Row(
         children: [
-          const Text('Font'), const SizedBox(width: 8),
+          const Text('Font'),
+          const SizedBox(width: 8),
           DropdownButton<String>(
             value: currentFamily,
             items: [
@@ -487,18 +719,35 @@ if (showCellQuillSection) ...[
               DropdownMenuItem(value: 'NotoSans', child: Text('NotoSans')),
               DropdownMenuItem(value: 'Monospace', child: Text('Monospace')),
             ],
-            onChanged: (v) { if (v != null) { currentFamily = v; commitAll(); } },
+            onChanged: (v) {
+              if (v != null) {
+                currentFamily = v;
+                commitAll();
+              }
+            },
           ),
         ],
       ),
       Row(
         children: [
           const Text('Angle'),
-          IconButton(icon: const Icon(Icons.rotate_right), tooltip: 'Rotate 90°', onPressed: () { currentAngle = ((currentAngle + (math.pi / 2)) % (2 * math.pi)); commitAll(); }),
+          IconButton(
+            icon: const Icon(Icons.rotate_right),
+            tooltip: 'Rotate 90°',
+            onPressed: () {
+              currentAngle = ((currentAngle + (math.pi / 2)) % (2 * math.pi));
+              commitAll();
+            },
+          ),
           Expanded(
             child: Slider(
-              min: _angleMin, max: _angleMax, value: currentAngle.clamp(_angleMin, _angleMax),
-              onChanged: (v) { currentAngle = v; commitAll(); },
+              min: _angleMin,
+              max: _angleMax,
+              value: currentAngle.clamp(_angleMin, _angleMax),
+              onChanged: (v) {
+                currentAngle = v;
+                commitAll();
+              },
             ),
           ),
           SizedBox(width: 44, child: Text(_degLabel(currentAngle))),
@@ -526,7 +775,8 @@ if (showCellQuillSection) ...[
     BarcodeType.PDF417: 'PDF417',
     BarcodeType.DataMatrix: 'Data Matrix',
   };
-  static String _barcodeLabel(BarcodeType type) => _barcodeLabels[type] ?? type.name;
+  static String _barcodeLabel(BarcodeType type) =>
+      _barcodeLabels[type] ?? type.name;
 
   List<Widget> _buildBarcodeControls(BarcodeDrawable barcode) {
     final valueController = TextEditingController(text: barcode.data);
@@ -544,7 +794,9 @@ if (showCellQuillSection) ...[
     double currentAngle = barcode.rotationAngle;
 
     double clampWidth(double value) => math.max(40.0, math.min(2000.0, value));
-    double currentMaxWidth = clampWidth(autoMaxWidth ? barcode.size.width : barcode.maxTextWidth);
+    double currentMaxWidth = clampWidth(
+      autoMaxWidth ? barcode.size.width : barcode.maxTextWidth,
+    );
 
     void commitAll() {
       mutateSelected((d) {
@@ -570,8 +822,25 @@ if (showCellQuillSection) ...[
       Row(
         children: [
           const Text('Angle'),
-          IconButton(icon: const Icon(Icons.rotate_right), tooltip: 'Rotate 90°', onPressed: () { currentAngle = ((currentAngle + (math.pi / 2)) % (2 * math.pi)); commitAll(); }),
-          Expanded(child: Slider(min: _angleMin, max: _angleMax, value: currentAngle.clamp(_angleMin, _angleMax), onChanged: (v) { currentAngle = v; commitAll(); })),
+          IconButton(
+            icon: const Icon(Icons.rotate_right),
+            tooltip: 'Rotate 90°',
+            onPressed: () {
+              currentAngle = ((currentAngle + (math.pi / 2)) % (2 * math.pi));
+              commitAll();
+            },
+          ),
+          Expanded(
+            child: Slider(
+              min: _angleMin,
+              max: _angleMax,
+              value: currentAngle.clamp(_angleMin, _angleMax),
+              onChanged: (v) {
+                currentAngle = v;
+                commitAll();
+              },
+            ),
+          ),
           SizedBox(width: 44, child: Text(_degLabel(currentAngle))),
         ],
       ),
@@ -580,46 +849,91 @@ if (showCellQuillSection) ...[
       const SizedBox(height: 4),
       TextField(
         controller: valueController,
-        minLines: 1, maxLines: 4,
-        decoration: const InputDecoration(border: OutlineInputBorder(), isDense: true),
-        onChanged: (v) { currentValue = v; commitAll(); },
+        minLines: 1,
+        maxLines: 4,
+        decoration: const InputDecoration(
+          border: OutlineInputBorder(),
+          isDense: true,
+        ),
+        onChanged: (v) {
+          currentValue = v;
+          commitAll();
+        },
       ),
       const SizedBox(height: 12),
       Row(
         children: [
-          const Text('Type'), const SizedBox(width: 8),
+          const Text('Type'),
+          const SizedBox(width: 8),
           DropdownButton<BarcodeType>(
             value: currentType,
             items: [
               for (final t in _barcodeTypes)
                 DropdownMenuItem(value: t, child: Text(_barcodeLabel(t))),
             ],
-            onChanged: (v) { if (v != null) { currentType = v; commitAll(); } },
+            onChanged: (v) {
+              if (v != null) {
+                currentType = v;
+                commitAll();
+              }
+            },
           ),
         ],
       ),
       SwitchListTile(
-        value: showValue, onChanged: (v) { showValue = v; commitAll(); },
-        dense: true, contentPadding: EdgeInsets.zero, title: const Text('Show human-readable value'),
+        value: showValue,
+        onChanged: (v) {
+          showValue = v;
+          commitAll();
+        },
+        dense: true,
+        contentPadding: EdgeInsets.zero,
+        title: const Text('Show human-readable value'),
       ),
       Row(
         children: [
           const Text('Font Size'),
-          Expanded(child: Slider(min: 8, max: 64, value: currentFontSize, onChanged: (v) { currentFontSize = v; commitAll(); })),
+          Expanded(
+            child: Slider(
+              min: 8,
+              max: 64,
+              value: currentFontSize,
+              onChanged: (v) {
+                currentFontSize = v;
+                commitAll();
+              },
+            ),
+          ),
           SizedBox(width: 48, child: Text(currentFontSize.toStringAsFixed(0))),
         ],
       ),
       Wrap(
-        spacing: 8, runSpacing: 8,
+        spacing: 8,
+        runSpacing: 8,
         children: [
-          FilterChip(label: const Text('Bold'), selected: currentBold, onSelected: (v){ currentBold = v; commitAll(); }),
-          FilterChip(label: const Text('Italic'), selected: currentItalic, onSelected: (v){ currentItalic = v; commitAll(); }),
+          FilterChip(
+            label: const Text('Bold'),
+            selected: currentBold,
+            onSelected: (v) {
+              currentBold = v;
+              commitAll();
+            },
+          ),
+          FilterChip(
+            label: const Text('Italic'),
+            selected: currentItalic,
+            onSelected: (v) {
+              currentItalic = v;
+              commitAll();
+            },
+          ),
         ],
       ),
       const SizedBox(height: 8),
       Row(
         children: [
-          const Text('Font'), const SizedBox(width: 8),
+          const Text('Font'),
+          const SizedBox(width: 8),
           DropdownButton<String>(
             value: currentFamily,
             items: [
@@ -627,13 +941,19 @@ if (showCellQuillSection) ...[
               DropdownMenuItem(value: 'NotoSans', child: Text('NotoSans')),
               DropdownMenuItem(value: 'Monospace', child: Text('Monospace')),
             ],
-            onChanged: (v) { if (v != null) { currentFamily = v; commitAll(); } },
+            onChanged: (v) {
+              if (v != null) {
+                currentFamily = v;
+                commitAll();
+              }
+            },
           ),
         ],
       ),
       Row(
         children: [
-          const Text('Align'), const SizedBox(width: 8),
+          const Text('Align'),
+          const SizedBox(width: 8),
           DropdownButton<TextAlign?>(
             value: currentAlign,
             items: [
@@ -642,7 +962,10 @@ if (showCellQuillSection) ...[
               DropdownMenuItem(value: TextAlign.center, child: Text('Center')),
               DropdownMenuItem(value: TextAlign.right, child: Text('Right')),
             ],
-            onChanged: (v) { currentAlign = v; commitAll(); },
+            onChanged: (v) {
+              currentAlign = v;
+              commitAll();
+            },
           ),
         ],
       ),
@@ -674,12 +997,20 @@ if (showCellQuillSection) ...[
           IconButton(
             icon: const Icon(Icons.rotate_right),
             tooltip: 'Rotate 90°',
-            onPressed: () { currentAngle = ((currentAngle + (math.pi / 2)) % (2 * math.pi)); commitAll(); },
+            onPressed: () {
+              currentAngle = ((currentAngle + (math.pi / 2)) % (2 * math.pi));
+              commitAll();
+            },
           ),
           Expanded(
             child: Slider(
-              min: _angleMin, max: _angleMax, value: currentAngle.clamp(_angleMin, _angleMax),
-              onChanged: (v) { currentAngle = v; commitAll(); },
+              min: _angleMin,
+              max: _angleMax,
+              value: currentAngle.clamp(_angleMin, _angleMax),
+              onChanged: (v) {
+                currentAngle = v;
+                commitAll();
+              },
             ),
           ),
           SizedBox(width: 44, child: Text(_degLabel(currentAngle))),
@@ -689,18 +1020,42 @@ if (showCellQuillSection) ...[
       const Text('Stroke Color'),
       const SizedBox(height: 4),
       Wrap(
-        spacing: 8, runSpacing: 8,
+        spacing: 8,
+        runSpacing: 8,
         children: [
           for (final c in _swatchColors)
-            ColorDot(color: c, selected: currentStrokeColor == c, onTap: () { currentStrokeColor = c; commitAll(); }),
+            ColorDot(
+              color: c,
+              selected: currentStrokeColor == c,
+              onTap: () {
+                currentStrokeColor = c;
+                commitAll();
+              },
+            ),
         ],
       ),
       const SizedBox(height: 12),
       const Text('Stroke Width'),
-      ArrowKeySlider(min: 0, max: 16, value: currentStrokeWidth, onChanged: (v) { currentStrokeWidth = v; commitAll(); }),
+      ArrowKeySlider(
+        min: 0,
+        max: 16,
+        value: currentStrokeWidth,
+        onChanged: (v) {
+          currentStrokeWidth = v;
+          commitAll();
+        },
+      ),
       const SizedBox(height: 12),
       const Text('Corner Radius'),
-      ArrowKeySlider(min: 0, max: 40, value: currentRadius.clamp(0.0, 40.0), onChanged: (v) { currentRadius = v; commitAll(); }),
+      ArrowKeySlider(
+        min: 0,
+        max: 40,
+        value: currentRadius.clamp(0.0, 40.0),
+        onChanged: (v) {
+          currentRadius = v;
+          commitAll();
+        },
+      ),
     ];
   }
 
@@ -716,7 +1071,7 @@ if (showCellQuillSection) ...[
 
     return [
       const SizedBox(height: 12),
-      
+
       const SizedBox(height: 12),
       const Text('Rotation'),
       Row(
@@ -724,29 +1079,41 @@ if (showCellQuillSection) ...[
           IconButton(
             icon: const Icon(Icons.rotate_left),
             tooltip: 'Rotate -90°',
-            onPressed: () { currentAngle = ((currentAngle - (math.pi / 2)) % (2 * math.pi)); commitRotation(); },
+            onPressed: () {
+              currentAngle = ((currentAngle - (math.pi / 2)) % (2 * math.pi));
+              commitRotation();
+            },
           ),
           Expanded(
             child: ArrowKeySlider(
-              min: _angleMin, max: _angleMax, value: currentAngle.clamp(_angleMin, _angleMax),
-              onChanged: (v) { currentAngle = v; commitRotation(); },
+              min: _angleMin,
+              max: _angleMax,
+              value: currentAngle.clamp(_angleMin, _angleMax),
+              onChanged: (v) {
+                currentAngle = v;
+                commitRotation();
+              },
               step: (math.pi / 180), // 1°
             ),
           ),
           IconButton(
             icon: const Icon(Icons.rotate_right),
             tooltip: 'Rotate +90°',
-            onPressed: () { currentAngle = ((currentAngle + (math.pi / 2)) % (2 * math.pi)); commitRotation(); },
+            onPressed: () {
+              currentAngle = ((currentAngle + (math.pi / 2)) % (2 * math.pi));
+              commitRotation();
+            },
           ),
           SizedBox(width: 44, child: Text(_degLabel(currentAngle))),
         ],
       ),
-    
+
       const SizedBox(height: 12),
       const Text('Stroke Color'),
       const SizedBox(height: 4),
       Wrap(
-        spacing: 8, runSpacing: 8,
+        spacing: 8,
+        runSpacing: 8,
         children: [
           for (final c in _swatchColors)
             ColorDot(
@@ -768,7 +1135,11 @@ if (showCellQuillSection) ...[
       const SizedBox(height: 12),
       const Text('Stroke Width'),
       ArrowKeySlider(
-        min: 1, max: 24, value: (selected is LineDrawable ? (selected as LineDrawable).paint.strokeWidth : (selected as ArrowDrawable).paint.strokeWidth),
+        min: 1,
+        max: 24,
+        value: (selected is LineDrawable
+            ? (selected as LineDrawable).paint.strokeWidth
+            : (selected as ArrowDrawable).paint.strokeWidth),
         onChanged: (v) {
           mutateSelected((d) {
             if (d is LineDrawable) {
@@ -781,13 +1152,15 @@ if (showCellQuillSection) ...[
           });
         },
       ),
-];
+    ];
   }
 }
 
 Widget _kv(String k, String v) => Row(
-      children: [
-        Expanded(child: Text(k, style: const TextStyle(color: Colors.black54))),
-        Text(v),
-      ],
-    );
+  children: [
+    Expanded(
+      child: Text(k, style: const TextStyle(color: Colors.black54)),
+    ),
+    Text(v),
+  ],
+);

@@ -96,9 +96,7 @@ class _PainterPageState extends State<PainterPage> {
   @override
   void initState() {
     super.initState();
-    controller = PainterController(
-      background: Colors.white.backgroundDrawable,
-    );
+    controller = PainterController(background: Colors.white.backgroundDrawable);
     controller.freeStyleMode = FreeStyleMode.draw;
     controller.freeStyleColor = strokeColor;
     controller.freeStyleStrokeWidth = strokeWidth;
@@ -189,7 +187,8 @@ class _PainterPageState extends State<PainterPage> {
   Drawable? _makeShape(Offset a, Offset b, {Drawable? previewOf}) =>
       makeShape(this, a, b, previewOf: previewOf);
 
-  bool _hitTest(Drawable drawable, Offset point) => hitTest(this, drawable, point);
+  bool _hitTest(Drawable drawable, Offset point) =>
+      hitTest(this, drawable, point);
 
   double _distanceToSegment(Offset p, Offset a, Offset b) =>
       distanceToSegment(p, a, b);
@@ -216,13 +215,19 @@ class _PainterPageState extends State<PainterPage> {
 
   void _clearCellSelection() => clearCellSelection(this);
 
-  void _applyInspector({Color? newStrokeColor, double? newStrokeWidth, double? newCornerRadius}) =>
-      applyInspector(this,
-          newStrokeColor: newStrokeColor,
-          newStrokeWidth: newStrokeWidth,
-          newCornerRadius: newCornerRadius);
+  void _applyInspector({
+    Color? newStrokeColor,
+    double? newStrokeWidth,
+    double? newCornerRadius,
+  }) => applyInspector(
+    this,
+    newStrokeColor: newStrokeColor,
+    newStrokeWidth: newStrokeWidth,
+    newCornerRadius: newCornerRadius,
+  );
 
-  Future<void> _createTextAt(Offset scenePoint) => createTextAt(this, scenePoint);
+  Future<void> _createTextAt(Offset scenePoint) =>
+      createTextAt(this, scenePoint);
 
   void _handleTableInsert(int rows, int columns) =>
       handleTableInsert(this, rows, columns);
@@ -235,4 +240,171 @@ class _PainterPageState extends State<PainterPage> {
   Future<void> _saveAsPng(BuildContext context) => saveAsPng(this, context);
 
   Future<void> _pickImageAndAdd() => pickImageAndAdd(this);
+
+  _CellSelectionRange? _currentCellSelectionRange() {
+    final table = selectedDrawable;
+    if (table is! TableDrawable) return null;
+    final anchor = _selectionAnchorCell;
+    final focus = _selectionFocusCell;
+    if (anchor == null || focus == null) return null;
+    var range = _CellSelectionRange(
+      math.min(anchor.$1, focus.$1),
+      math.min(anchor.$2, focus.$2),
+      math.max(anchor.$1, focus.$1),
+      math.max(anchor.$2, focus.$2),
+    );
+    range = _expandRangeForMerges(table, range);
+    return range;
+  }
+
+  bool get _canMergeCells => _canMergeSelectedCells();
+
+  bool get _canUnmergeCells => _canUnmergeSelectedCells();
+
+  _CellSelectionRange _rangeForCell(TableDrawable table, int row, int col) {
+    final root = table.resolveRoot(row, col);
+    final span = table.spanForRoot(root.$1, root.$2);
+    final bottom = span != null ? root.$1 + span.rowSpan - 1 : root.$1;
+    final right = span != null ? root.$2 + span.colSpan - 1 : root.$2;
+    return _CellSelectionRange(root.$1, root.$2, bottom, right);
+  }
+
+  _CellSelectionRange _expandRangeForMerges(
+    TableDrawable table,
+    _CellSelectionRange range,
+  ) {
+    var expanded = range;
+    bool changed;
+    do {
+      changed = false;
+      for (int r = expanded.topRow; r <= expanded.bottomRow; r++) {
+        for (int c = expanded.leftCol; c <= expanded.rightCol; c++) {
+          final cellRange = _rangeForCell(table, r, c);
+          final merged = expanded.union(cellRange);
+          if (merged != expanded) {
+            expanded = merged;
+            changed = true;
+          }
+        }
+      }
+    } while (changed);
+
+    return expanded.clamp(table.rows, table.columns);
+  }
+
+  bool _canMergeSelectedCells() {
+    final table = selectedDrawable;
+    if (table is! TableDrawable) return false;
+    final range = _currentCellSelectionRange();
+    if (range == null) return false;
+    if (range.isSingleCell) return false;
+    return table.canMergeRegion(
+      range.topRow,
+      range.leftCol,
+      range.bottomRow,
+      range.rightCol,
+    );
+  }
+
+  bool _canUnmergeSelectedCells() {
+    final table = selectedDrawable;
+    if (table is! TableDrawable) return false;
+    final range = _currentCellSelectionRange();
+    if (range == null) return false;
+    final root = table.resolveRoot(range.topRow, range.leftCol);
+    final span = table.spanForRoot(root.$1, root.$2);
+    if (span == null) return false;
+    return root.$1 == range.topRow &&
+        root.$2 == range.leftCol &&
+        span.rowSpan == range.rowCount &&
+        span.colSpan == range.colCount &&
+        table.canUnmergeAt(root.$1, root.$2);
+  }
+
+  void _mergeSelectedCells() {
+    final table = selectedDrawable;
+    if (table is! TableDrawable) return;
+    final range = _currentCellSelectionRange();
+    if (range == null) return;
+    if (!table.mergeRegion(
+      range.topRow,
+      range.leftCol,
+      range.bottomRow,
+      range.rightCol,
+    )) {
+      return;
+    }
+    // ignore: invalid_use_of_protected_member, invalid_use_of_visible_for_testing_member
+    controller.notifyListeners();
+    setState(() {
+      _selectionAnchorCell = (range.topRow, range.leftCol);
+      _selectionFocusCell = (range.bottomRow, range.rightCol);
+    });
+  }
+
+  void _unmergeSelectedCells() {
+    final table = selectedDrawable;
+    if (table is! TableDrawable) return;
+    final range = _currentCellSelectionRange();
+    if (range == null) return;
+    final root = table.resolveRoot(range.topRow, range.leftCol);
+    if (!table.unmergeAt(root.$1, root.$2)) {
+      return;
+    }
+    // ignore: invalid_use_of_protected_member, invalid_use_of_visible_for_testing_member
+    controller.notifyListeners();
+    setState(() {
+      _selectionAnchorCell = (root.$1, root.$2);
+      _selectionFocusCell = (root.$1, root.$2);
+    });
+  }
+}
+
+class _CellSelectionRange {
+  final int topRow;
+  final int leftCol;
+  final int bottomRow;
+  final int rightCol;
+
+  const _CellSelectionRange(
+    this.topRow,
+    this.leftCol,
+    this.bottomRow,
+    this.rightCol,
+  );
+
+  int get rowCount => bottomRow - topRow + 1;
+  int get colCount => rightCol - leftCol + 1;
+  bool get isSingleCell => rowCount == 1 && colCount == 1;
+
+  _CellSelectionRange union(_CellSelectionRange other) {
+    return _CellSelectionRange(
+      math.min(topRow, other.topRow),
+      math.min(leftCol, other.leftCol),
+      math.max(bottomRow, other.bottomRow),
+      math.max(rightCol, other.rightCol),
+    );
+  }
+
+  _CellSelectionRange clamp(int maxRows, int maxCols) {
+    return _CellSelectionRange(
+      topRow.clamp(0, maxRows - 1),
+      leftCol.clamp(0, maxCols - 1),
+      bottomRow.clamp(0, maxRows - 1),
+      rightCol.clamp(0, maxCols - 1),
+    );
+  }
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    return other is _CellSelectionRange &&
+        other.topRow == topRow &&
+        other.leftCol == leftCol &&
+        other.bottomRow == bottomRow &&
+        other.rightCol == rightCol;
+  }
+
+  @override
+  int get hashCode => Object.hash(topRow, leftCol, bottomRow, rightCol);
 }
