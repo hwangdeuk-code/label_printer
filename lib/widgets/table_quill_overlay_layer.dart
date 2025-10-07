@@ -16,7 +16,9 @@ class TableQuillOverlayLayer extends StatelessWidget {
 
   List<double> _normalize(List<double> input, int columns) {
     if (columns <= 0) return const <double>[];
-    final List<double> w = input.length >= columns ? input.take(columns).toList() : [...input];
+    final List<double> w = input.length >= columns
+        ? input.take(columns).toList()
+        : [...input];
     while (w.length < columns) w.add(1.0);
     double sum = 0.0;
     for (final v in w) {
@@ -34,25 +36,49 @@ class TableQuillOverlayLayer extends StatelessWidget {
       if (d is! TableDrawable) continue;
       final table = d as TableDrawable;
 
-      final rect = Rect.fromCenter(center: table.position, width: table.size.width, height: table.size.height);
+      final rect = Rect.fromCenter(
+        center: table.position,
+        width: table.size.width,
+        height: table.size.height,
+      );
       final weights = _normalize(table.columnFractions, table.columns);
       // Row heights by rowFractions
       double rowSum = 0.0;
       final rf = table.rowFractions;
       if (rf.isNotEmpty) {
-        for (final v in rf) { if (v.isFinite && v > 0) rowSum += v; }
+        for (final v in rf) {
+          if (v.isFinite && v > 0) rowSum += v;
+        }
       }
       final List<double> rowHeights = (rowSum > 0)
           ? rf.map((f) => rect.height * (f / rowSum)).toList()
-          : List<double>.filled(math.max(1, table.rows), rect.height / math.max(1, table.rows));
+          : List<double>.filled(
+              math.max(1, table.rows),
+              rect.height / math.max(1, table.rows),
+            );
 
       for (int r = 0; r < table.rows; r++) {
         double cx = rect.left;
-        final double rowTop = rect.top + (r > 0 ? rowHeights.take(r).reduce((a,b)=>a+b) : 0.0);
-        final double rowH = (r < rowHeights.length) ? rowHeights[r] : rect.height / math.max(1, table.rows);
+        final double rowTop =
+            rect.top +
+            (r > 0 ? rowHeights.take(r).reduce((a, b) => a + b) : 0.0);
+        final double rowH = (r < rowHeights.length)
+            ? rowHeights[r]
+            : rect.height / math.max(1, table.rows);
         for (int c = 0; c < table.columns; c++) {
           final cw = rect.width * weights[c];
-          final cellRect = Rect.fromLTWH(cx, rowTop, cw, rowH).deflate(4);
+          final deflated = Rect.fromLTWH(cx, rowTop, cw, rowH).deflate(4);
+          final pad = table.paddingOf(r, c);
+          final cellRect = Rect.fromLTRB(
+            deflated.left + pad.left,
+            deflated.top + pad.top,
+            deflated.right - pad.right,
+            deflated.bottom - pad.bottom,
+          );
+          if (cellRect.width <= 0 || cellRect.height <= 0) {
+            cx += cw;
+            continue;
+          }
           final key = "$r,$c";
           final delta = table.cellDeltaJson[key];
           final alignStr = (table.styleOf(r, c)['align'] as String?) ?? 'left';
@@ -60,25 +86,25 @@ class TableQuillOverlayLayer extends StatelessWidget {
               ? TextAlign.center
               : (alignStr == 'right' ? TextAlign.right : TextAlign.left);
 
-          stackChildren.add(Positioned(
-            left: cellRect.left,
-            top: cellRect.top,
-            width: cellRect.width,
-            height: cellRect.height,
-            child: TableCellQuillView(
-              deltaJson: delta,
-              maxWidth: cellRect.width,
-              textAlign: ta,
+          stackChildren.add(
+            Positioned(
+              left: cellRect.left,
+              top: cellRect.top,
+              width: cellRect.width,
+              height: cellRect.height,
+              child: TableCellQuillView(
+                deltaJson: delta,
+                maxWidth: cellRect.width,
+                textAlign: ta,
+              ),
             ),
-          ));
+          );
 
           cx += cw;
         }
       }
     }
 
-    return IgnorePointer(
-      child: Stack(children: stackChildren),
-    );
+    return IgnorePointer(child: Stack(children: stackChildren));
   }
 }

@@ -1500,6 +1500,148 @@ class InspectorPanel extends StatelessWidget {
             ),
           ];
 
+    double? uniformPaddingFor(double Function(CellPadding) pick) {
+      double? value;
+      for (final cell in targetCells) {
+        final current = pick(table.paddingOf(cell.$1, cell.$2));
+        if (value == null) {
+          value = current;
+        } else if ((value - current).abs() > 1e-3) {
+          return null;
+        }
+      }
+      return value;
+    }
+
+    double cmFromPx(double value) => pxPerCm > 0 ? value / pxPerCm : value;
+    double pxFromCm(double value) => pxPerCm > 0 ? value * pxPerCm : value;
+
+    void applyPadding({
+      double? top,
+      double? bottom,
+      double? left,
+      double? right,
+    }) {
+      if (targetCells.isEmpty) return;
+      final cells = List<(int, int)>.from(targetCells);
+      mutateSelected((d) {
+        if (d is! TableDrawable) return d;
+        final next = d.copyWith();
+        next.updatePaddingForCells(
+          cells,
+          top: top,
+          bottom: bottom,
+          left: left,
+          right: right,
+        );
+        return next;
+      });
+    }
+
+    void submitPadding(
+      TextEditingController controller,
+      void Function(double valuePx) apply,
+    ) {
+      final raw = double.tryParse(controller.text);
+      if (raw == null) return;
+      final valuePx = pxFromCm(raw.clamp(0.0, 999.0));
+      final limitedPx = valuePx.clamp(0.0, 400.0);
+      apply(limitedPx);
+      controller.text = cmFromPx(limitedPx).toStringAsFixed(2);
+    }
+
+    Widget paddingField({
+      required String label,
+      required TextEditingController controller,
+      required void Function(double valuePx) apply,
+    }) {
+      return Row(
+        children: [
+          SizedBox(width: 48, child: Text(label)),
+          const SizedBox(width: 8),
+          SizedBox(
+            width: 90,
+            child: TextField(
+              controller: controller,
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
+              inputFormatters: [
+                FilteringTextInputFormatter.allow(RegExp(r'[0-9\.]')),
+              ],
+              textAlign: TextAlign.right,
+              decoration: const InputDecoration(
+                isDense: true,
+                border: OutlineInputBorder(),
+              ),
+              onSubmitted: (_) => submitPadding(controller, apply),
+              onEditingComplete: () => submitPadding(controller, apply),
+            ),
+          ),
+        ],
+      );
+    }
+
+    final double? uniformPadTopPx = uniformPaddingFor((p) => p.top);
+    final double? uniformPadBottomPx = uniformPaddingFor((p) => p.bottom);
+    final double? uniformPadLeftPx = uniformPaddingFor((p) => p.left);
+    final double? uniformPadRightPx = uniformPaddingFor((p) => p.right);
+    final padTopController = TextEditingController(
+      text: uniformPadTopPx == null
+          ? ''
+          : cmFromPx(uniformPadTopPx).toStringAsFixed(2),
+    );
+    final padBottomController = TextEditingController(
+      text: uniformPadBottomPx == null
+          ? ''
+          : cmFromPx(uniformPadBottomPx).toStringAsFixed(2),
+    );
+    final padLeftController = TextEditingController(
+      text: uniformPadLeftPx == null
+          ? ''
+          : cmFromPx(uniformPadLeftPx).toStringAsFixed(2),
+    );
+    final padRightController = TextEditingController(
+      text: uniformPadRightPx == null
+          ? ''
+          : cmFromPx(uniformPadRightPx).toStringAsFixed(2),
+    );
+
+    final List<Widget> paddingControls = targetCells.isEmpty
+        ? const []
+        : [
+            const SizedBox(height: 12),
+            const Divider(),
+            const Text(
+              '셀 안쪽 여백 (cm)',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            paddingField(
+              label: '위',
+              controller: padTopController,
+              apply: (v) => applyPadding(top: v),
+            ),
+            const SizedBox(height: 8),
+            paddingField(
+              label: '아래',
+              controller: padBottomController,
+              apply: (v) => applyPadding(bottom: v),
+            ),
+            const SizedBox(height: 8),
+            paddingField(
+              label: '왼쪽',
+              controller: padLeftController,
+              apply: (v) => applyPadding(left: v),
+            ),
+            const SizedBox(height: 8),
+            paddingField(
+              label: '오른쪽',
+              controller: padRightController,
+              apply: (v) => applyPadding(right: v),
+            ),
+          ];
+
     return [
       const SizedBox(height: 12),
       const Divider(),
@@ -1512,6 +1654,7 @@ class InspectorPanel extends StatelessWidget {
       const SizedBox(height: 8),
       _colField(),
       ...borderControls,
+      ...paddingControls,
       // ROW DEBUG (lists each row height in cm)
       ...(() {
         final List<Widget> items = [];

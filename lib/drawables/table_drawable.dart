@@ -49,6 +49,42 @@ class CellBorderThickness {
   static bool _approx(double a, double b) => (a - b).abs() < 1e-4;
 }
 
+class CellPadding {
+  final double top;
+  final double right;
+  final double bottom;
+  final double left;
+
+  const CellPadding({
+    this.top = 0.0,
+    this.right = 0.0,
+    this.bottom = 0.0,
+    this.left = 0.0,
+  });
+
+  CellPadding copyWith({
+    double? top,
+    double? right,
+    double? bottom,
+    double? left,
+  }) {
+    return CellPadding(
+      top: top ?? this.top,
+      right: right ?? this.right,
+      bottom: bottom ?? this.bottom,
+      left: left ?? this.left,
+    );
+  }
+
+  bool get isDefault =>
+      _approx(top, 0.0) &&
+      _approx(right, 0.0) &&
+      _approx(bottom, 0.0) &&
+      _approx(left, 0.0);
+
+  static bool _approx(double a, double b) => (a - b).abs() < 1e-4;
+}
+
 /// 표 드로어블: 행/열 그리드 + 셀별 Quill Delta 저장/표시(간이)
 class TableDrawable extends Sized2DDrawable {
   /// 표의 행/열 및 열 너비 비율 (final로 단일 정의)
@@ -67,6 +103,7 @@ class TableDrawable extends Sized2DDrawable {
   final Map<String, String> mergedParents = {}; // child -> root key
   final Map<String, CellBorderThickness> cellBorders =
       <String, CellBorderThickness>{};
+  final Map<String, CellPadding> cellPaddings = <String, CellPadding>{};
 
   TableDrawable({
     required this.rows,
@@ -74,6 +111,7 @@ class TableDrawable extends Sized2DDrawable {
     List<double>? columnFractions,
     List<double>? rowFractions,
     Map<String, CellBorderThickness>? cellBorders,
+    Map<String, CellPadding>? cellPaddings,
     required super.size,
     required super.position,
     super.rotationAngle = 0,
@@ -94,6 +132,9 @@ class TableDrawable extends Sized2DDrawable {
                  : <double>[]) {
     if (cellBorders != null && cellBorders.isNotEmpty) {
       this.cellBorders.addAll(cellBorders);
+    }
+    if (cellPaddings != null && cellPaddings.isNotEmpty) {
+      this.cellPaddings.addAll(cellPaddings);
     }
   }
 
@@ -131,6 +172,11 @@ class TableDrawable extends Sized2DDrawable {
   CellBorderThickness borderOf(int r, int c) {
     final root = resolveRoot(r, c);
     return cellBorders[_k(root.$1, root.$2)] ?? const CellBorderThickness();
+  }
+
+  CellPadding paddingOf(int r, int c) {
+    final root = resolveRoot(r, c);
+    return cellPaddings[_k(root.$1, root.$2)] ?? const CellPadding();
   }
 
   void updateBorderThickness(
@@ -177,6 +223,51 @@ class TableDrawable extends Sized2DDrawable {
   }
 
   double _clampThickness(double value) => value.clamp(0.0, 24.0).toDouble();
+
+  void updatePadding(
+    int r,
+    int c, {
+    double? top,
+    double? right,
+    double? bottom,
+    double? left,
+  }) {
+    final root = resolveRoot(r, c);
+    final key = _k(root.$1, root.$2);
+    final current = cellPaddings[key] ?? const CellPadding();
+    final next = current.copyWith(
+      top: _clampPadding(top ?? current.top),
+      right: _clampPadding(right ?? current.right),
+      bottom: _clampPadding(bottom ?? current.bottom),
+      left: _clampPadding(left ?? current.left),
+    );
+    if (next.isDefault) {
+      cellPaddings.remove(key);
+    } else {
+      cellPaddings[key] = next;
+    }
+  }
+
+  void updatePaddingForCells(
+    Iterable<(int, int)> cells, {
+    double? top,
+    double? right,
+    double? bottom,
+    double? left,
+  }) {
+    for (final cell in cells) {
+      updatePadding(
+        cell.$1,
+        cell.$2,
+        top: top,
+        right: right,
+        bottom: bottom,
+        left: left,
+      );
+    }
+  }
+
+  double _clampPadding(double value) => value.clamp(0.0, 400.0).toDouble();
 
   /// 셀 Delta 저장/조회 (Quill JSON)
   void setDeltaJson(int r, int c, String jsonStr) {
@@ -558,6 +649,7 @@ class TableDrawable extends Sized2DDrawable {
         }
         if (isMergeChild(r, c)) continue;
 
+        final padding = paddingOf(r, c);
         final jsonStr = deltaJson(r, c);
         if (jsonStr == null || jsonStr.isEmpty) continue;
 
@@ -566,6 +658,15 @@ class TableDrawable extends Sized2DDrawable {
         final alignStr = (st["align"] as String);
 
         final cellWorld = mergedWorldRect(r, c, scaledSize);
+        final padded = Rect.fromLTRB(
+          cellWorld.left + padding.left,
+          cellWorld.top + padding.top,
+          cellWorld.right - padding.right,
+          cellWorld.bottom - padding.bottom,
+        );
+        if (padded.width <= 0 || padded.height <= 0) {
+          continue;
+        }
 
         final align = alignStr == 'center'
             ? TextAlign.center
@@ -577,18 +678,18 @@ class TableDrawable extends Sized2DDrawable {
           textAlign: align,
           textDirection: TextDirection.ltr,
           maxLines: null,
-        )..layout(maxWidth: cellWorld.width);
+        )..layout(maxWidth: padded.width);
 
-        double dx = cellWorld.left;
+        double dx = padded.left;
         if (align == TextAlign.center) {
-          dx = cellWorld.left + (cellWorld.width - tp.width) / 2.0;
+          dx = padded.left + (padded.width - tp.width) / 2.0;
         } else if (align == TextAlign.right) {
-          dx = cellWorld.right - tp.width;
+          dx = padded.right - tp.width;
         }
 
         canvas.save();
-        canvas.clipRect(cellWorld);
-        tp.paint(canvas, Offset(dx, cellWorld.top));
+        canvas.clipRect(padded);
+        tp.paint(canvas, Offset(dx, padded.top));
         canvas.restore();
       }
     }
@@ -613,6 +714,7 @@ class TableDrawable extends Sized2DDrawable {
     Map<String, String>? cellDeltaJson,
     Map<String, Map<String, dynamic>>? cellStyles,
     Map<String, CellBorderThickness>? cellBorders,
+    Map<String, CellPadding>? cellPaddings,
   }) {
     final next = TableDrawable(
       rows: rows ?? this.rows,
@@ -620,6 +722,7 @@ class TableDrawable extends Sized2DDrawable {
       columnFractions: columnFractions ?? this.columnFractions,
       rowFractions: rowFractions ?? this.rowFractions,
       cellBorders: cellBorders ?? this.cellBorders,
+      cellPaddings: cellPaddings ?? this.cellPaddings,
       size: size ?? this.size,
       position: position ?? this.position,
       rotationAngle: rotation ?? rotationAngle,
@@ -633,6 +736,7 @@ class TableDrawable extends Sized2DDrawable {
     next.cellDeltaJson.addAll(cellDeltaJson ?? this.cellDeltaJson);
     next.cellStyles.addAll(cellStyles ?? this.cellStyles);
     next.cellBorders.addAll(cellBorders ?? this.cellBorders);
+    next.cellPaddings.addAll(cellPaddings ?? this.cellPaddings);
     next.editingRow = editingRow;
     next.editingCol = editingCol;
     next.mergedSpans.addAll(mergedSpans);
