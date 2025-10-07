@@ -97,6 +97,7 @@ class _PainterPageState extends State<PainterPage> {
   final FocusNode _keyboardFocus = FocusNode();
   (int, int)? _selectionAnchorCell;
   (int, int)? _selectionFocusCell;
+  Timer? _inspectorGuardTimer;
 
   @override
   void initState() {
@@ -134,6 +135,7 @@ class _PainterPageState extends State<PainterPage> {
     _quillFocus.dispose();
     _pressSnapTimer?.cancel();
     _quillBlurCommitTimer?.cancel();
+    _inspectorGuardTimer?.cancel();
     controller.dispose();
     super.dispose();
   }

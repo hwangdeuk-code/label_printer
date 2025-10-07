@@ -237,70 +237,86 @@ Widget buildPainterBody(_PainterPageState state, BuildContext context) {
                 final col = state._editingCellCol;
                 if (table == null || row == null || col == null) return;
 
-                state.setState(() {
-                  if (bold != null) state._inspBold = bold;
-                  if (italic != null) state._inspItalic = italic;
-                  if (fontSize != null) state._inspFontSize = fontSize;
-                  if (align != null) state._inspAlign = align;
-                });
-
-                final current = table.styleOf(row, col);
-                final next = <String, dynamic>{
-                  'bold': bold ?? current['bold'],
-                  'italic': italic ?? current['italic'],
-                  'fontSize': fontSize ?? current['fontSize'],
-                  'align': (() {
-                    final a =
-                        align ??
-                        (current['align'] as String == 'center'
-                            ? tool.TxtAlign.center
-                            : (current['align'] as String == 'right'
-                                  ? tool.TxtAlign.right
-                                  : tool.TxtAlign.left));
-                    return a == tool.TxtAlign.center
-                        ? 'center'
-                        : (a == tool.TxtAlign.right ? 'right' : 'left');
-                  })(),
-                };
-                table.setStyle(row, col, next);
-
-                final controller = state._quillController;
-                if (controller != null) {
-                  if (bold != null) {
-                    controller.formatSelection(
-                      bold
-                          ? quill.Attribute.bold
-                          : quill.Attribute.clone(quill.Attribute.bold, null),
-                    );
-                  }
-                  if (italic != null) {
-                    controller.formatSelection(
-                      italic
-                          ? quill.Attribute.italic
-                          : quill.Attribute.clone(quill.Attribute.italic, null),
-                    );
-                  }
-                  if (fontSize != null) {
-                    controller.formatSelection(
-                      quill.Attribute.fromKeyValue(
-                        'size',
-                        fontSize.toStringAsFixed(0),
-                      ),
-                    );
-                  }
-                  if (align != null) {
-                    final attr = align == tool.TxtAlign.center
-                        ? quill.Attribute.centerAlignment
-                        : (align == tool.TxtAlign.right
-                              ? quill.Attribute.rightAlignment
-                              : quill.Attribute.leftAlignment);
-                    controller.formatSelection(attr);
-                  }
-                }
-
+                state._guardSelectionDuringInspector = true;
+                state._suppressCommitOnce = true;
+                state._inspectorGuardTimer?.cancel();
                 try {
-                  state._persistInlineDelta();
-                } catch (_) {}
+                  state.setState(() {
+                    if (bold != null) state._inspBold = bold;
+                    if (italic != null) state._inspItalic = italic;
+                    if (fontSize != null) state._inspFontSize = fontSize;
+                    if (align != null) state._inspAlign = align;
+                  });
+
+                  final current = table.styleOf(row, col);
+                  final next = <String, dynamic>{
+                    'bold': bold ?? current['bold'],
+                    'italic': italic ?? current['italic'],
+                    'fontSize': fontSize ?? current['fontSize'],
+                    'align': (() {
+                      final a =
+                          align ??
+                          (current['align'] as String == 'center'
+                              ? tool.TxtAlign.center
+                              : (current['align'] as String == 'right'
+                                    ? tool.TxtAlign.right
+                                    : tool.TxtAlign.left));
+                      return a == tool.TxtAlign.center
+                          ? 'center'
+                          : (a == tool.TxtAlign.right ? 'right' : 'left');
+                    })(),
+                  };
+                  table.setStyle(row, col, next);
+
+                  final controller = state._quillController;
+                  if (controller != null) {
+                    if (bold != null) {
+                      controller.formatSelection(
+                        bold
+                            ? quill.Attribute.bold
+                            : quill.Attribute.clone(quill.Attribute.bold, null),
+                      );
+                    }
+                    if (italic != null) {
+                      controller.formatSelection(
+                        italic
+                            ? quill.Attribute.italic
+                            : quill.Attribute.clone(
+                                quill.Attribute.italic,
+                                null,
+                              ),
+                      );
+                    }
+                    if (fontSize != null) {
+                      controller.formatSelection(
+                        quill.Attribute.fromKeyValue(
+                          'size',
+                          fontSize.toStringAsFixed(0),
+                        ),
+                      );
+                    }
+                    if (align != null) {
+                      final attr = align == tool.TxtAlign.center
+                          ? quill.Attribute.centerAlignment
+                          : (align == tool.TxtAlign.right
+                                ? quill.Attribute.rightAlignment
+                                : quill.Attribute.leftAlignment);
+                      controller.formatSelection(attr);
+                    }
+                  }
+
+                  try {
+                    state._persistInlineDelta();
+                  } catch (_) {}
+                } finally {
+                  state._inspectorGuardTimer = Timer(
+                    const Duration(milliseconds: 300),
+                    () {
+                      state._guardSelectionDuringInspector = false;
+                      state._suppressCommitOnce = false;
+                    },
+                  );
+                }
               },
         ),
       ],
