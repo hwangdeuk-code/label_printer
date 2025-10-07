@@ -10,6 +10,7 @@ import 'package:barcode/barcode.dart';
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_quill/flutter_quill.dart' as quill;
 import 'package:package_info_plus/package_info_plus.dart';
 

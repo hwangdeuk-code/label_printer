@@ -13,8 +13,6 @@ import '../flutter_painter_v2/flutter_painter.dart';
 import '../models/tool.dart' as tool;
 import 'color_dot.dart';
 
-import '../models/tool.dart' as tool;
-
 class ArrowKeySlider extends StatefulWidget {
   final double min;
   final double max;
@@ -128,6 +126,8 @@ class TextDefaults {
 
 class InspectorPanel extends StatelessWidget {
   final (int, int)? selectionFocusCell;
+  final ({int topRow, int leftCol, int bottomRow, int rightCol})?
+  cellSelectionRange;
   final double printerDpi;
   // === Quill 표 셀 스타일 섹션 연동 필드(한국어 주석) ===
   final bool showCellQuillSection;
@@ -159,6 +159,7 @@ class InspectorPanel extends StatelessWidget {
     required this.mutateSelected, // ★ 추가
     required this.printerDpi,
     this.selectionFocusCell,
+    this.cellSelectionRange,
     this.showCellQuillSection = false,
     this.quillBold = false,
     this.quillItalic = false,
@@ -207,17 +208,16 @@ class InspectorPanel extends StatelessWidget {
     return '${norm.toStringAsFixed(0)}°';
   }
 
-  
   // 간단한 Key-Value 한 줄 표시 위젯
   Widget _kv(String k, String v) => Row(
-        children: [
-          Expanded(
-            child: Text(k, style: const TextStyle(color: Colors.black54)),
-          ),
-          Text(v),
-        ],
-      );
-@override
+    children: [
+      Expanded(
+        child: Text(k, style: const TextStyle(color: Colors.black54)),
+      ),
+      Text(v),
+    ],
+  );
+  @override
   Widget build(BuildContext context) {
     return SizedBox(
       width: 340,
@@ -1180,9 +1180,12 @@ class InspectorPanel extends StatelessWidget {
     double _currentRowCm() {
       if (selRow == null) return 0.0;
       double sum = 0.0;
-      for (final v in table.rowFractions) { if (v.isFinite && v > 0) sum += v; }
+      for (final v in table.rowFractions) {
+        if (v.isFinite && v > 0) sum += v;
+      }
       final double h = (sum > 0)
-          ? table.size.height * (table.rowFractions[selRow.clamp(0, table.rows - 1)] / sum)
+          ? table.size.height *
+                (table.rowFractions[selRow.clamp(0, table.rows - 1)] / sum)
           : (table.size.height / math.max(1, table.rows));
       return h / pxPerCm;
     }
@@ -1190,131 +1193,325 @@ class InspectorPanel extends StatelessWidget {
     double _currentColCm() {
       if (selCol == null) return 0.0;
       double sum = 0.0;
-      for (final v in table.columnFractions) { if (v.isFinite && v > 0) sum += v; }
+      for (final v in table.columnFractions) {
+        if (v.isFinite && v > 0) sum += v;
+      }
       final double w = (sum > 0)
-          ? table.size.width * (table.columnFractions[selCol.clamp(0, table.columns - 1)] / sum)
+          ? table.size.width *
+                (table.columnFractions[selCol.clamp(0, table.columns - 1)] /
+                    sum)
           : (table.size.width / math.max(1, table.columns));
       return w / pxPerCm;
     }
 
-    final rowCtrl = TextEditingController(text: selRow == null ? '' : _currentRowCm().toStringAsFixed(2));
-    final colCtrl = TextEditingController(text: selCol == null ? '' : _currentColCm().toStringAsFixed(2));
+    final rowCtrl = TextEditingController(
+      text: selRow == null ? '' : _currentRowCm().toStringAsFixed(2),
+    );
+    final colCtrl = TextEditingController(
+      text: selCol == null ? '' : _currentColCm().toStringAsFixed(2),
+    );
 
-    Widget _rowField() => Row(children: [
-      const Text('행 높이'),
-      const SizedBox(width: 8),
-      SizedBox(
-        width: 110,
-        child: TextField(
-          controller: rowCtrl,
-          enabled: selRow != null,
-          keyboardType: const TextInputType.numberWithOptions(decimal: true),
-          inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9\.]'))],
-          decoration: const InputDecoration(suffixText: 'cm', isDense: true, border: OutlineInputBorder()),
-          onSubmitted: (_) {
-            final v = double.tryParse(rowCtrl.text);
-            if (v == null || v <= 0 || selRow == null) return;
-            final double targetPx = v * pxPerCm;
-            mutateSelected((d) {
-              if (d is! TableDrawable) return d;
-              final t = d as TableDrawable;
+    Widget _rowField() => Row(
+      children: [
+        const Text('행 높이'),
+        const SizedBox(width: 8),
+        SizedBox(
+          width: 110,
+          child: TextField(
+            controller: rowCtrl,
+            enabled: selRow != null,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            inputFormatters: [
+              FilteringTextInputFormatter.allow(RegExp(r'[0-9\.]')),
+            ],
+            decoration: const InputDecoration(
+              suffixText: 'cm',
+              isDense: true,
+              border: OutlineInputBorder(),
+            ),
+            onSubmitted: (_) {
+              final v = double.tryParse(rowCtrl.text);
+              if (v == null || v <= 0 || selRow == null) return;
+              final double targetPx = v * pxPerCm;
+              mutateSelected((d) {
+                if (d is! TableDrawable) return d;
+                final TableDrawable t = d;
 
-              // Sample current per-row pixel heights using actual layout
-              final List<double> rowPx = List<double>.generate(
-                math.max(1, t.rows),
-                (rr) => t.localCellRect(rr, 0, t.size).height,
-                growable: false,
-              );
+                // Sample current per-row pixel heights using actual layout
+                final List<double> rowPx = List<double>.generate(
+                  math.max(1, t.rows),
+                  (rr) => t.localCellRect(rr, 0, t.size).height,
+                  growable: false,
+                );
 
-              final int r = selRow.clamp(0, t.rows - 1);
-              final double h0 = t.size.height;
-              rowPx[r] = targetPx;
-              final double h1 = rowPx.fold(0.0, (a,b)=>a+b).clamp(1.0, double.infinity);
+                final int r = selRow.clamp(0, t.rows - 1);
+                final double h0 = t.size.height;
+                rowPx[r] = targetPx;
+                final double h1 = rowPx
+                    .fold(0.0, (a, b) => a + b)
+                    .clamp(1.0, double.infinity);
 
-              // Convert back to fractions (others preserved exactly)
-              final List<double> newRowFractions = rowPx.map((h)=> h / h1).toList();
+                // Convert back to fractions (others preserved exactly)
+                final List<double> newRowFractions = rowPx
+                    .map((h) => h / h1)
+                    .toList();
 
-              // Keep top-left anchored relative to canvas (account rotation)
-              final double w0 = t.size.width;
-              final double w1 = w0;
-              final double dx = (w1 - w0) / 2.0;
-              final double dy = (h1 - h0) / 2.0;
-              final double ang = t.rotationAngle;
-              final double cosA = math.cos(ang);
-              final double sinA = math.sin(ang);
-              final Offset delta = Offset(dx * cosA - dy * sinA, dx * sinA + dy * cosA);
+                // Keep top-left anchored relative to canvas (account rotation)
+                final double w0 = t.size.width;
+                final double w1 = w0;
+                final double dx = (w1 - w0) / 2.0;
+                final double dy = (h1 - h0) / 2.0;
+                final double ang = t.rotationAngle;
+                final double cosA = math.cos(ang);
+                final double sinA = math.sin(ang);
+                final Offset delta = Offset(
+                  dx * cosA - dy * sinA,
+                  dx * sinA + dy * cosA,
+                );
 
-              return t.copyWith(
-                size: Size(w1, h1),
-                position: t.position + delta,
-                rowFractions: newRowFractions,
-              );
-            });
-          },
+                return t.copyWith(
+                  size: Size(w1, h1),
+                  position: t.position + delta,
+                  rowFractions: newRowFractions,
+                );
+              });
+            },
+          ),
         ),
-      ),
-    ]);
+      ],
+    );
 
-    Widget _colField() => Row(children: [
-      const Text('열 너비'),
-      const SizedBox(width: 8),
-      SizedBox(
-        width: 110,
-        child: TextField(
-          controller: colCtrl,
-          enabled: selCol != null,
-          keyboardType: const TextInputType.numberWithOptions(decimal: true),
-          inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9\.]'))],
-          decoration: const InputDecoration(suffixText: 'cm', isDense: true, border: OutlineInputBorder()),
-          onSubmitted: (_) {
-            final v = double.tryParse(colCtrl.text);
-            if (v == null || v <= 0 || selCol == null) return;
-            final double targetPx = v * pxPerCm;
-            mutateSelected((d) {
-              if (d is! TableDrawable) return d;
-              final t = d as TableDrawable;
+    Widget _colField() => Row(
+      children: [
+        const Text('열 너비'),
+        const SizedBox(width: 8),
+        SizedBox(
+          width: 110,
+          child: TextField(
+            controller: colCtrl,
+            enabled: selCol != null,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            inputFormatters: [
+              FilteringTextInputFormatter.allow(RegExp(r'[0-9\.]')),
+            ],
+            decoration: const InputDecoration(
+              suffixText: 'cm',
+              isDense: true,
+              border: OutlineInputBorder(),
+            ),
+            onSubmitted: (_) {
+              final v = double.tryParse(colCtrl.text);
+              if (v == null || v <= 0 || selCol == null) return;
+              final double targetPx = v * pxPerCm;
+              mutateSelected((d) {
+                if (d is! TableDrawable) return d;
+                final TableDrawable t = d;
 
-              double sum = 0.0;
-              for (final x in t.columnFractions) { if (x.isFinite && x > 0) sum += x; }
-              final List<double> colPx = (sum > 0)
-                  ? t.columnFractions.map((f) => t.size.width * (f / sum)).toList()
-                  : List<double>.filled(math.max(1, t.columns), t.size.width / math.max(1, t.columns));
+                double sum = 0.0;
+                for (final x in t.columnFractions) {
+                  if (x.isFinite && x > 0) sum += x;
+                }
+                final List<double> colPx = (sum > 0)
+                    ? t.columnFractions
+                          .map((f) => t.size.width * (f / sum))
+                          .toList()
+                    : List<double>.filled(
+                        math.max(1, t.columns),
+                        t.size.width / math.max(1, t.columns),
+                      );
 
-              final int c = selCol.clamp(0, t.columns - 1);
-              final double w0 = t.size.width;
-              colPx[c] = targetPx;
-              final double w1 = colPx.fold(0.0, (a,b)=>a+b).clamp(1.0, double.infinity);
-              final List<double> newColFractions = colPx.map((w)=> w / w1).toList();
+                final int c = selCol.clamp(0, t.columns - 1);
+                final double w0 = t.size.width;
+                colPx[c] = targetPx;
+                final double w1 = colPx
+                    .fold(0.0, (a, b) => a + b)
+                    .clamp(1.0, double.infinity);
+                final List<double> newColFractions = colPx
+                    .map((w) => w / w1)
+                    .toList();
 
-              // Keep top-left anchored, account rotation
-              final double h0 = t.size.height;
-              final double h1 = h0;
-              final double dx = (w1 - w0) / 2.0;
-              final double dy = (h1 - h0) / 2.0;
-              final double ang = t.rotationAngle;
-              final double cosA = math.cos(ang);
-              final double sinA = math.sin(ang);
-              final Offset delta = Offset(dx * cosA - dy * sinA, dx * sinA + dy * cosA);
+                // Keep top-left anchored, account rotation
+                final double h0 = t.size.height;
+                final double h1 = h0;
+                final double dx = (w1 - w0) / 2.0;
+                final double dy = (h1 - h0) / 2.0;
+                final double ang = t.rotationAngle;
+                final double cosA = math.cos(ang);
+                final double sinA = math.sin(ang);
+                final Offset delta = Offset(
+                  dx * cosA - dy * sinA,
+                  dx * sinA + dy * cosA,
+                );
 
-              return t.copyWith(
-                size: Size(w1, h1),
-                position: t.position + delta,
-                columnFractions: newColFractions,
-              );
-            });
-          },
+                return t.copyWith(
+                  size: Size(w1, h1),
+                  position: t.position + delta,
+                  columnFractions: newColFractions,
+                );
+              });
+            },
+          ),
         ),
-      ),
-    ]);
+      ],
+    );
+
+    final selection = cellSelectionRange;
+    final Set<(int, int)> rootCells = <(int, int)>{};
+    if (selection != null) {
+      for (int r = selection.topRow; r <= selection.bottomRow; r++) {
+        for (int c = selection.leftCol; c <= selection.rightCol; c++) {
+          rootCells.add(table.resolveRoot(r, c));
+        }
+      }
+    } else if (selRow != null && selCol != null) {
+      rootCells.add(table.resolveRoot(selRow, selCol));
+    }
+    final List<(int, int)> targetCells = rootCells.toList();
+
+    double? uniformThicknessFor(double Function(CellBorderThickness) pick) {
+      double? value;
+      for (final cell in targetCells) {
+        final current = pick(table.borderOf(cell.$1, cell.$2));
+        if (value == null) {
+          value = current;
+        } else if ((value - current).abs() > 1e-3) {
+          return null;
+        }
+      }
+      return value;
+    }
+
+    double snapThickness(double value) => (value * 10).roundToDouble() / 10.0;
+
+    void applyBorders({
+      double? top,
+      double? bottom,
+      double? left,
+      double? right,
+    }) {
+      if (targetCells.isEmpty) return;
+      final cells = List<(int, int)>.from(targetCells);
+      mutateSelected((d) {
+        if (d is! TableDrawable) return d;
+        final next = d.copyWith();
+        next.updateBorderThicknessForCells(
+          cells,
+          top: top,
+          bottom: bottom,
+          left: left,
+          right: right,
+        );
+        return next;
+      });
+    }
+
+    final double? uniformTop = uniformThicknessFor((b) => b.top);
+    final double? uniformBottom = uniformThicknessFor((b) => b.bottom);
+    final double? uniformLeft = uniformThicknessFor((b) => b.left);
+    final double? uniformRight = uniformThicknessFor((b) => b.right);
+    final topController = TextEditingController(
+      text: uniformTop == null ? '' : uniformTop.toStringAsFixed(1),
+    );
+    final bottomController = TextEditingController(
+      text: uniformBottom == null ? '' : uniformBottom.toStringAsFixed(1),
+    );
+    final leftController = TextEditingController(
+      text: uniformLeft == null ? '' : uniformLeft.toStringAsFixed(1),
+    );
+    final rightController = TextEditingController(
+      text: uniformRight == null ? '' : uniformRight.toStringAsFixed(1),
+    );
+
+    void submitBorder(
+      TextEditingController controller,
+      void Function(double value) apply,
+    ) {
+      final raw = double.tryParse(controller.text);
+      if (raw == null) return;
+      final sanitized = snapThickness(raw.clamp(0.0, 24.0));
+      controller.text = sanitized.toStringAsFixed(1);
+      apply(sanitized);
+    }
+
+    Widget borderField({
+      required String label,
+      required TextEditingController controller,
+      required void Function(double value) apply,
+    }) {
+      return Row(
+        children: [
+          SizedBox(width: 48, child: Text(label)),
+          const SizedBox(width: 8),
+          SizedBox(
+            width: 90,
+            child: TextField(
+              controller: controller,
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
+              inputFormatters: [
+                FilteringTextInputFormatter.allow(RegExp(r'[0-9\.]')),
+              ],
+              textAlign: TextAlign.right,
+              decoration: const InputDecoration(
+                isDense: true,
+                border: OutlineInputBorder(),
+              ),
+              onSubmitted: (_) => submitBorder(controller, apply),
+              onEditingComplete: () => submitBorder(controller, apply),
+            ),
+          ),
+        ],
+      );
+    }
+
+    final List<Widget> borderControls = targetCells.isEmpty
+        ? const []
+        : [
+            const SizedBox(height: 12),
+            const Divider(),
+            const Text(
+              '셀 테두리 두께',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            borderField(
+              label: '위',
+              controller: topController,
+              apply: (v) => applyBorders(top: v),
+            ),
+            const SizedBox(height: 8),
+            borderField(
+              label: '아래',
+              controller: bottomController,
+              apply: (v) => applyBorders(bottom: v),
+            ),
+            const SizedBox(height: 8),
+            borderField(
+              label: '왼쪽',
+              controller: leftController,
+              apply: (v) => applyBorders(left: v),
+            ),
+            const SizedBox(height: 8),
+            borderField(
+              label: '오른쪽',
+              controller: rightController,
+              apply: (v) => applyBorders(right: v),
+            ),
+          ];
 
     return [
       const SizedBox(height: 12),
       const Divider(),
-      const Text('표 크기 (선택된 셀 기준)', style: TextStyle(fontWeight: FontWeight.bold)),
+      const Text(
+        '표 크기 (선택된 셀 기준)',
+        style: TextStyle(fontWeight: FontWeight.bold),
+      ),
       const SizedBox(height: 8),
       _rowField(),
       const SizedBox(height: 8),
       _colField(),
+      ...borderControls,
       // ROW DEBUG (lists each row height in cm)
       ...(() {
         final List<Widget> items = [];
@@ -1325,14 +1522,16 @@ class InspectorPanel extends StatelessWidget {
           for (int rr = 0; rr < rows; rr++) {
             final hPx = t.localCellRect(rr, 0, t.size).height;
             final hCm = hPx / pxPerCm;
-            items.add(Text('행 #${rr+1}: ' + hCm.toStringAsFixed(2) + ' cm',
-                style: const TextStyle(fontSize: 11, color: Colors.black54)));
+            items.add(
+              Text(
+                '행 #${rr + 1}: ' + hCm.toStringAsFixed(2) + ' cm',
+                style: const TextStyle(fontSize: 11, color: Colors.black54),
+              ),
+            );
           }
         }
         return items;
-      })(), /* ROW_DEBUG_READOUT */
-    
+      })() /* ROW_DEBUG_READOUT */,
     ];
   }
-
 }

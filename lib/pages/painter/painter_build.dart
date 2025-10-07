@@ -34,6 +34,9 @@ Widget buildPainterBody(_PainterPageState state, BuildContext context) {
       : null;
   final canMergeCells = tableDrawable != null && state._canMergeCells;
   final canUnmergeCells = tableDrawable != null && state._canUnmergeCells;
+  final range = tableDrawable != null
+      ? state._currentCellSelectionRange()
+      : null;
   return RawKeyboardListener(
     focusNode: state._keyboardFocus,
     autofocus: true,
@@ -168,6 +171,14 @@ Widget buildPainterBody(_PainterPageState state, BuildContext context) {
           selected: state.selectedDrawable,
           printerDpi: state.printerDpi,
           selectionFocusCell: state._selectionFocusCell,
+          cellSelectionRange: range == null
+              ? null
+              : (
+                  topRow: range.topRow,
+                  leftCol: range.leftCol,
+                  bottomRow: range.bottomRow,
+                  rightCol: range.rightCol,
+                ),
           strokeWidth: state.strokeWidth,
           onApplyStroke: state._applyInspector,
           onReplaceDrawable: (original, replacement) {
