@@ -249,26 +249,36 @@ Widget buildPainterBody(_PainterPageState state, BuildContext context) {
                   });
 
                   final current = table.styleOf(row, col);
-                  final next = <String, dynamic>{
-                    'bold': bold ?? current['bold'],
-                    'italic': italic ?? current['italic'],
-                    'fontSize': fontSize ?? current['fontSize'],
-                    'align': (() {
-                      final a =
-                          align ??
-                          (current['align'] as String == 'center'
-                              ? tool.TxtAlign.center
-                              : (current['align'] as String == 'right'
-                                    ? tool.TxtAlign.right
-                                    : tool.TxtAlign.left));
-                      return a == tool.TxtAlign.center
-                          ? 'center'
-                          : (a == tool.TxtAlign.right ? 'right' : 'left');
-                    })(),
+                  final updated = <String, dynamic>{
+                    'bold': current['bold'],
+                    'italic': current['italic'],
+                    'fontSize': current['fontSize'],
+                    'align': current['align'],
                   };
-                  table.setStyle(row, col, next);
 
                   final controller = state._quillController;
+                  final isInlineEditing = controller != null;
+
+                  if (!isInlineEditing) {
+                    if (bold != null) updated['bold'] = bold;
+                    if (italic != null) updated['italic'] = italic;
+                    if (fontSize != null) updated['fontSize'] = fontSize;
+                  }
+
+                  final effectiveAlign =
+                      align ??
+                      (current['align'] as String == 'center'
+                          ? tool.TxtAlign.center
+                          : (current['align'] as String == 'right'
+                                ? tool.TxtAlign.right
+                                : tool.TxtAlign.left));
+                  updated['align'] = effectiveAlign == tool.TxtAlign.center
+                      ? 'center'
+                      : (effectiveAlign == tool.TxtAlign.right
+                            ? 'right'
+                            : 'left');
+                  table.setStyle(row, col, updated);
+
                   if (controller != null) {
                     if (bold != null) {
                       controller.formatSelection(

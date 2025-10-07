@@ -70,6 +70,7 @@ class _PainterPageState extends State<PainterPage> {
   int? _editingCellRow;
   int? _editingCellCol;
   quill.QuillController? _quillController;
+  List<dynamic>? _pendingQuillDeltaOps;
 
   final Map<Drawable, String> _drawableIds = {};
   final Map<Drawable, String> _pendingIdOverrides = {};

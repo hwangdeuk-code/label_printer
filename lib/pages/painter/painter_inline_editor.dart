@@ -44,34 +44,18 @@ Widget? buildInlineEditor(_PainterPageState state) {
 }
 
 void persistInlineDelta(_PainterPageState state) {
+  final controller = state._quillController;
   if (state._editingTable == null ||
       state._editingCellRow == null ||
       state._editingCellCol == null ||
-      state._quillController == null) {
+      controller == null) {
     return;
   }
 
-  final row = state._editingCellRow!;
-  final col = state._editingCellCol!;
-  try {
-    final delta = state._quillController!.document.toDelta().toJson();
-    final jsonStr = json.encode({"ops": delta});
-    state._editingTable!.setDeltaJson(row, col, jsonStr);
-    // ignore: invalid_use_of_protected_member, invalid_use_of_visible_for_testing_member
-    state.controller.notifyListeners();
-  } catch (_) {
-    // persistence failure should not break UX
-  }
+  state._pendingQuillDeltaOps = controller.document.toDelta().toJson();
 }
 
 void commitInlineEditor(_PainterPageState state) {
-  try {
-    state._quillController?.updateSelection(
-      const TextSelection.collapsed(offset: 0),
-      quill.ChangeSource.local,
-    );
-  } catch (_) {}
-
   try {
     state._inlineEditor?.remove();
   } catch (_) {}
@@ -91,8 +75,13 @@ void commitInlineEditor(_PainterPageState state) {
 
   final row = state._editingCellRow!;
   final col = state._editingCellCol!;
-  final delta = state._quillController!.document.toDelta().toJson();
-  final jsonStr = json.encode({"ops": delta});
+  List<dynamic>? ops = state._pendingQuillDeltaOps;
+  if (ops == null) {
+    ops = state._quillController!.document.toDelta().toJson();
+  }
+  state._pendingQuillDeltaOps = null;
+
+  final jsonStr = json.encode({"ops": ops});
   state._editingTable!.setDeltaJson(row, col, jsonStr);
 
   state.setState(() {
@@ -121,6 +110,8 @@ void handleCanvasDoubleTapDown(
   final scenePoint = state._sceneFromGlobal(details.globalPosition);
   final drawable = state._pickTopAt(scenePoint);
   if (drawable is! TableDrawable) return;
+
+  state._pendingQuillDeltaOps = null;
 
   final local = state._toLocal(
     scenePoint,
@@ -198,8 +189,6 @@ void handleCanvasDoubleTapDown(
   );
 
   try {
-    final style = drawable.styleOf(row, column);
-    final fontSize = style['fontSize'] as double;
     if (insertedInitialBreak) {
       state._quillController!.replaceText(
         0,
@@ -209,17 +198,7 @@ void handleCanvasDoubleTapDown(
         ignoreFocus: true,
       );
     }
-
     final length = state._quillController!.document.length;
-    if (!insertedInitialBreak && length > 0) {
-      state._quillController!.updateSelection(
-        TextSelection(baseOffset: 0, extentOffset: length),
-        quill.ChangeSource.local,
-      );
-      state._quillController!.formatSelection(
-        quill.Attribute.fromKeyValue('size', fontSize.toStringAsFixed(0)),
-      );
-    }
     state._quillController!.updateSelection(
       TextSelection.collapsed(offset: length),
       quill.ChangeSource.local,
