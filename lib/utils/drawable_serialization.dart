@@ -23,10 +23,7 @@ import '../flutter_painter_v2/controllers/drawables/text_drawable.dart';
 import '../models/tool.dart' show TxtAlign;
 
 class DrawableSerializationResult {
-  DrawableSerializationResult({
-    required this.drawable,
-    required this.id,
-  });
+  DrawableSerializationResult({required this.drawable, required this.id});
 
   final Drawable drawable;
   final String id;
@@ -52,10 +49,7 @@ class DrawableSerializer {
     String id,
   ) async {
     final type = _detectType(drawable);
-    final base = <String, dynamic>{
-      'id': id,
-      'type': type,
-    };
+    final base = <String, dynamic>{'id': id, 'type': type};
 
     if (drawable is ObjectDrawable) {
       base.addAll({
@@ -82,10 +76,7 @@ class DrawableSerializer {
           'paint': _paintToJson(oval.paint),
         });
       case LineDrawable line:
-        base.addAll({
-          'length': line.length,
-          'paint': _paintToJson(line.paint),
-        });
+        base.addAll({'length': line.length, 'paint': _paintToJson(line.paint)});
       case ArrowDrawable arrow:
         base.addAll({
           'length': arrow.length,
@@ -125,7 +116,7 @@ class DrawableSerializer {
       case BarcodeDrawable barcode:
         base.addAll({
           'data': barcode.data,
-          'type': barcode.type.name,
+          'barcodeType': barcode.type.name,
           'showValue': barcode.showValue,
           'fontSize': barcode.fontSize,
           'foreground': barcode.foreground.value,
@@ -146,9 +137,7 @@ class DrawableSerializer {
           'image': await _encodeImage(image.image),
         });
       case ImageDrawable image:
-        base.addAll({
-          'image': await _encodeImage(image.image),
-        });
+        base.addAll({'image': await _encodeImage(image.image)});
       case TableDrawable table:
         base.addAll({
           'rows': table.rows,
@@ -158,32 +147,29 @@ class DrawableSerializer {
           'columnFractions': table.columnFractions,
           'cellStyles': table.cellStyles,
           'cellDeltaJson': table.cellDeltaJson,
-          'mergedSpans': table.mergedSpans.map((key, span) => MapEntry(
-                key,
-                {
-                  'rowSpan': span.rowSpan,
-                  'colSpan': span.colSpan,
-                },
-              )),
+          'mergedSpans': table.mergedSpans.map(
+            (key, span) => MapEntry(key, {
+              'rowSpan': span.rowSpan,
+              'colSpan': span.colSpan,
+            }),
+          ),
           'mergedParents': table.mergedParents,
-          'cellBorders': table.cellBorders.map((key, value) => MapEntry(
-                key,
-                {
-                  'top': value.top,
-                  'right': value.right,
-                  'bottom': value.bottom,
-                  'left': value.left,
-                },
-              )),
-          'cellPaddings': table.cellPaddings.map((key, value) => MapEntry(
-                key,
-                {
-                  'top': value.top,
-                  'right': value.right,
-                  'bottom': value.bottom,
-                  'left': value.left,
-                },
-              )),
+          'cellBorders': table.cellBorders.map(
+            (key, value) => MapEntry(key, {
+              'top': value.top,
+              'right': value.right,
+              'bottom': value.bottom,
+              'left': value.left,
+            }),
+          ),
+          'cellPaddings': table.cellPaddings.map(
+            (key, value) => MapEntry(key, {
+              'top': value.top,
+              'right': value.right,
+              'bottom': value.bottom,
+              'left': value.left,
+            }),
+          ),
         });
       default:
         // Fallback: store runtime type
@@ -295,7 +281,7 @@ class DrawableSerializer {
         case 'barcode':
           drawable = BarcodeDrawable(
             data: json['data'] as String? ?? '',
-            type: _jsonToBarcodeType(json['type']),
+            type: _jsonToBarcodeType(json['barcodeType'] ?? json['type']),
             showValue: json['showValue'] == true,
             fontSize: (json['fontSize'] as num?)?.toDouble() ?? 16,
             foreground: Color(json['foreground'] as int? ?? Colors.black.value),
@@ -319,7 +305,9 @@ class DrawableSerializer {
             image: image,
             size: _jsonToSize(json['size']),
             borderRadius: _jsonToBorderRadius(json['borderRadius']),
-            strokeColor: Color(json['strokeColor'] as int? ?? Colors.black.value),
+            strokeColor: Color(
+              json['strokeColor'] as int? ?? Colors.black.value,
+            ),
             strokeWidth: (json['strokeWidth'] as num?)?.toDouble() ?? 0,
             position: _jsonToOffset(json['position']),
             rotationAngle: (json['rotation'] as num?)?.toDouble() ?? 0,
@@ -344,9 +332,12 @@ class DrawableSerializer {
           final table = TableDrawable(
             rows: rows,
             columns: columns,
-            columnFractions:
-                (json['columnFractions'] as List<dynamic>).map((e) => (e as num).toDouble()).toList(),
-            rowFractions: (json['rowFractions'] as List<dynamic>).map((e) => (e as num).toDouble()).toList(),
+            columnFractions: (json['columnFractions'] as List<dynamic>)
+                .map((e) => (e as num).toDouble())
+                .toList(),
+            rowFractions: (json['rowFractions'] as List<dynamic>)
+                .map((e) => (e as num).toDouble())
+                .toList(),
             size: _jsonToSize(json['size']),
             position: _jsonToOffset(json['position']),
             rotationAngle: (json['rotation'] as num?)?.toDouble() ?? 0,
@@ -356,25 +347,36 @@ class DrawableSerializer {
             cellBorders: _jsonToBorders(json['cellBorders']),
             cellPaddings: _jsonToPaddings(json['cellPaddings']),
           );
-          table.cellStyles.addAll((json['cellStyles'] as Map).map(
-            (key, value) => MapEntry(key as String, Map<String, dynamic>.from(value as Map)),
-          ));
-          table.cellDeltaJson.addAll((json['cellDeltaJson'] as Map).map(
-            (key, value) => MapEntry(key as String, value as String),
-          ));
-          table.mergedSpans.addAll((json['mergedSpans'] as Map).map((key, value) {
-            final map = value as Map;
-            return MapEntry(
-              key as String,
-              CellMergeSpan(
-                rowSpan: map['rowSpan'] as int,
-                colSpan: map['colSpan'] as int,
+          table.cellStyles.addAll(
+            (json['cellStyles'] as Map).map(
+              (key, value) => MapEntry(
+                key as String,
+                Map<String, dynamic>.from(value as Map),
               ),
-            );
-          }));
-          table.mergedParents.addAll((json['mergedParents'] as Map).map(
-            (key, value) => MapEntry(key as String, value as String),
-          ));
+            ),
+          );
+          table.cellDeltaJson.addAll(
+            (json['cellDeltaJson'] as Map).map(
+              (key, value) => MapEntry(key as String, value as String),
+            ),
+          );
+          table.mergedSpans.addAll(
+            (json['mergedSpans'] as Map).map((key, value) {
+              final map = value as Map;
+              return MapEntry(
+                key as String,
+                CellMergeSpan(
+                  rowSpan: map['rowSpan'] as int,
+                  colSpan: map['colSpan'] as int,
+                ),
+              );
+            }),
+          );
+          table.mergedParents.addAll(
+            (json['mergedParents'] as Map).map(
+              (key, value) => MapEntry(key as String, value as String),
+            ),
+          );
           drawable = table;
         default:
           return null;
@@ -403,8 +405,10 @@ class DrawableSerializer {
     return drawable.runtimeType.toString();
   }
 
-  static Map<String, double> _offsetToJson(Offset offset) =>
-      {'x': offset.dx, 'y': offset.dy};
+  static Map<String, double> _offsetToJson(Offset offset) => {
+    'x': offset.dx,
+    'y': offset.dy,
+  };
 
   static Offset _jsonToOffset(dynamic value) {
     if (value is Map) {
@@ -415,8 +419,10 @@ class DrawableSerializer {
     throw const FormatException('Invalid offset');
   }
 
-  static Map<String, double> _sizeToJson(Size size) =>
-      {'width': size.width, 'height': size.height};
+  static Map<String, double> _sizeToJson(Size size) => {
+    'width': size.width,
+    'height': size.height,
+  };
 
   static Size _jsonToSize(dynamic value) {
     if (value is Map) {
@@ -478,8 +484,10 @@ class DrawableSerializer {
     );
   }
 
-  static Map<String, double> _radiusToJson(Radius radius) =>
-      {'x': radius.x, 'y': radius.y};
+  static Map<String, double> _radiusToJson(Radius radius) => {
+    'x': radius.x,
+    'y': radius.y,
+  };
 
   static Radius _jsonToRadius(dynamic value) {
     if (value is! Map) return Radius.zero;
@@ -499,7 +507,8 @@ class DrawableSerializer {
   }
 
   static TextStyle _jsonToTextStyle(dynamic value) {
-    if (value is! Map) return const TextStyle(fontSize: 14, color: Colors.black);
+    if (value is! Map)
+      return const TextStyle(fontSize: 14, color: Colors.black);
     return TextStyle(
       color: value['color'] != null ? Color(value['color'] as int) : null,
       fontSize: (value['fontSize'] as num?)?.toDouble(),
@@ -563,8 +572,10 @@ class DrawableSerializer {
     if (byteData == null) {
       throw const FormatException('Failed to encode image');
     }
-    final bytes =
-        byteData.buffer.asUint8List(byteData.offsetInBytes, byteData.lengthInBytes);
+    final bytes = byteData.buffer.asUint8List(
+      byteData.offsetInBytes,
+      byteData.lengthInBytes,
+    );
     return base64Encode(bytes);
   }
 
@@ -576,37 +587,33 @@ class DrawableSerializer {
 
   static Map<String, CellBorderThickness> _jsonToBorders(dynamic value) {
     if (value is! Map) return {};
-    return value.map(
-      (key, dynamic v) {
-        final map = v as Map;
-        return MapEntry(
-          key as String,
-          CellBorderThickness(
-            top: (map['top'] as num?)?.toDouble() ?? 1,
-            right: (map['right'] as num?)?.toDouble() ?? 1,
-            bottom: (map['bottom'] as num?)?.toDouble() ?? 1,
-            left: (map['left'] as num?)?.toDouble() ?? 1,
-          ),
-        );
-      },
-    );
+    return value.map((key, dynamic v) {
+      final map = v as Map;
+      return MapEntry(
+        key as String,
+        CellBorderThickness(
+          top: (map['top'] as num?)?.toDouble() ?? 1,
+          right: (map['right'] as num?)?.toDouble() ?? 1,
+          bottom: (map['bottom'] as num?)?.toDouble() ?? 1,
+          left: (map['left'] as num?)?.toDouble() ?? 1,
+        ),
+      );
+    });
   }
 
   static Map<String, CellPadding> _jsonToPaddings(dynamic value) {
     if (value is! Map) return {};
-    return value.map(
-      (key, dynamic v) {
-        final map = v as Map;
-        return MapEntry(
-          key as String,
-          CellPadding(
-            top: (map['top'] as num?)?.toDouble() ?? 0,
-            right: (map['right'] as num?)?.toDouble() ?? 0,
-            bottom: (map['bottom'] as num?)?.toDouble() ?? 0,
-            left: (map['left'] as num?)?.toDouble() ?? 0,
-          ),
-        );
-      },
-    );
+    return value.map((key, dynamic v) {
+      final map = v as Map;
+      return MapEntry(
+        key as String,
+        CellPadding(
+          top: (map['top'] as num?)?.toDouble() ?? 0,
+          right: (map['right'] as num?)?.toDouble() ?? 0,
+          bottom: (map['bottom'] as num?)?.toDouble() ?? 0,
+          left: (map['left'] as num?)?.toDouble() ?? 0,
+        ),
+      );
+    });
   }
 }
