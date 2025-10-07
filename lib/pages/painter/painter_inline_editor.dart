@@ -162,6 +162,7 @@ void handleCanvasDoubleTapDown(
   final key = '$row,$column';
   final jsonStr = drawable.cellDeltaJson[key];
   quill.Document document;
+  bool insertedInitialBreak = false;
   if (jsonStr != null && jsonStr.isNotEmpty) {
     try {
       final decoded = json.decode(jsonStr);
@@ -176,7 +177,9 @@ void handleCanvasDoubleTapDown(
       document = quill.Document()..insert(0, '\n');
     }
   } else {
-    document = quill.Document()..insert(0, '\n');
+    document = quill.Document();
+    document.insert(0, '\n');
+    insertedInitialBreak = true;
   }
 
   state._quillController = quill.QuillController(
@@ -187,8 +190,18 @@ void handleCanvasDoubleTapDown(
   try {
     final style = drawable.styleOf(row, column);
     final fontSize = style['fontSize'] as double;
+    if (insertedInitialBreak) {
+      state._quillController!.replaceText(
+        0,
+        1,
+        '',
+        const TextSelection.collapsed(offset: 0),
+        ignoreFocus: true,
+      );
+    }
+
     final length = state._quillController!.document.length;
-    if (length > 0) {
+    if (!insertedInitialBreak && length > 0) {
       state._quillController!.updateSelection(
         TextSelection(baseOffset: 0, extentOffset: length),
         quill.ChangeSource.local,
