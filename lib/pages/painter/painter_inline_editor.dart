@@ -161,21 +161,23 @@ void handleCanvasDoubleTapDown(
 
   final key = '$row,$column';
   final jsonStr = drawable.cellDeltaJson[key];
-  final document = (jsonStr != null && jsonStr.isNotEmpty)
-      ? quill.Document.fromJson(
-          (json.decode(jsonStr) as Map<String, dynamic>)['ops']
-              as List<dynamic>,
-        )
-      : quill.Document.fromJson([
-          {
-            'insert': '\n',
-            'attributes': {
-              'size': (drawable.styleOf(row, column)['fontSize'] as double)
-                  .toInt()
-                  .toString(),
-            },
-          },
-        ]);
+  quill.Document document;
+  if (jsonStr != null && jsonStr.isNotEmpty) {
+    try {
+      final decoded = json.decode(jsonStr);
+      final ops = (decoded is Map<String, dynamic>) ? decoded['ops'] : null;
+      if (ops is List && ops.isNotEmpty) {
+        document = quill.Document.fromJson(ops.cast<dynamic>());
+      } else {
+        document = quill.Document();
+        document.insert(0, '\n');
+      }
+    } catch (_) {
+      document = quill.Document()..insert(0, '\n');
+    }
+  } else {
+    document = quill.Document()..insert(0, '\n');
+  }
 
   state._quillController = quill.QuillController(
     document: document,
@@ -186,13 +188,15 @@ void handleCanvasDoubleTapDown(
     final style = drawable.styleOf(row, column);
     final fontSize = style['fontSize'] as double;
     final length = state._quillController!.document.length;
-    state._quillController!.updateSelection(
-      TextSelection(baseOffset: 0, extentOffset: length),
-      quill.ChangeSource.local,
-    );
-    state._quillController!.formatSelection(
-      quill.Attribute.fromKeyValue('size', fontSize.toStringAsFixed(0)),
-    );
+    if (length > 0) {
+      state._quillController!.updateSelection(
+        TextSelection(baseOffset: 0, extentOffset: length),
+        quill.ChangeSource.local,
+      );
+      state._quillController!.formatSelection(
+        quill.Attribute.fromKeyValue('size', fontSize.toStringAsFixed(0)),
+      );
+    }
     state._quillController!.updateSelection(
       TextSelection.collapsed(offset: length),
       quill.ChangeSource.local,
