@@ -19,6 +19,16 @@ Widget buildPainterScaffold(_PainterPageState state, BuildContext context) {
           tooltip: 'Clear',
         ),
         IconButton(
+          onPressed: () => state._saveProject(context),
+          icon: const Icon(Icons.save),
+          tooltip: 'Save Project',
+        ),
+        IconButton(
+          onPressed: () => state._loadProject(context),
+          icon: const Icon(Icons.folder_open),
+          tooltip: 'Load Project',
+        ),
+        IconButton(
           onPressed: () => state._saveAsPng(context),
           icon: const Icon(Icons.save_alt),
         ),

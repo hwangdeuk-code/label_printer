@@ -71,6 +71,11 @@ class _PainterPageState extends State<PainterPage> {
   int? _editingCellCol;
   quill.QuillController? _quillController;
 
+  final Map<Drawable, String> _drawableIds = {};
+  final Map<Drawable, String> _pendingIdOverrides = {};
+  List<Drawable> _previousDrawables = const [];
+  int _idSequence = 0;
+
   bool _inspBold = false;
   bool _inspItalic = false;
   double _inspFontSize = 12.0;
@@ -107,8 +112,11 @@ class _PainterPageState extends State<PainterPage> {
       handleQuillFocusChange(this);
     });
     controller.addListener(() {
-      if (mounted) setState(() {});
+      if (!mounted) return;
+      _syncDrawableRegistry();
+      setState(() {});
     });
+    _previousDrawables = List<Drawable>.from(controller.value.drawables);
 
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       final info = await PackageInfo.fromPlatform();
@@ -198,6 +206,160 @@ class _PainterPageState extends State<PainterPage> {
 
   DragAction _hitHandle(Rect bounds, Offset point) =>
       hitHandle(this, bounds, point);
+
+  void _syncDrawableRegistry() {
+    final current = List<Drawable>.from(controller.value.drawables);
+    final previous = _previousDrawables;
+
+    final minLen = math.min(previous.length, current.length);
+    for (var i = 0; i < minLen; i++) {
+      final oldDrawable = previous[i];
+      final newDrawable = current[i];
+      if (identical(oldDrawable, newDrawable)) continue;
+      if (!_drawableIds.containsKey(newDrawable) &&
+          !current.contains(oldDrawable) &&
+          _drawableIds.containsKey(oldDrawable)) {
+        final id = _drawableIds.remove(oldDrawable);
+        if (id != null) {
+          _drawableIds[newDrawable] =
+              _pendingIdOverrides.remove(newDrawable) ?? id;
+        }
+      }
+    }
+
+    for (final old in previous) {
+      if (!current.contains(old)) {
+        _drawableIds.remove(old);
+      }
+    }
+
+    for (final drawable in current) {
+      if (!_drawableIds.containsKey(drawable)) {
+        final override = _pendingIdOverrides.remove(drawable);
+        _drawableIds[drawable] = override ?? _generateIdFor(drawable);
+      }
+    }
+
+    _previousDrawables = current;
+  }
+
+  String _ensureDrawableId(Drawable drawable) {
+    return _drawableIds.putIfAbsent(drawable, () => _generateIdFor(drawable));
+  }
+
+  String _generateIdFor(Drawable drawable) {
+    final base = _baseNameFor(drawable);
+    final timestamp = DateTime.now().millisecondsSinceEpoch;
+    final seq = (_idSequence++).toRadixString(36);
+    return '$base-$timestamp-$seq';
+  }
+
+  String _baseNameFor(Drawable drawable) {
+    if (drawable is RectangleDrawable) return 'rectangle';
+    if (drawable is OvalDrawable) return 'oval';
+    if (drawable is LineDrawable) return 'line';
+    if (drawable is ArrowDrawable) return 'arrow';
+    if (drawable is DoubleArrowDrawable) return 'double-arrow';
+    if (drawable is FreeStyleDrawable) return 'stroke';
+    if (drawable is EraseDrawable) return 'eraser';
+    if (drawable is ConstrainedTextDrawable) return 'text-block';
+    if (drawable is TextDrawable) return 'text';
+    if (drawable is BarcodeDrawable) return 'barcode';
+    if (drawable is ImageBoxDrawable) return 'image-box';
+    if (drawable is ImageDrawable) return 'image';
+    if (drawable is TableDrawable) return 'table';
+    return drawable.runtimeType.toString().toLowerCase();
+  }
+
+  void _prepareOverrideId(Drawable drawable, String id) {
+    _pendingIdOverrides[drawable] = id;
+    _drawableIds[drawable] = id;
+  }
+
+  Future<void> _saveProject(BuildContext context) async {
+    try {
+      final location = await getSaveLocation(
+        acceptedTypeGroups: const [
+          XTypeGroup(label: 'JSON', extensions: ['json']),
+        ],
+      );
+      if (location == null) return;
+
+      final objects = <Map<String, dynamic>>[];
+      for (final drawable in controller.value.drawables) {
+        final id = _ensureDrawableId(drawable);
+        final json = await DrawableSerializer.toJson(drawable, id);
+        objects.add(json);
+      }
+      final bundle = DrawableSerializer.wrapScene(
+        printerDpi: printerDpi,
+        objects: objects,
+      );
+      final path = location.path.endsWith('.json')
+          ? location.path
+          : '${location.path}.json';
+      final file = File(path);
+      const encoder = JsonEncoder.withIndent('  ');
+      await file.writeAsString(encoder.convert(bundle));
+      _showSnackBar(context, '저장 완료: ${objects.length}개 객체');
+    } catch (e, stack) {
+      debugPrint('Save project error: $e\n$stack');
+      _showSnackBar(context, '저장 실패: $e', isError: true);
+    }
+  }
+
+  Future<void> _loadProject(BuildContext context) async {
+    try {
+      final file = await openFile(
+        acceptedTypeGroups: const [
+          XTypeGroup(label: 'JSON', extensions: ['json']),
+        ],
+      );
+      if (file == null) return;
+      final content = await file.readAsString();
+      final decoded = jsonDecode(content);
+      if (decoded is! Map<String, dynamic>) {
+        throw const FormatException('올바르지 않은 JSON 형식입니다.');
+      }
+      final objects = decoded['objects'];
+      if (objects is! List) {
+        throw const FormatException('objects 배열이 존재하지 않습니다.');
+      }
+
+      int added = 0;
+      for (final entry in objects) {
+        if (entry is! Map) continue;
+        final map = Map<String, dynamic>.from(entry as Map);
+        final result = await DrawableSerializer.fromJson(map);
+        if (result == null) continue;
+        final drawable = result.drawable;
+        _pendingIdOverrides[drawable] = result.id;
+        controller.addDrawables([drawable]);
+        added++;
+      }
+      if (added > 0) {
+        _showSnackBar(context, '불러오기 완료: $added개 객체 추가');
+      } else {
+        _showSnackBar(context, '불러온 객체가 없습니다.');
+      }
+    } catch (e, stack) {
+      debugPrint('Load project error: $e\n$stack');
+      _showSnackBar(context, '불러오기 실패: $e', isError: true);
+    }
+  }
+
+  void _showSnackBar(
+    BuildContext context,
+    String message, {
+    bool isError = false,
+  }) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: isError ? Theme.of(context).colorScheme.error : null,
+      ),
+    );
+  }
 
   Offset _rotateHandlePos(Rect rect) => rotateHandlePos(this, rect);
 
