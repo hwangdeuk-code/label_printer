@@ -157,7 +157,17 @@ void handleCanvasDoubleTapDown(
   row = root.$1;
   column = root.$2;
   final editorRect = drawable.mergedWorldRect(row, column, drawable.size);
-  state._inlineEditorRectScene = editorRect;
+  final pad = drawable.paddingOf(row, column);
+  final paddedEditorRect = Rect.fromLTRB(
+    editorRect.left + pad.left,
+    editorRect.top + pad.top,
+    editorRect.right - pad.right,
+    editorRect.bottom - pad.bottom,
+  );
+  state._inlineEditorRectScene =
+      paddedEditorRect.width > 1 && paddedEditorRect.height > 1
+      ? paddedEditorRect
+      : editorRect;
 
   final key = '$row,$column';
   final jsonStr = drawable.cellDeltaJson[key];

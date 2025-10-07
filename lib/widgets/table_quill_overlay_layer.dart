@@ -67,13 +67,13 @@ class TableQuillOverlayLayer extends StatelessWidget {
             : rect.height / math.max(1, table.rows);
         for (int c = 0; c < table.columns; c++) {
           final cw = rect.width * weights[c];
-          final deflated = Rect.fromLTWH(cx, rowTop, cw, rowH).deflate(4);
+          final baseRect = Rect.fromLTWH(cx, rowTop, cw, rowH);
           final pad = table.paddingOf(r, c);
           final cellRect = Rect.fromLTRB(
-            deflated.left + pad.left,
-            deflated.top + pad.top,
-            deflated.right - pad.right,
-            deflated.bottom - pad.bottom,
+            baseRect.left + pad.left,
+            baseRect.top + pad.top,
+            baseRect.right - pad.right,
+            baseRect.bottom - pad.bottom,
           );
           if (cellRect.width <= 0 || cellRect.height <= 0) {
             cx += cw;
