@@ -17,20 +17,34 @@ Widget? buildInlineEditor(_PainterPageState state) {
     child: FocusScope(
       child: Builder(
         builder: (context) {
-          var fontSize = 12.0;
+          final mq = MediaQuery.of(context);
+          TextStyle baseStyle = const TextStyle(
+            fontSize: 12.0,
+            height: 1.2,
+            color: Colors.black,
+          );
           try {
             final style = state._editingTable!.styleOf(
               state._editingCellRow!,
               state._editingCellCol!,
             );
-            fontSize = style['fontSize'] as double;
+            baseStyle = TextStyle(
+              fontSize: (style['fontSize'] as double?) ?? 12.0,
+              fontWeight: style['bold'] == true
+                  ? FontWeight.bold
+                  : FontWeight.normal,
+              fontStyle: style['italic'] == true
+                  ? FontStyle.italic
+                  : FontStyle.normal,
+              height: 1.2,
+              color: Colors.black,
+            );
           } catch (_) {}
 
-          final mq = MediaQuery.of(context);
           return MediaQuery(
             data: mq.copyWith(textScaler: const TextScaler.linear(1.0)),
             child: DefaultTextStyle.merge(
-              style: TextStyle(fontSize: fontSize),
+              style: baseStyle,
               child: quill.QuillEditor.basic(
                 controller: state._quillController!,
                 focusNode: state._quillFocus,
@@ -149,6 +163,8 @@ void handleCanvasDoubleTapDown(
   column = root.$2;
   final editorRect = drawable.mergedWorldRect(row, column, drawable.size);
   final pad = drawable.paddingOf(row, column);
+  final cellStyle = drawable.styleOf(row, column);
+  final fallbackFontSize = (cellStyle['fontSize'] as double?) ?? 12.0;
   final paddedEditorRect = Rect.fromLTRB(
     editorRect.left + pad.left,
     editorRect.top + pad.top,
@@ -162,26 +178,9 @@ void handleCanvasDoubleTapDown(
 
   final key = '$row,$column';
   final jsonStr = drawable.cellDeltaJson[key];
-  quill.Document document;
-  bool insertedInitialBreak = false;
-  if (jsonStr != null && jsonStr.isNotEmpty) {
-    try {
-      final decoded = json.decode(jsonStr);
-      final ops = (decoded is Map<String, dynamic>) ? decoded['ops'] : null;
-      if (ops is List && ops.isNotEmpty) {
-        document = quill.Document.fromJson(ops.cast<dynamic>());
-      } else {
-        document = quill.Document();
-        document.insert(0, '\n');
-      }
-    } catch (_) {
-      document = quill.Document()..insert(0, '\n');
-    }
-  } else {
-    document = quill.Document();
-    document.insert(0, '\n');
-    insertedInitialBreak = true;
-  }
+  var document = _loadDocument(jsonStr);
+
+  document = _ensureBaseFontSize(document, fallbackFontSize);
 
   state._quillController = quill.QuillController(
     document: document,
@@ -189,18 +188,8 @@ void handleCanvasDoubleTapDown(
   );
 
   try {
-    if (insertedInitialBreak) {
-      state._quillController!.replaceText(
-        0,
-        1,
-        '',
-        const TextSelection.collapsed(offset: 0),
-        ignoreFocus: true,
-      );
-    }
-    final length = state._quillController!.document.length;
     state._quillController!.updateSelection(
-      TextSelection.collapsed(offset: length),
+      const TextSelection.collapsed(offset: 0),
       quill.ChangeSource.local,
     );
   } catch (_) {}
@@ -236,4 +225,41 @@ void handleCanvasDoubleTapDown(
       );
     } catch (_) {}
   });
+}
+
+quill.Document _ensureBaseFontSize(quill.Document document, double fallback) {
+  final ops = document.toDelta().toJson();
+  bool mutated = false;
+  for (final op in ops) {
+    if (op is! Map) continue;
+    final insert = op['insert'];
+    if (insert is! String || insert == '\n') continue;
+    Map<String, dynamic> attrs;
+    if (op['attributes'] is Map) {
+      attrs = Map<String, dynamic>.from(op['attributes'] as Map);
+    } else {
+      attrs = <String, dynamic>{};
+    }
+    if (!attrs.containsKey('size')) {
+      attrs['size'] = fallback.toStringAsFixed(0);
+      op['attributes'] = attrs;
+      mutated = true;
+    }
+  }
+  if (!mutated) return document;
+  return quill.Document.fromJson(ops.cast<dynamic>());
+}
+
+quill.Document _loadDocument(String? jsonStr) {
+  if (jsonStr == null || jsonStr.trim().isEmpty) {
+    return quill.Document();
+  }
+  try {
+    final decoded = json.decode(jsonStr);
+    final ops = (decoded is Map<String, dynamic>) ? decoded['ops'] : null;
+    if (ops is List && ops.isNotEmpty) {
+      return quill.Document.fromJson(ops.cast<dynamic>());
+    }
+  } catch (_) {}
+  return quill.Document();
 }
