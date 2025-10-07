@@ -34,6 +34,7 @@ import 'package:label_printer/flutter_painter_v2/controllers/drawables/image_dra
 import 'package:label_printer/utils/drawable_serialization.dart';
 import 'package:label_printer/models/drag_action.dart';
 import 'package:label_printer/models/tool.dart' as tool;
+import 'package:label_printer/helpers/quill_helpers.dart' as quill_helper;
 import 'package:label_printer/widgets/canvas_area.dart';
 import 'package:label_printer/widgets/inspector_panel.dart';
 import 'package:label_printer/widgets/tool_panel.dart';

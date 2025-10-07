@@ -41,6 +41,11 @@ Widget? buildInlineEditor(_PainterPageState state) {
             );
           } catch (_) {}
 
+          final customStyles = quill_helper.defaultStylesWithBaseFontSize(
+            context,
+            baseStyle.fontSize ?? 12.0,
+          );
+
           return MediaQuery(
             data: mq.copyWith(textScaler: const TextScaler.linear(1.0)),
             child: DefaultTextStyle.merge(
@@ -48,6 +53,11 @@ Widget? buildInlineEditor(_PainterPageState state) {
               child: quill.QuillEditor.basic(
                 controller: state._quillController!,
                 focusNode: state._quillFocus,
+                config: quill.QuillEditorConfig(
+                  customStyles: customStyles,
+                  scrollable: false,
+                  padding: EdgeInsets.zero,
+                ),
               ),
             ),
           );
@@ -66,7 +76,13 @@ void persistInlineDelta(_PainterPageState state) {
     return;
   }
 
-  state._pendingQuillDeltaOps = controller.document.toDelta().toJson();
+  final table = state._editingTable!;
+  final row = state._editingCellRow!;
+  final col = state._editingCellCol!;
+  final style = table.styleOf(row, col);
+  final fallbackFontSize = (style['fontSize'] as double?) ?? 12.0;
+  final sanitized = _ensureBaseFontSize(controller.document, fallbackFontSize);
+  state._pendingQuillDeltaOps = sanitized.toDelta().toJson();
 }
 
 void commitInlineEditor(_PainterPageState state) {
@@ -89,14 +105,33 @@ void commitInlineEditor(_PainterPageState state) {
 
   final row = state._editingCellRow!;
   final col = state._editingCellCol!;
+  final cellStyle = state._editingTable!.styleOf(row, col);
+  final fallbackFontSize = (cellStyle['fontSize'] as double?) ??
+      state._inspFontSize;
   List<dynamic>? ops = state._pendingQuillDeltaOps;
   if (ops == null) {
     ops = state._quillController!.document.toDelta().toJson();
   }
   state._pendingQuillDeltaOps = null;
 
-  final jsonStr = json.encode({"ops": ops});
+  quill.Document document;
+  try {
+    document = quill.Document.fromJson(ops.cast<dynamic>());
+  } catch (_) {
+    document = state._quillController!.document;
+  }
+  document = _ensureBaseFontSize(document, fallbackFontSize);
+  final sanitizedOps = document.toDelta().toJson();
+
+  final jsonStr = json.encode({"ops": sanitizedOps});
   state._editingTable!.setDeltaJson(row, col, jsonStr);
+
+  final updatedFontSize =
+      _lastContentFontSize(document) ?? fallbackFontSize;
+  final nextStyle = Map<String, dynamic>.from(cellStyle)
+    ..['fontSize'] = updatedFontSize;
+  state._editingTable!.setStyle(row, col, nextStyle);
+  state._inspFontSize = updatedFontSize;
 
   state.setState(() {
     try {
@@ -181,6 +216,10 @@ void handleCanvasDoubleTapDown(
   var document = _loadDocument(jsonStr);
 
   document = _ensureBaseFontSize(document, fallbackFontSize);
+  final hasUserContent = _documentHasUserContent(document);
+  final effectiveFontSize = hasUserContent
+      ? (_lastContentFontSize(document) ?? fallbackFontSize)
+      : fallbackFontSize;
 
   state._quillController = quill.QuillController(
     document: document,
@@ -194,6 +233,38 @@ void handleCanvasDoubleTapDown(
     );
   } catch (_) {}
 
+  final bool cellBold = cellStyle['bold'] == true;
+  final bool cellItalic = cellStyle['italic'] == true;
+  final tool.TxtAlign cellAlign = _alignFromCellStyle(cellStyle['align']);
+
+  if (!hasUserContent) {
+    try {
+      final controller = state._quillController!;
+      final endOffset = controller.document.length;
+      controller.updateSelection(
+        TextSelection.collapsed(offset: endOffset),
+        quill.ChangeSource.local,
+      );
+      controller.formatSelection(
+        quill.Attribute.fromKeyValue(
+          'size',
+          effectiveFontSize.toStringAsFixed(0),
+        ),
+      );
+      controller.formatSelection(
+        cellBold
+            ? quill.Attribute.bold
+            : quill.Attribute.clone(quill.Attribute.bold, null),
+      );
+      controller.formatSelection(
+        cellItalic
+            ? quill.Attribute.italic
+            : quill.Attribute.clone(quill.Attribute.italic, null),
+      );
+      controller.formatSelection(quill_helper.alignToAttr(cellAlign));
+    } catch (_) {}
+  }
+
   state.setState(() {
     final selectionRange = state._rangeForCell(drawable, row, column);
     state._selectionAnchorCell = (
@@ -204,6 +275,10 @@ void handleCanvasDoubleTapDown(
       selectionRange.bottomRow,
       selectionRange.rightCol,
     );
+    state._inspBold = cellBold;
+    state._inspItalic = cellItalic;
+    state._inspFontSize = effectiveFontSize;
+    state._inspAlign = cellAlign;
     state._editingTable = drawable;
     state._editingCellRow = row;
     state._editingCellCol = column;
@@ -262,4 +337,52 @@ quill.Document _loadDocument(String? jsonStr) {
     }
   } catch (_) {}
   return quill.Document();
+}
+
+bool _documentHasUserContent(quill.Document document) {
+  final ops = document.toDelta().toJson();
+  for (final op in ops) {
+    if (op is! Map) continue;
+    final insert = op['insert'];
+    if (insert is String && insert.trim().isNotEmpty && insert != '\n') {
+      return true;
+    }
+  }
+  return false;
+}
+
+double? _lastContentFontSize(quill.Document document) {
+  final ops = document.toDelta().toJson();
+  for (var i = ops.length - 1; i >= 0; i--) {
+    final op = ops[i];
+    if (op is! Map) continue;
+    final insert = op['insert'];
+    if (insert is! String || insert.trim().isEmpty || insert == '\n') {
+      continue;
+    }
+    final attrs = op['attributes'];
+    if (attrs is Map && attrs.containsKey('size')) {
+      final parsed = _parseSizeValue(attrs['size']);
+      if (parsed != null) return parsed;
+    }
+  }
+  return null;
+}
+
+double? _parseSizeValue(dynamic value) {
+  if (value == null) return null;
+  if (value is num) return value.toDouble();
+  if (value is String) return double.tryParse(value);
+  return null;
+}
+
+tool.TxtAlign _alignFromCellStyle(dynamic align) {
+  switch (align) {
+    case 'center':
+      return tool.TxtAlign.center;
+    case 'right':
+      return tool.TxtAlign.right;
+    default:
+      return tool.TxtAlign.left;
+  }
 }
