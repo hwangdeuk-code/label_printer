@@ -163,11 +163,71 @@ class TableDrawable extends Sized2DDrawable {
       "align": (m["align"] ?? "left") as String,
     };
   }
+  /// 셀 배경색 조회(단일 셀 기준, 병합 고려 안 함)
+  Color? backgroundColorOf(int r, int c) {
+    final m = cellStyles[_k(r, c)];
+    if (m == null) return null;
+    final v = m['bgColor'];
+    if (v == null) return null;
+    if (v is int) return Color(v);
+    if (v is String) {
+      var s = v.trim();
+      if (s.startsWith('#')) s = s.substring(1);
+      final intVal = int.tryParse(s, radix: 16);
+      if (intVal == null) return null;
+      if (s.length == 6) return Color(0xFF000000 | intVal);
+      if (s.length == 8) return Color(intVal);
+      return null;
+    }
+    return null;
+  }
+
+  /// 셀 배경색 설정
+  void setBackgroundColor(int r, int c, Color? color) {
+    final key = _k(r, c);
+    final m = Map<String, dynamic>.from(cellStyles[key] ?? const {});
+    if (color == null || color.alpha == 0) {
+      m.remove('bgColor');
+    } else {
+      final hex = color.value.toRadixString(16).padLeft(8, '0').toUpperCase();
+      m['bgColor'] = '#$hex';
+    }
+    if (m.isEmpty) {
+      cellStyles.remove(key);
+    } else {
+      cellStyles[key] = m;
+    }
+  }
+
+  /// 여러 셀(병합 포함)에 일괄 적용. 내부적으로 root 셀에만 기록.
+  void setBackgroundForCells(Iterable<(int,int)> cells, Color? color) {
+    final roots = <String, (int,int)>{};
+    for (final cell in cells) {
+      final root = resolveRoot(cell.$1, cell.$2);
+      roots[_k(root.$1, root.$2)] = root;
+    }
+    for (final root in roots.values) {
+      setBackgroundColor(root.$1, root.$2, color);
+    }
+  }
+
 
   /// 셀 스타일 저장
+  
   void setStyle(int r, int c, Map<String, dynamic> style) {
-    cellStyles[_k(r, c)] = Map<String, dynamic>.from(style);
+    final key = _k(r, c);
+    final prev = Map<String, dynamic>.from(cellStyles[key] ?? const {});
+    prev.addAll(style);
+    if (style.containsKey('bgColor') && style['bgColor'] == null) {
+      prev.remove('bgColor');
+    }
+    if (prev.isEmpty) {
+      cellStyles.remove(key);
+    } else {
+      cellStyles[key] = prev;
+    }
   }
+
 
   CellBorderThickness borderOf(int r, int c) {
     final root = resolveRoot(r, c);
@@ -586,6 +646,33 @@ class TableDrawable extends Sized2DDrawable {
     final gridPaint = Paint()
       ..style = PaintingStyle.stroke
       ..color = Colors.black;
+
+    
+    // === (추가) 셀 배경색 채우기 ===
+    final xs = _columnBoundaries(rect);
+    final ys = _rowBoundaries(rect);
+    for (int r = 0; r < rows; r++) {
+      for (int c = 0; c < columns; c++) {
+        final key = _k(r, c);
+        if (mergedParents.containsKey(key)) continue; // root만 채움
+        final span = spanForRoot(r, c);
+        final int br = span != null ? (r + span.rowSpan - 1) : r;
+        final int bc = span != null ? (c + span.colSpan - 1) : c;
+        final Rect cellRect = Rect.fromLTRB(
+          xs[c],
+          ys[r],
+          xs[(bc + 1).clamp(0, xs.length - 1)],
+          ys[(br + 1).clamp(0, ys.length - 1)],
+        );
+        final bg = backgroundColorOf(r, c);
+        if (bg != null && bg.alpha > 0) {
+          final p = Paint()
+            ..style = PaintingStyle.fill
+            ..color = bg;
+          canvas.drawRect(cellRect, p);
+        }
+      }
+    }
 
     if (rows <= 0 || columns <= 0) {
       gridPaint.strokeWidth = 1;
