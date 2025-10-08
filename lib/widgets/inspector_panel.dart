@@ -1368,9 +1368,57 @@ class InspectorPanel extends StatelessWidget {
     }
     final List<(int, int)> targetCells = rootCells.toList();
 
-    double? uniformThicknessFor(double Function(CellBorderThickness) pick) {
+    (int, int, int, int) cellBounds(TableDrawable src, (int, int) cell) {
+      final span = src.spanForRoot(cell.$1, cell.$2);
+      final rowSpan = span?.rowSpan ?? 1;
+      final colSpan = span?.colSpan ?? 1;
+      final rowStart = cell.$1;
+      final colStart = cell.$2;
+      return (
+        rowStart,
+        rowStart + rowSpan - 1,
+        colStart,
+        colStart + colSpan - 1,
+      );
+    }
+
+    bool touchesTop(TableDrawable src, (int, int) cell) {
+      final range = selection;
+      if (range == null) return true;
+      final (rowStart, rowEnd, _, _) = cellBounds(src, cell);
+      return rowStart <= range.topRow && rowEnd >= range.topRow;
+    }
+
+    bool touchesBottom(TableDrawable src, (int, int) cell) {
+      final range = selection;
+      if (range == null) return true;
+      final (rowStart, rowEnd, _, _) = cellBounds(src, cell);
+      return rowStart <= range.bottomRow && rowEnd >= range.bottomRow;
+    }
+
+    bool touchesLeft(TableDrawable src, (int, int) cell) {
+      final range = selection;
+      if (range == null) return true;
+      final (_, _, colStart, colEnd) = cellBounds(src, cell);
+      return colStart <= range.leftCol && colEnd >= range.leftCol;
+    }
+
+    bool touchesRight(TableDrawable src, (int, int) cell) {
+      final range = selection;
+      if (range == null) return true;
+      final (_, _, colStart, colEnd) = cellBounds(src, cell);
+      return colStart <= range.rightCol && colEnd >= range.rightCol;
+    }
+
+    double? uniformThicknessFor(
+      double Function(CellBorderThickness) pick,
+      bool Function(TableDrawable, (int, int)) include,
+    ) {
       double? value;
+      var hasAny = false;
       for (final cell in targetCells) {
+        if (!include(table, cell)) continue;
+        hasAny = true;
         final current = pick(table.borderOf(cell.$1, cell.$2));
         if (value == null) {
           value = current;
@@ -1378,7 +1426,7 @@ class InspectorPanel extends StatelessWidget {
           return null;
         }
       }
-      return value;
+      return hasAny ? value : null;
     }
 
     double snapThickness(double value) => (value * 10).roundToDouble() / 10.0;
@@ -1394,21 +1442,31 @@ class InspectorPanel extends StatelessWidget {
       mutateSelected((d) {
         if (d is! TableDrawable) return d;
         final next = d.copyWith();
-        next.updateBorderThicknessForCells(
-          cells,
-          top: top,
-          bottom: bottom,
-          left: left,
-          right: right,
-        );
+        for (final cell in cells) {
+          final bool applyTop = top != null && touchesTop(next, cell);
+          final bool applyBottom = bottom != null && touchesBottom(next, cell);
+          final bool applyLeft = left != null && touchesLeft(next, cell);
+          final bool applyRight = right != null && touchesRight(next, cell);
+          if (!(applyTop || applyBottom || applyLeft || applyRight)) continue;
+          next.updateBorderThickness(
+            cell.$1,
+            cell.$2,
+            top: applyTop ? top : null,
+            bottom: applyBottom ? bottom : null,
+            left: applyLeft ? left : null,
+            right: applyRight ? right : null,
+          );
+        }
         return next;
       });
     }
 
-    final double? uniformTop = uniformThicknessFor((b) => b.top);
-    final double? uniformBottom = uniformThicknessFor((b) => b.bottom);
-    final double? uniformLeft = uniformThicknessFor((b) => b.left);
-    final double? uniformRight = uniformThicknessFor((b) => b.right);
+    final double? uniformTop = uniformThicknessFor((b) => b.top, touchesTop);
+    final double? uniformBottom =
+        uniformThicknessFor((b) => b.bottom, touchesBottom);
+    final double? uniformLeft = uniformThicknessFor((b) => b.left, touchesLeft);
+    final double? uniformRight =
+        uniformThicknessFor((b) => b.right, touchesRight);
     final topController = TextEditingController(
       text: uniformTop == null ? '' : uniformTop.toStringAsFixed(1),
     );

@@ -6,7 +6,7 @@ class _PainterPageState extends State<PainterPage> {
   late final PainterController controller;
   final GlobalKey _painterKey = GlobalKey();
 
-  tool.Tool currentTool = tool.Tool.pen;
+  tool.Tool currentTool = tool.Tool.select;
 
   Color strokeColor = Colors.black;
   double strokeWidth = 4.0;
@@ -104,7 +104,7 @@ class _PainterPageState extends State<PainterPage> {
   void initState() {
     super.initState();
     controller = PainterController(background: Colors.white.backgroundDrawable);
-    controller.freeStyleMode = FreeStyleMode.draw;
+    controller.freeStyleMode = FreeStyleMode.none;
     controller.freeStyleColor = strokeColor;
     controller.freeStyleStrokeWidth = strokeWidth;
     controller.scalingEnabled = true;
