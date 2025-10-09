@@ -1,6 +1,7 @@
 part of 'painter_page.dart';
 
 class _PainterPageState extends State<PainterPage> {
+  String appVersion = '';
   double scalePercent = 100.0;
   late final PainterController controller;
   final GlobalKey _painterKey = GlobalKey();
@@ -118,6 +119,15 @@ class _PainterPageState extends State<PainterPage> {
       setState(() {});
     });
     _previousDrawables = List<Drawable>.from(controller.value.drawables);
+
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final info = await PackageInfo.fromPlatform();
+      if (mounted) {
+        setState(() {
+          appVersion = info.version;
+        });
+      }
+    });
   }
 
   @override

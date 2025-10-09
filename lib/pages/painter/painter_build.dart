@@ -3,7 +3,7 @@ part of 'painter_page.dart';
 Widget buildPainterScaffold(_PainterPageState state, BuildContext context) {
   return Scaffold(
     appBar: AppBar(
-      title: Text('$appTitle v$appVersion'),
+      title: Text('$appTitle v${state.appVersion}'),
       actions: [
         IconButton(
           onPressed: state.controller.canUndo ? state.controller.undo : null,
@@ -12,6 +12,15 @@ Widget buildPainterScaffold(_PainterPageState state, BuildContext context) {
         IconButton(
           onPressed: state.controller.canRedo ? state.controller.redo : null,
           icon: const Icon(Icons.redo),
+        ),
+        IconButton(
+          onPressed: () {
+            Navigator.of(context).push(MaterialPageRoute(
+              builder: (_) => const LoginHistoryPage(),
+            ));
+          },
+          icon: const Icon(Icons.history),
+          tooltip: '로그인 이력',
         ),
         IconButton(
           onPressed: state._clearAll,

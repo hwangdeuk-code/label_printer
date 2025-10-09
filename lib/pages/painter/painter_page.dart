@@ -9,7 +9,9 @@ import 'package:barcode/barcode.dart';
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:label_printer/ui_shared/audit/login_history_page.dart';
 import 'package:flutter_quill/flutter_quill.dart' as quill;
+import 'package:package_info_plus/package_info_plus.dart';
 
 import 'package:label_printer/core/app.dart';
 import 'package:label_printer/drawables/barcode_drawable.dart';
