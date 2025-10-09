@@ -3,7 +3,7 @@ part of 'painter_page.dart';
 Widget buildPainterScaffold(_PainterPageState state, BuildContext context) {
   return Scaffold(
     appBar: AppBar(
-      title: Text('$appTitle v${state.appVersion}'),
+      title: Text('$appTitle v$appVersion'),
       actions: [
         IconButton(
           onPressed: state.controller.canUndo ? state.controller.undo : null,

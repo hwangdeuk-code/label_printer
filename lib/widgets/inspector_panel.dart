@@ -12,60 +12,6 @@ import '../drawables/table_drawable.dart';
 import '../flutter_painter_v2/flutter_painter.dart';
 import '../models/tool.dart' as tool;
 import 'color_dot.dart';
-import 'windows_like_color_dialog.dart';
-
-// ==== Table 배경색 확장(안전장치) ====
-// 구버전 TableDrawable에서도 컴파일되도록 보조 메서드 제공
-extension TableDrawableBgExt on TableDrawable {
-  Color? backgroundColorOf(int r, int c) {
-    try {
-      final key = "$r,$c";
-      final m = cellStyles[key];
-      if (m == null) return null;
-      final v = m['bgColor'];
-      if (v == null) return null;
-      if (v is int) return Color(v);
-      if (v is String) {
-        var s = v.trim();
-        if (s.startsWith('#')) s = s.substring(1);
-        final n = int.tryParse(s, radix: 16);
-        if (n == null) return null;
-        if (s.length == 6) return Color(0xFF000000 | n);
-        if (s.length == 8) return Color(n);
-        return null;
-      }
-      return null;
-    } catch (_) {
-      return null;
-    }
-  }
-
-  void setBackgroundForCells(Iterable<(int,int)> cells, Color? color) {
-    final roots = <String, (int,int)>{};
-    for (final cell in cells) {
-      final root = resolveRoot(cell.$1, cell.$2);
-      roots["${root.$1},${root.$2}"] = root;
-    }
-    final String? hex = (color == null || color.alpha == 0)
-        ? null
-        : "#${color.value.toRadixString(16).padLeft(8, '0').toUpperCase()}";
-    for (final root in roots.values) {
-      final key = "${root.$1},${root.$2}";
-      final style = Map<String, dynamic>.from(cellStyles[key] ?? const {});
-      if (hex == null) {
-        style.remove('bgColor');
-      } else {
-        style['bgColor'] = hex;
-      }
-      if (style.isEmpty) {
-        cellStyles.remove(key);
-      } else {
-        cellStyles[key] = style;
-      }
-    }
-  }
-}
-
 
 class ArrowKeySlider extends StatefulWidget {
   final double min;
@@ -400,8 +346,6 @@ class InspectorPanel extends StatelessWidget {
               ..._buildBarcodeControls(selected as BarcodeDrawable),
             if (selected is TableDrawable && selectionFocusCell != null)
               ..._buildTableSizeControls(selected as TableDrawable),
-            if (selected is TableDrawable && cellSelectionRange != null)
-              ..._buildTableBackgroundControls(context, selected as TableDrawable),
             if (selected is ImageBoxDrawable)
               ..._buildImageControls(selected as ImageBoxDrawable),
             if (selected is LineDrawable || selected is ArrowDrawable)
@@ -486,7 +430,7 @@ class InspectorPanel extends StatelessWidget {
     double currentAngle = td.rotationAngle;
 
     void commitAll() {
-      this.mutateSelected((d) {
+      mutateSelected((d) {
         final cur = d as ConstrainedTextDrawable;
         final style = TextStyle(
           color: currentColor,
@@ -691,7 +635,7 @@ class InspectorPanel extends StatelessWidget {
     double currentAngle = td.rotationAngle;
 
     void commitAll() {
-      this.mutateSelected((d) {
+      mutateSelected((d) {
         final cur = d as TextDrawable;
         final style = TextStyle(
           color: currentColor,
@@ -872,7 +816,7 @@ class InspectorPanel extends StatelessWidget {
     );
 
     void commitAll() {
-      this.mutateSelected((d) {
+      mutateSelected((d) {
         final cur = d as BarcodeDrawable;
         return cur.copyWith(
           data: currentValue,
@@ -1052,7 +996,7 @@ class InspectorPanel extends StatelessWidget {
     double currentRadius = img.borderRadius.topLeft.x;
 
     void commitAll() {
-      this.mutateSelected((d) {
+      mutateSelected((d) {
         final cur = d as ImageBoxDrawable;
         return cur.copyWithExt(
           rotation: currentAngle,
@@ -1135,7 +1079,7 @@ class InspectorPanel extends StatelessWidget {
   List<Widget> _buildLineLikeRotation(ObjectDrawable od) {
     double currentAngle = od.rotationAngle;
     void commitRotation() {
-      this.mutateSelected((d) {
+      mutateSelected((d) {
         if (d is LineDrawable) return d.copyWith(rotation: currentAngle);
         if (d is ArrowDrawable) return d.copyWith(rotation: currentAngle);
         return d;
@@ -1192,7 +1136,7 @@ class InspectorPanel extends StatelessWidget {
             ColorDot(
               color: c,
               onTap: () {
-                this.mutateSelected((d) {
+                mutateSelected((d) {
                   if (d is LineDrawable) {
                     return d.copyWith(paint: d.paint.copyWith(color: c));
                   }
@@ -1214,7 +1158,7 @@ class InspectorPanel extends StatelessWidget {
             ? (selected as LineDrawable).paint.strokeWidth
             : (selected as ArrowDrawable).paint.strokeWidth),
         onChanged: (v) {
-          this.mutateSelected((d) {
+          mutateSelected((d) {
             if (d is LineDrawable) {
               return d.copyWith(paint: d.paint.copyWith(strokeWidth: v));
             }
@@ -1289,7 +1233,7 @@ class InspectorPanel extends StatelessWidget {
               final v = double.tryParse(rowCtrl.text);
               if (v == null || v <= 0 || selRow == null) return;
               final double targetPx = v * pxPerCm;
-              this.mutateSelected((d) {
+              mutateSelected((d) {
                 if (d is! TableDrawable) return d;
                 final TableDrawable t = d;
 
@@ -1359,7 +1303,7 @@ class InspectorPanel extends StatelessWidget {
               final v = double.tryParse(colCtrl.text);
               if (v == null || v <= 0 || selCol == null) return;
               final double targetPx = v * pxPerCm;
-              this.mutateSelected((d) {
+              mutateSelected((d) {
                 if (d is! TableDrawable) return d;
                 final TableDrawable t = d;
 
@@ -1495,7 +1439,7 @@ class InspectorPanel extends StatelessWidget {
     }) {
       if (targetCells.isEmpty) return;
       final cells = List<(int, int)>.from(targetCells);
-      this.mutateSelected((d) {
+      mutateSelected((d) {
         if (d is! TableDrawable) return d;
         final next = d.copyWith();
         for (final cell in cells) {
@@ -1638,7 +1582,7 @@ class InspectorPanel extends StatelessWidget {
     }) {
       if (targetCells.isEmpty) return;
       final cells = List<(int, int)>.from(targetCells);
-      this.mutateSelected((d) {
+      mutateSelected((d) {
         if (d is! TableDrawable) return d;
         final next = d.copyWith();
         next.updatePaddingForCells(
@@ -1791,93 +1735,4 @@ class InspectorPanel extends StatelessWidget {
       })() /* ROW_DEBUG_READOUT */,
     ];
   }
-
-
-List<Widget> _buildTableBackgroundControls(BuildContext context, TableDrawable table) {
-  final selection = cellSelectionRange;
-  if (selection == null) return const [];
-  // root 셀 추출
-  final roots = <String, (int,int)>{};
-  for (int r = selection.topRow; r <= selection.bottomRow; r++) {
-    for (int c = selection.leftCol; c <= selection.rightCol; c++) {
-      final root = table.resolveRoot(r, c);
-      roots["${root.$1},${root.$2}"] = root;
-    }
-  }
-
-  // 현재 색상(전부 동일하면 그 색, 아니면 null=혼합)
-  Color? current;
-  for (final rc in roots.values) {
-    final bg = table.backgroundColorOf(rc.$1, rc.$2);
-    if (current == null) {
-      current = bg;
-    } else {
-      if ((bg?.value ?? -1) != (current?.value ?? -1)) {
-        current = null;
-        break;
-      }
-    }
-  }
-
-  String label;
-  if (current == null) {
-    label = '혼합';
-  } else if (current.alpha == 0) {
-    label = '투명';
-  } else {
-    final hex = current.value.toRadixString(16).padLeft(8, '0').toUpperCase();
-    label = '#$hex';
-  }
-
-  return [
-    const Divider(),
-    const Text('셀 바탕색'),
-    const SizedBox(height: 6),
-    Row(
-      children: [
-        SizedBox(
-          width: 22,
-          height: 22,
-          child: ColorDot(color: current ?? const Color(0x00000000)),
-        ),
-        const SizedBox(width: 8),
-        Text(label),
-        const Spacer(),
-        OutlinedButton(
-          onPressed: () async {
-            final picked = await showWindowsLikeColorDialog(
-              context,
-              initialColor: (current ?? Colors.black).withAlpha(255),
-              originColor: current ?? Colors.black,
-            );
-            if (picked != null) {
-              this.mutateSelected((d) {
-                final t = d as TableDrawable;
-                t.setBackgroundForCells(roots.values, picked);
-                return t;
-              });
-            }
-          },
-          child: const Text('선택'),
-        ),
-        const SizedBox(width: 8),
-        OutlinedButton(
-          onPressed: () {
-            this.mutateSelected((d) {
-              final t = d as TableDrawable;
-              t.setBackgroundForCells(roots.values, null);
-              return t;
-            });
-          },
-          child: const Text('투명'),
-        ),
-      ],
-    ),
-  ];
 }
-
-}
-
-
-
-

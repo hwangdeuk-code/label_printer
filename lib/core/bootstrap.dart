@@ -1,18 +1,12 @@
 /// 한글 주석: 데스크톱(Windows/macOS) 창 초기화 유틸리티
 /// 멀티 모니터 환경에서 초기 위치/크기를 설정합니다.
-import 'dart:io' show Platform;
-import 'dart:ui' show Offset, Size;
 import 'package:flutter/material.dart'; // Colors 사용
 import 'package:screen_retriever/screen_retriever.dart';
 import 'package:window_manager/window_manager.dart';
-import '../core/constants.dart';
+import '../core/app.dart';
 
 Future<void> initDesktopWindow({int targetIndex = 0}) async {
   await windowManager.ensureInitialized();
-
-  if (!(Platform.isWindows || Platform.isMacOS)) {
-    return;
-  }
 
   // 모니터 목록 조회
   final displays = await screenRetriever.getAllDisplays();
@@ -23,17 +17,9 @@ Future<void> initDesktopWindow({int targetIndex = 0}) async {
   final safeIndex = targetIndex.clamp(0, displays.length - 1);
   final display = displays[safeIndex];
 
-  // 작업표시줄 제외한 표시 영역(논리 픽셀) 얻기
-  final pos = display.visiblePosition ?? const Offset(0, 0);
-  final size = display.visibleSize ?? display.size;
-
-  // 기본 창 크기
-  const double winW = 1200.0;
-  const double winH = 800.0;
-
-  // 가운데 정렬
-  final left = pos.dx + (size.width - winW) / 2;
-  final top  = pos.dy + (size.height - winH) / 2;
+  // 창을 전체 화면으로 만들기 전, 먼저 목표 디스플레이의 위치와 크기로 설정합니다.
+  final pos = display.visiblePosition ?? Offset.zero;
+  final size = display.size;
 
   // 창 옵션 및 표시
   const windowOptions = WindowOptions(
@@ -43,9 +29,12 @@ Future<void> initDesktopWindow({int targetIndex = 0}) async {
   );
 
   await windowManager.waitUntilReadyToShow(windowOptions, () async {
-    // 먼저 크기 → 그다음 위치 → show 순으로 처리
-    await windowManager.setSize(const Size(winW, winH));
-    await windowManager.setPosition(Offset(left, top));
+    // 창을 보이지 않는 상태에서 위치와 크기를 먼저 설정합니다.
+    await windowManager.setPosition(pos);
+    await windowManager.setSize(size);
+    // 그 다음 전체 화면으로 전환합니다.
+    await windowManager.setFullScreen(true);
+    // 모든 시각적 설정이 완료된 후에 창을 보여주고 포커스를 맞춥니다.
     await windowManager.show();
     await windowManager.focus();
   });
