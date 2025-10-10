@@ -1,41 +1,97 @@
-/// 한글 주석: 데스크톱(Windows/macOS) 창 초기화 유틸리티
-/// 멀티 모니터 환경에서 초기 위치/크기를 설정합니다.
-import 'package:flutter/material.dart'; // Colors 사용
+// 데스크톱(Windows/macOS) 런타임 초기화를 위한 유틸리티.
+// 다중 모니터 환경에서 시작 위치와 창 상태를 제어한다.
+import 'package:flutter/material.dart';
 import 'package:screen_retriever/screen_retriever.dart';
 import 'package:window_manager/window_manager.dart';
+
 import '../core/app.dart';
 
 Future<void> initDesktopWindow({int targetIndex = 0}) async {
   await windowManager.ensureInitialized();
 
-  // 모니터 목록 조회
   final displays = await screenRetriever.getAllDisplays();
   if (displays.isEmpty) {
     return;
   }
 
-  final safeIndex = targetIndex.clamp(0, displays.length - 1);
-  final display = displays[safeIndex];
+  final safeIndex = targetIndex.clamp(0, displays.length - 1).toInt();
 
-  // 창을 전체 화면으로 만들기 전, 먼저 목표 디스플레이의 위치와 크기로 설정합니다.
-  final pos = display.visiblePosition ?? Offset.zero;
-  final size = display.size;
-
-  // 창 옵션 및 표시
   const windowOptions = WindowOptions(
     title: appTitle,
+    size: Size(1200, 800),
     backgroundColor: Colors.transparent,
-    skipTaskbar: false,
   );
 
   await windowManager.waitUntilReadyToShow(windowOptions, () async {
-    // 창을 보이지 않는 상태에서 위치와 크기를 먼저 설정합니다.
-    await windowManager.setPosition(pos);
-    await windowManager.setSize(size);
-    // 그 다음 전체 화면으로 전환합니다.
-    await windowManager.setFullScreen(true);
-    // 모든 시각적 설정이 완료된 후에 창을 보여주고 포커스를 맞춥니다.
     await windowManager.show();
+    await moveToDisplayAndMaximize(displayIndex: safeIndex, fullscreen: false);
     await windowManager.focus();
   });
+}
+
+Future<void> moveToDisplayAndMaximize({
+  required int displayIndex,
+  bool fullscreen = false,
+}) async {
+  final displays = await screenRetriever.getAllDisplays();
+  if (displays.isEmpty) return;
+
+  final safeIndex = displayIndex.clamp(0, displays.length - 1).toInt();
+  final target = displays[safeIndex];
+
+  final pos = target.visiblePosition ?? const Offset(0, 0);
+  final targetSize = target.visibleSize ?? target.size;
+
+  await windowManager.unmaximize();
+  await windowManager.setFullScreen(false);
+  await windowManager.setBounds(
+    null,
+    position: pos,
+    size: Size(targetSize.width, targetSize.height),
+    animate: false,
+  );
+
+  if (fullscreen) {
+    await windowManager.setFullScreen(true);
+  } else {
+    await windowManager.maximize();
+    if (!await windowManager.isMaximized()) {
+      // 윈도우즈에서 첫 호출이 무시될 수 있으므로 재시도한다.
+      await Future.delayed(const Duration(milliseconds: 120));
+      if (!await windowManager.isMaximized()) {
+        await windowManager.maximize();
+      }
+    }
+  }
+}
+
+int? resolveDisplayIndex(List<String> args) {
+  for (var i = 0; i < args.length; i++) {
+    final arg = args[i];
+
+    if (arg.startsWith('--display=')) {
+      return _parseDisplayIndexArgument(arg.substring('--display='.length));
+    }
+
+    if (arg.startsWith('--display-index=')) {
+      return _parseDisplayIndexArgument(
+        arg.substring('--display-index='.length),
+      );
+    }
+
+    if (arg == '--display' || arg == '--display-index') {
+      if (i + 1 < args.length) {
+        return _parseDisplayIndexArgument(args[i + 1]);
+      }
+    }
+  }
+  return null;
+}
+
+int? _parseDisplayIndexArgument(String raw) {
+  final value = int.tryParse(raw.trim());
+  if (value == null || value < 0) {
+    return null;
+  }
+  return value;
 }

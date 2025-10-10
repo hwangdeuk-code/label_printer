@@ -6,20 +6,19 @@ import 'core/bootstrap.dart';
 import 'ui_shared/startup_home.dart';
 
 Future<void> main(List<String> args) async {
-  // Widgets 초기화
   WidgetsFlutterBinding.ensureInitialized();
 
-  // 데스크톱 창 초기화
-  await initDesktopWindow();
+  final requestedDisplay = resolveDisplayIndex(args);
+  await initDesktopWindow(targetIndex: requestedDisplay ?? 0);
   isDesktop = true;
 
-  // 앱 버전 정보 가져오기
   final info = await PackageInfo.fromPlatform();
   appVersion = info.version;
 
-  // StartupHomePage 실행
-  runApp(const MaterialApp(
-    debugShowCheckedModeBanner:false,
-    home: StartupHomePage()
-  ));
+  runApp(
+    const MaterialApp(
+      debugShowCheckedModeBanner: false,
+      home: StartupHomePage(),
+    ),
+  );
 }
