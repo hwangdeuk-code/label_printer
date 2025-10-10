@@ -399,7 +399,7 @@ class _LabeledField extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         if (label != null) ...[
-          SizedBox(width: 88, child: Text(label!, textAlign: TextAlign.right)),
+          SizedBox(width: 90, child: Text(label!, textAlign: TextAlign.right)),
           const SizedBox(width: 8),
         ],
         Expanded(

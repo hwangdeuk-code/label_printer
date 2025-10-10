@@ -1,4 +1,4 @@
-// UTF-8, 한국어 주석
+// UTF-8, ?쒓뎅??二쇱꽍
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:intl/date_symbol_data_local.dart';
@@ -6,7 +6,7 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'package:label_printer/core/app.dart';
 import 'package:label_printer/models/login_event.dart';
 
-/// 공통(데스크톱/태블릿) 로그인 이력 조회 페이지
+/// 怨듯넻(?곗뒪?ы넲/?쒕툝由? 濡쒓렇???대젰 議고쉶 ?섏씠吏
 class LoginHistoryPage extends StatefulWidget {
   const LoginHistoryPage({super.key});
 
@@ -15,14 +15,15 @@ class LoginHistoryPage extends StatefulWidget {
 }
 
 class _LoginHistoryPageState extends State<LoginHistoryPage> {
-  // 필터 상태
+  // ?꾪꽣 ?곹깭
   late DateTime _from;
   late DateTime _to;
   String? _selectedCompany;
   String? _selectedPartner;
   final TextEditingController _keywordCtrl = TextEditingController();
+  final ScrollController _tableScrollController = ScrollController();
 
-  // 목록 상태
+  // 紐⑸줉 ?곹깭
   List<LoginEvent> _rows = [];
   bool _loading = false;
   bool _intlReady = false;
@@ -35,9 +36,9 @@ class _LoginHistoryPageState extends State<LoginHistoryPage> {
     super.initState();
     final now = DateTime.now();
     _to = DateTime(now.year, now.month, now.day);
-    _from = _to.subtract(const Duration(days: 27)); // 최근 4주
+    _from = _to.subtract(const Duration(days: 27)); // 理쒓렐 4二?
 
-    // 세션에서 기본 회사명/협력업체 힌트 (없으면 null)
+    // ?몄뀡?먯꽌 湲곕낯 ?뚯궗紐??묐젰?낆껜 ?뚰듃 (?놁쑝硫?null)
     _selectedCompany = gUserSession?.companyName;
     _selectedPartner = gUserSession?.branchName;
 
@@ -45,7 +46,7 @@ class _LoginHistoryPageState extends State<LoginHistoryPage> {
   }
 
   Future<void> _initIntlAndQuery() async {
-    // 기본 포맷(시스템 로케일)으로 먼저 세팅
+    // 湲곕낯 ?щ㎎(?쒖뒪??濡쒖????쇰줈 癒쇱? ?명똿
     _dateFmt = DateFormat('yyyy-MM-dd');
     _timeFmt = DateFormat('a hh:mm:ss');
     try {
@@ -60,7 +61,7 @@ class _LoginHistoryPageState extends State<LoginHistoryPage> {
     if (mounted) setState(() {});
   }
 
-Future<void> _pickFrom() async {
+  Future<void> _pickFrom() async {
     final picked = await showDatePicker(
       context: context,
       initialDate: _from,
@@ -80,23 +81,29 @@ Future<void> _pickFrom() async {
     if (picked != null) setState(() => _to = picked);
   }
 
-  // 실제로는 서버에서 받아오면 됨. 지금은 데모 데이터를 생성한다.
+  // ?ㅼ젣濡쒕뒗 ?쒕쾭?먯꽌 諛쏆븘?ㅻ㈃ ?? 吏湲덉? ?곕え ?곗씠?곕? ?앹꽦?쒕떎.
   Future<void> _query() async {
     setState(() => _loading = true);
-    await Future.delayed(const Duration(milliseconds: 300)); // UX용 지연
+    await Future.delayed(const Duration(milliseconds: 300));
     final demo = <LoginEvent>[];
-    final base = DateTime(_to.year, _to.month, _to.day).subtract(const Duration(days: 7));
+    final base = DateTime(
+      _to.year,
+      _to.month,
+      _to.day,
+    ).subtract(const Duration(days: 7));
     for (int i = 0; i < 28; i++) {
-      final t = base.add(Duration(hours: 6 + i * 3));
-      demo.add(LoginEvent(
-        userId: '5931I103',
-        userGrade: i % 2 == 0 ? '책임자' : '관리자',
-        timestamp: t,
-        action: (i % 3 == 0) ? '로그아웃' : '로그인',
-        ip: '192.1.${i % 10}',
-        companyName: _selectedCompany ?? '한길만푸드 250731',
-        programVersion: '2.7.5.${2 + (i % 3)}',
-      ));
+      final timestamp = base.add(Duration(hours: 6 + i * 3));
+      demo.add(
+        LoginEvent(
+          userId: '5931I103',
+          userGrade: i.isEven ? '책임자' : '관리자',
+          timestamp: timestamp,
+          action: i % 3 == 0 ? '로그아웃' : '로그인',
+          ip: '192.1.${i % 10}',
+          companyName: _selectedCompany ?? '한길만푸드 250731',
+          programVersion: '2.7.5.${2 + (i % 3)}',
+        ),
+      );
     }
     setState(() {
       _rows = demo;
@@ -107,6 +114,7 @@ Future<void> _pickFrom() async {
   @override
   void dispose() {
     _keywordCtrl.dispose();
+    _tableScrollController.dispose();
     super.dispose();
   }
 
@@ -116,9 +124,7 @@ Future<void> _pickFrom() async {
     final table = _buildTable(context);
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('사용자 접속 이력조회'),
-      ),
+      appBar: AppBar(title: const Text('사용자 접속 이력')),
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -127,7 +133,10 @@ Future<void> _pickFrom() async {
             padding: const EdgeInsets.symmetric(horizontal: 12),
             child: Card(
               elevation: 0,
-              child: Padding(padding: const EdgeInsets.all(12.0), child: header),
+              child: Padding(
+                padding: const EdgeInsets.all(12.0),
+                child: header,
+              ),
             ),
           ),
           const SizedBox(height: 4),
@@ -141,18 +150,12 @@ Future<void> _pickFrom() async {
     final dateRange = Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        _DateButton(
-          label: _dateFmt.format(_from),
-          onTap: _pickFrom,
-        ),
+        _DateButton(label: _dateFmt.format(_from), onTap: _pickFrom),
         const Padding(
           padding: EdgeInsets.symmetric(horizontal: 6),
           child: Text(' - '),
         ),
-        _DateButton(
-          label: _dateFmt.format(_to),
-          onTap: _pickTo,
-        ),
+        _DateButton(label: _dateFmt.format(_to), onTap: _pickTo),
         const SizedBox(width: 8),
         FilledButton.icon(
           onPressed: _query,
@@ -172,20 +175,20 @@ Future<void> _pickFrom() async {
             if (_selectedCompany != null) _selectedCompany!,
             '한길만푸드 250731',
             '미소식품 251012',
-            '태림유통 250991',
+            '그린유통 250991',
           }.toList(),
           onChanged: (v) => setState(() => _selectedCompany = v),
           width: 220,
         ),
         const SizedBox(width: 12),
         _LabeledDropdown(
-          label: '협력업체',
+          label: '협력 업체',
           value: _selectedPartner,
           items: {
             if (_selectedPartner != null) _selectedPartner!,
-            '아이티에스엔지',
-            '이노와이어리스',
-            '한빛테크',
+            '하이웨이엔지',
+            '지노모터리스',
+            '푸른빛테크',
           }.toList(),
           onChanged: (v) => setState(() => _selectedPartner = v),
           width: 160,
@@ -198,16 +201,13 @@ Future<void> _pickFrom() async {
       runSpacing: 8,
       crossAxisAlignment: WrapCrossAlignment.center,
       alignment: WrapAlignment.spaceBetween,
-      children: [
-        dateRange,
-        dropdowns,
-      ],
+      children: [dateRange, dropdowns],
     );
   }
 
   Widget _buildTable(BuildContext context) {
     final columns = const <DataColumn>[
-      DataColumn(label: Text('사용자ID')),
+      DataColumn(label: Text('사용자 ID')),
       DataColumn(label: Text('사용자 등급')),
       DataColumn(label: Text('시간')),
       DataColumn(label: Text('로그인/로그아웃')),
@@ -219,22 +219,26 @@ Future<void> _pickFrom() async {
     final rows = _rows.map((e) {
       final day = _dateFmt.format(e.timestamp);
       final time = _timeFmt.format(e.timestamp);
-      return DataRow(cells: [
-        DataCell(Text(e.userId)),
-        DataCell(Text(e.userGrade)),
-        DataCell(Text('$day $time')),
-        DataCell(Text(e.action)),
-        DataCell(Text(e.ip)),
-        DataCell(Text(e.companyName)),
-        DataCell(Text(e.programVersion)),
-      ]);
+      return DataRow(
+        cells: [
+          DataCell(Text(e.userId)),
+          DataCell(Text(e.userGrade)),
+          DataCell(Text('$day $time')),
+          DataCell(Text(e.action)),
+          DataCell(Text(e.ip)),
+          DataCell(Text(e.companyName)),
+          DataCell(Text(e.programVersion)),
+        ],
+      );
     }).toList();
 
     final table = DataTable(
-      headingRowHeight: 40, // 헤더의 높이를 지정합니다.
+      headingRowHeight: 40, // ?ㅻ뜑???믪씠瑜?吏?뺥빀?덈떎.
       columns: columns,
       rows: rows,
-      headingRowColor: WidgetStateProperty.resolveWith((_) => const Color(0xFFEFF3F6)),
+      headingRowColor: WidgetStateProperty.resolveWith(
+        (_) => const Color(0xFFEFF3F6),
+      ),
       dataRowMinHeight: 34,
       dataRowMaxHeight: 34,
       columnSpacing: 22,
@@ -244,23 +248,26 @@ Future<void> _pickFrom() async {
     if (_loading) {
       return const Center(child: CircularProgressIndicator());
     }
-    
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12.0),
       child: Card(
         elevation: 0,
         shape: RoundedRectangleBorder(
-          side: BorderSide(color: Theme.of(context).colorScheme.outline.withAlpha(128)),
+          side: BorderSide(
+            color: Theme.of(context).colorScheme.outline.withAlpha(128),
+          ),
           borderRadius: BorderRadius.circular(8),
         ),
         clipBehavior: Clip.antiAlias,
         child: Scrollbar(
+          controller: _tableScrollController,
           thumbVisibility: true,
-          child: SingleChildScrollView( // Vertical scroll
-            child: SizedBox(
-              width: double.infinity,
-              child: table,
-            ),
+          child: SingleChildScrollView(
+            // Vertical scroll
+            controller: _tableScrollController,
+            primary: false,
+            child: SizedBox(width: double.infinity, child: table),
           ), // Horizontal scroll is removed
         ),
       ),
@@ -268,7 +275,7 @@ Future<void> _pickFrom() async {
   }
 }
 
-/// 날짜 버튼(스크린샷의 콤보 느낌을 심플하게 표현)
+/// ?좎쭨 踰꾪듉(?ㅽ겕由곗꺑??肄ㅻ낫 ?먮굦???ы뵆?섍쾶 ?쒗쁽)
 class _DateButton extends StatelessWidget {
   final String label;
   final VoidCallback onTap;
@@ -282,13 +289,15 @@ class _DateButton extends StatelessWidget {
         onPressed: onTap,
         icon: const Icon(Icons.date_range, size: 18),
         label: Text(label),
-        style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 10)),
+        style: OutlinedButton.styleFrom(
+          padding: const EdgeInsets.symmetric(horizontal: 10),
+        ),
       ),
     );
   }
 }
 
-/// 라벨 + Dropdown 일체형
+/// ?쇰꺼 + Dropdown ?쇱껜??
 class _LabeledDropdown extends StatelessWidget {
   final String label;
   final String? value;
@@ -316,6 +325,7 @@ class _LabeledDropdown extends StatelessWidget {
           ),
           DropdownButtonFormField<String>(
             isDense: true,
+            isExpanded: true,
             initialValue: value ?? (items.isNotEmpty ? items.first : null),
             items: items
                 .map((e) => DropdownMenuItem<String>(value: e, child: Text(e)))
@@ -324,7 +334,10 @@ class _LabeledDropdown extends StatelessWidget {
             decoration: const InputDecoration(
               isDense: true,
               border: OutlineInputBorder(),
-              contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+              contentPadding: EdgeInsets.symmetric(
+                horizontal: 10,
+                vertical: 10,
+              ),
             ),
           ),
         ],
