@@ -8,8 +8,7 @@ import 'ui_shared/startup_home.dart';
 Future<void> main(List<String> args) async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  final requestedDisplay = resolveDisplayIndex(args);
-  await initDesktopWindow(targetIndex: requestedDisplay ?? 0);
+  await initDesktopWindow(targetIndex: 0);
   isDesktop = true;
 
   final info = await PackageInfo.fromPlatform();
