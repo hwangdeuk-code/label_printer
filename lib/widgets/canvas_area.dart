@@ -7,7 +7,6 @@ import '../flutter_painter_v2/flutter_painter.dart';
 import '../models/tool.dart';
 import '../drawables/table_drawable.dart';
 
-const double _canvasDimension = 640;
 const double _rulerThickness = 24;
 const Color _rulerBackground = Color(0xFFEDEDED);
 const Color _rulerBorder = Color(0xFFBDBDBD);
@@ -129,8 +128,8 @@ class _CanvasAreaState extends State<CanvasArea> {
     final double scaleFactor = widget.scalePercent / 100.0;
     final double paintWidth = widget.labelPixelSize.width * scaleFactor;
     final double paintHeight = widget.labelPixelSize.height * scaleFactor;
-    final double canvasWidth = math.max(_canvasDimension, paintWidth + _rulerThickness + 32);
-    final double canvasHeight = math.max(_canvasDimension, paintHeight + _rulerThickness + 32);
+  final double canvasWidth = paintWidth + _rulerThickness;
+  final double canvasHeight = paintHeight + _rulerThickness;
 
     final content = SizedBox(
       width: canvasWidth,
