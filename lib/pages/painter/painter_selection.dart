@@ -893,7 +893,13 @@ void createTableDrawable(_PainterPageState state, int rows, int columns) {
     painterSize = const Size(640, 640);
   }
 
-  final tableSize = Size(painterSize.width, math.max(32.0, rows * 32.0));
+  const double horizontalMargin = 1.0;
+  const double topMargin = 1.0;
+  final double availableWidth = math.max(1.0, painterSize.width - horizontalMargin * 2);
+  final double desiredHeight = math.max(32.0, rows * 32.0);
+  final double maxHeight = math.max(1.0, painterSize.height - topMargin);
+  final double tableHeight = math.min(desiredHeight, maxHeight);
+  final tableSize = Size(availableWidth, tableHeight);
 
   final fractions = List<double>.filled(columns, 1.0 / columns);
 
@@ -901,7 +907,8 @@ void createTableDrawable(_PainterPageState state, int rows, int columns) {
     rows: rows,
     columns: columns,
     columnFractions: fractions,
-    position: Offset(tableSize.width / 2, tableSize.height / 2),
+    position: Offset(horizontalMargin + tableSize.width / 2,
+        topMargin + tableSize.height / 2),
     size: tableSize,
   );
 

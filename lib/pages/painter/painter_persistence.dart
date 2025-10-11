@@ -298,9 +298,10 @@ Future<void> showPrintDialog(
                                   selected!,
                                   doc.rawCommands,
                                 );
+                                debugPrint('Raw print succeeded.');
                                 printed = true;
                               } catch (e, stack) {
-                                debugPrint('raw print failed: $e\n$stack');
+                                debugPrint('Raw print failed: $e\n$stack');
                                 setStateDialog(() {
                                   statusMessage =
                                       '직접 명령 전송 실패: $e. PDF 출력으로 전환합니다.';
