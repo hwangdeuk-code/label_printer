@@ -1269,7 +1269,10 @@ class InspectorPanel extends StatelessWidget {
 
     Widget _rowField() => Row(
       children: [
-        const Text('행 높이'),
+        SizedBox(
+          width: 48,
+          child: const Text('행 높이', style: TextStyle(fontSize: 12.0)),
+        ),
         const SizedBox(width: 8),
         SizedBox(
           width: 110,
@@ -1282,6 +1285,7 @@ class InspectorPanel extends StatelessWidget {
             ],
             decoration: const InputDecoration(
               suffixText: 'cm',
+              suffixStyle: TextStyle(fontSize: 12.0),
               isDense: true,
               border: OutlineInputBorder(),
             ),
@@ -1339,7 +1343,10 @@ class InspectorPanel extends StatelessWidget {
 
     Widget _colField() => Row(
       children: [
-        const Text('열 너비'),
+        SizedBox(
+          width: 48,
+          child: const Text('열 너비', style: TextStyle(fontSize: 12.0)),
+        ),
         const SizedBox(width: 8),
         SizedBox(
           width: 110,
@@ -1352,6 +1359,7 @@ class InspectorPanel extends StatelessWidget {
             ],
             decoration: const InputDecoration(
               suffixText: 'cm',
+              suffixStyle: TextStyle(fontSize: 12.0),
               isDense: true,
               border: OutlineInputBorder(),
             ),
@@ -1643,7 +1651,13 @@ class InspectorPanel extends StatelessWidget {
       }
       return Row(
         children: [
-          SizedBox(width: 48, child: Text(label)),
+          SizedBox(
+            width: 48,
+            child: Text(
+              label,
+              style: const TextStyle(fontSize: 12.0),
+            ),
+          ),
           const SizedBox(width: 8),
           // 안쪽 여백(cm)
           SizedBox(
@@ -1660,6 +1674,8 @@ class InspectorPanel extends StatelessWidget {
               decoration: const InputDecoration(
                 isDense: true,
                 border: OutlineInputBorder(),
+                suffixText: 'cm',
+                suffixStyle: TextStyle(fontSize: 12.0),
               ),
               onSubmitted: (_) => submitPad(),
               onEditingComplete: submitPad,
@@ -1681,6 +1697,8 @@ class InspectorPanel extends StatelessWidget {
               decoration: const InputDecoration(
                 isDense: true,
                 border: OutlineInputBorder(),
+                suffixText: 'px',
+                suffixStyle: TextStyle(fontSize: 12.0),
               ),
               onSubmitted: (_) => submitThickness(),
               onEditingComplete: submitThickness,
@@ -1691,15 +1709,15 @@ class InspectorPanel extends StatelessWidget {
             child: DropdownButton<CellBorderStyle>(
               isExpanded: true,
               value: uniformStyle,
-              hint: const Text('혼합'),
+              hint: const Text('혼합', style: TextStyle(fontSize: 12.0)),
               items: const [
                 DropdownMenuItem(
                   value: CellBorderStyle.solid,
-                  child: Text('실선'),
+                  child: Text('실선', style: TextStyle(fontSize: 12.0)),
                 ),
                 DropdownMenuItem(
                   value: CellBorderStyle.dashed,
-                  child: Text('점선'),
+                  child: Text('점선', style: TextStyle(fontSize: 12.0)),
                 ),
               ],
               onChanged: (v) {
@@ -1947,26 +1965,6 @@ class InspectorPanel extends StatelessWidget {
       const SizedBox(height: 8),
       _colField(),
   ...borderControls,
-      // ROW DEBUG (lists each row height in cm)
-      ...(() {
-        final List<Widget> items = [];
-        if (selected is TableDrawable) {
-          final t = selected as TableDrawable;
-          final rows = math.max(1, t.rows);
-          final double pxPerCm = printerDpi / 2.54;
-          for (int rr = 0; rr < rows; rr++) {
-            final hPx = t.localCellRect(rr, 0, t.size).height;
-            final hCm = hPx / pxPerCm;
-            items.add(
-              Text(
-                '행 #${rr + 1}: ' + hCm.toStringAsFixed(2) + ' cm',
-                style: const TextStyle(fontSize: 11, color: Colors.black54),
-              ),
-            );
-          }
-        }
-        return items;
-      })() /* ROW_DEBUG_READOUT */,
     ];
   }
 
@@ -2019,7 +2017,7 @@ List<Widget> _buildTableBackgroundControls(BuildContext context, TableDrawable t
           child: ColorDot(color: current ?? const Color(0x00000000)),
         ),
         const SizedBox(width: 8),
-        Text(label),
+        Text(label, style: const TextStyle(fontSize: 12.0)),
         const Spacer(),
         OutlinedButton(
           onPressed: () async {

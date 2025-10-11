@@ -101,7 +101,7 @@ class EzplBuilder {
       return _encodeBarcode(drawable);
     }
     if (drawable is TableDrawable) {
-      return null;
+      return _encodeTable(drawable);
     }
     if (drawable is FreeStyleDrawable ||
         drawable is EraseDrawable ||
@@ -110,6 +110,186 @@ class EzplBuilder {
       return null;
     }
     return null;
+  }
+
+  String? _encodeTable(TableDrawable table) {
+    // 테이블은 회전 없이 축 정렬일 때만 벡터로 출력 지원
+    if (!_isAxisAligned(table.rotationAngle)) return null;
+
+    // 테이블의 박스 위치/크기(도트 단위)
+    final size = table.size;
+    final center = table.position;
+    final topLeft = center - Offset(size.width / 2, size.height / 2);
+    final left = _x(topLeft.dx);
+    final top = _y(topLeft.dy);
+    final width = _w(size.width);
+    final height = _h(size.height);
+
+    if (width <= 0 || height <= 0 || table.rows <= 0 || table.columns <= 0) {
+      return '';
+    }
+
+    // 누적 분할 경계(정수 도트) 계산 - 합이 정확히 width/height가 되도록 누적 비율 기반으로 산출
+    List<int> _buildStops(int start, int totalLen, List<double> fractions) {
+      final sum = fractions.fold<double>(0.0, (a, b) => a + b);
+      final norm = sum == 0 ? fractions : fractions.map((f) => f / sum).toList();
+      final stops = <int>[start];
+      double acc = 0;
+      for (int i = 0; i < norm.length; i++) {
+        acc += norm[i] * totalLen;
+        int pos = start + acc.round();
+        // 경계가 감소하지 않도록 보정
+        if (pos <= stops.last) pos = stops.last + 1;
+        stops.add(pos);
+      }
+      // 마지막 경계는 정확히 start + totalLen에 맞춤(초과/부족 보정)
+      stops[stops.length - 1] = start + totalLen;
+      return stops;
+    }
+
+    final xs = _buildStops(left, width, table.columnFractions);
+    final ys = _buildStops(top, height, table.rowFractions);
+
+    final sb = StringBuffer();
+
+    // 보더 그리기 유틸리티
+    void _drawSolidH(int x1, int x2, int y, int stroke) {
+      if (x2 <= x1 || stroke <= 0) return;
+      final len = x2 - x1;
+      sb.write('^FO$x1,$y^GB$len,0,$stroke,B,0^FS\r\n');
+    }
+
+    void _drawSolidV(int x, int y1, int y2, int stroke) {
+      if (y2 <= y1 || stroke <= 0) return;
+      final len = y2 - y1;
+      sb.write('^FO$x,$y1^GB0,$len,$stroke,B,0^FS\r\n');
+    }
+
+    void _drawDashedH(int x1, int x2, int y, int stroke) {
+      if (x2 <= x1 || stroke <= 0) return;
+      final total = x2 - x1;
+      final dash = math.max(2, (stroke * 6).round());
+      final gap = math.max(2, (stroke * 3).round());
+      int offset = 0;
+      while (offset < total) {
+        final seg = math.min(dash, total - offset);
+        if (seg <= 0) break;
+        _drawSolidH(x1 + offset, x1 + offset + seg, y, stroke);
+        offset += dash + gap;
+      }
+    }
+
+    void _drawDashedV(int x, int y1, int y2, int stroke) {
+      if (y2 <= y1 || stroke <= 0) return;
+      final total = y2 - y1;
+      final dash = math.max(2, (stroke * 6).round());
+      final gap = math.max(2, (stroke * 3).round());
+      int offset = 0;
+      while (offset < total) {
+        final seg = math.min(dash, total - offset);
+        if (seg <= 0) break;
+        _drawSolidV(x, y1 + offset, y1 + offset + seg, stroke);
+        offset += dash + gap;
+      }
+    }
+
+    bool _sameMergeRoot(int r1, int c1, int r2, int c2) {
+      final a = table.resolveRoot(r1, c1);
+      final b = table.resolveRoot(r2, c2);
+      return a.$1 == b.$1 && a.$2 == b.$2;
+    }
+
+    // 수평 에지: 각 행 경계 i(0..rows)에서 열별 세그먼트 출력
+    for (int i = 0; i <= table.rows - 0; i++) {
+      if (i < 0 || i > table.rows) continue;
+      final y = ys[i];
+      for (int c = 0; c < table.columns; c++) {
+        final x1 = xs[c];
+        final x2 = xs[c + 1];
+
+        double thick = 0;
+        bool dashed = false;
+        if (i == 0) {
+          // 최상단: 위쪽 보더
+          final t = table.borderOf(0, c).top;
+          final s = table.borderStyleOf(0, c).top;
+          thick = math.max(thick, t);
+          dashed = dashed || (s == CellBorderStyle.dashed);
+        } else if (i == table.rows) {
+          // 최하단: 아래쪽 보더
+          final t = table.borderOf(table.rows - 1, c).bottom;
+          final s = table.borderStyleOf(table.rows - 1, c).bottom;
+          thick = math.max(thick, t);
+          dashed = dashed || (s == CellBorderStyle.dashed);
+        } else {
+          // 내부 경계: 위/아래 셀을 본다. 같은 머지 루트면 내부선 생략
+          if (_sameMergeRoot(i - 1, c, i, c)) {
+            continue;
+          }
+          final tTop = table.borderOf(i - 1, c).bottom;
+          final tBot = table.borderOf(i, c).top;
+          final sTop = table.borderStyleOf(i - 1, c).bottom;
+          final sBot = table.borderStyleOf(i, c).top;
+          thick = math.max(tTop, tBot);
+          dashed = (sTop == CellBorderStyle.dashed) || (sBot == CellBorderStyle.dashed);
+        }
+
+        final stroke = _avgStroke(thick);
+        if (stroke <= 0) continue;
+        if (dashed) {
+          _drawDashedH(x1, x2, y, stroke);
+        } else {
+          _drawSolidH(x1, x2, y, stroke);
+        }
+      }
+    }
+
+    // 수직 에지: 각 열 경계 j(0..columns)에서 행별 세그먼트 출력
+    for (int j = 0; j <= table.columns - 0; j++) {
+      if (j < 0 || j > table.columns) continue;
+      final x = xs[j];
+      for (int r = 0; r < table.rows; r++) {
+        final y1 = ys[r];
+        final y2 = ys[r + 1];
+
+        double thick = 0;
+        bool dashed = false;
+        if (j == 0) {
+          // 좌측 외곽
+          final t = table.borderOf(r, 0).left;
+          final s = table.borderStyleOf(r, 0).left;
+          thick = math.max(thick, t);
+          dashed = dashed || (s == CellBorderStyle.dashed);
+        } else if (j == table.columns) {
+          // 우측 외곽
+          final t = table.borderOf(r, table.columns - 1).right;
+          final s = table.borderStyleOf(r, table.columns - 1).right;
+          thick = math.max(thick, t);
+          dashed = dashed || (s == CellBorderStyle.dashed);
+        } else {
+          // 내부 경계: 좌/우 셀 비교. 같은 머지 루트면 내부선 생략
+          if (_sameMergeRoot(r, j - 1, r, j)) {
+            continue;
+          }
+          final tL = table.borderOf(r, j - 1).right;
+          final tR = table.borderOf(r, j).left;
+          final sL = table.borderStyleOf(r, j - 1).right;
+          final sR = table.borderStyleOf(r, j).left;
+          thick = math.max(tL, tR);
+          dashed = (sL == CellBorderStyle.dashed) || (sR == CellBorderStyle.dashed);
+        }
+
+        final stroke = _avgStroke(thick);
+        if (stroke <= 0) continue;
+        if (dashed) {
+          _drawDashedV(x, y1, y2, stroke);
+        } else {
+          _drawSolidV(x, y1, y2, stroke);
+        }
+      }
+    }
+
+    return sb.toString();
   }
 
   String? _encodeRectangle(RectangleDrawable rect) {
