@@ -6,8 +6,6 @@ import 'package:flutter/material.dart';
 import '../flutter_painter_v2/flutter_painter.dart';
 import '../models/tool.dart';
 import '../drawables/table_drawable.dart';
-import 'table_quill_overlay_layer.dart';
-import 'table_cell_quill_view.dart';
 
 const double _canvasDimension = 640;
 const double _rulerThickness = 24;
@@ -48,6 +46,7 @@ class CanvasArea extends StatefulWidget {
     this.inlineEditor,
     this.printerDpi = 300,
     this.scalePercent = 100.0,
+    required this.labelPixelSize,
   });
 
   final Tool currentTool;
@@ -73,6 +72,7 @@ class CanvasArea extends StatefulWidget {
   final bool isTextSelected;
   final double printerDpi;
   final double scalePercent;
+  final Size labelPixelSize;
   final bool isEditingCell;
   final void Function(TapDownDetails)? onCanvasDoubleTapDown;
   final Rect? inlineEditorRect;
@@ -126,9 +126,15 @@ class _CanvasAreaState extends State<CanvasArea> {
         ? (widget.printerDpi / 2.54) * (widget.scalePercent / 100.0)
         : 0;
 
-    return SizedBox(
-      width: _canvasDimension,
-      height: _canvasDimension,
+    final double scaleFactor = widget.scalePercent / 100.0;
+    final double paintWidth = widget.labelPixelSize.width * scaleFactor;
+    final double paintHeight = widget.labelPixelSize.height * scaleFactor;
+    final double canvasWidth = math.max(_canvasDimension, paintWidth + _rulerThickness + 32);
+    final double canvasHeight = math.max(_canvasDimension, paintHeight + _rulerThickness + 32);
+
+    final content = SizedBox(
+      width: canvasWidth,
+      height: canvasHeight,
       child: Stack(
         children: [
           // 바탕
@@ -141,16 +147,16 @@ class _CanvasAreaState extends State<CanvasArea> {
           // 눈금자
           Positioned(
             left: _rulerThickness,
-            right: 0,
             top: 0,
+            width: paintWidth,
             height: _rulerThickness,
             child: CustomPaint(painter: _HorizontalRulerPainter(pixelsPerCm: pixelsPerCm)),
           ),
           Positioned(
             left: 0,
             top: _rulerThickness,
-            bottom: 0,
             width: _rulerThickness,
+            height: paintHeight,
             child: CustomPaint(painter: _VerticalRulerPainter(pixelsPerCm: pixelsPerCm)),
           ),
           const Positioned(
@@ -161,8 +167,8 @@ class _CanvasAreaState extends State<CanvasArea> {
           Positioned(
             left: _rulerThickness,
             top: _rulerThickness,
-            right: 0,
-            bottom: 0,
+            width: paintWidth,
+            height: paintHeight,
             child: DecoratedBox(
               decoration: BoxDecoration(border: Border.all(color: Colors.black12)),
               child: Stack(
@@ -174,9 +180,13 @@ class _CanvasAreaState extends State<CanvasArea> {
                     child: RepaintBoundary(
                       key: widget.painterKey,
                       child: Transform.scale(
-                        scale: widget.scalePercent / 100.0,
+                        scale: scaleFactor,
                         alignment: Alignment.topLeft,
-                        child: FlutterPainter(controller: widget.controller),
+                        child: SizedBox(
+                          width: widget.labelPixelSize.width,
+                          height: widget.labelPixelSize.height,
+                          child: FlutterPainter(controller: widget.controller),
+                        ),
                       ),
                     ),
                   ),
@@ -225,21 +235,25 @@ class _CanvasAreaState extends State<CanvasArea> {
                             }
                           },
                           child: Transform.scale(
-                            scale: widget.scalePercent / 100.0,
+                            scale: scaleFactor,
                             alignment: Alignment.topLeft,
-                            child: CustomPaint(
-                              painter: _SelectionPainter(
-                                selected: widget.selectedDrawable,
-                                anchorCell: widget.selectionAnchorCell,
-                                focusCell: widget.selectionFocusCell,
-                                bounds: widget.selectionBounds,
-                                handleSize: widget.handleSize,
-                                rotateHandleOffset: widget.rotateHandleOffset,
-                                showEndpoints: widget.showEndpoints,
-                                start: widget.selectionStart,
-                                end: widget.selectionEnd,
-                                endpointRadius: widget.handleSize * 0.7,
-                                isText: widget.isTextSelected,
+                            child: SizedBox(
+                              width: widget.labelPixelSize.width,
+                              height: widget.labelPixelSize.height,
+                              child: CustomPaint(
+                                painter: _SelectionPainter(
+                                  selected: widget.selectedDrawable,
+                                  anchorCell: widget.selectionAnchorCell,
+                                  focusCell: widget.selectionFocusCell,
+                                  bounds: widget.selectionBounds,
+                                  handleSize: widget.handleSize,
+                                  rotateHandleOffset: widget.rotateHandleOffset,
+                                  showEndpoints: widget.showEndpoints,
+                                  start: widget.selectionStart,
+                                  end: widget.selectionEnd,
+                                  endpointRadius: widget.handleSize * 0.7,
+                                  isText: widget.isTextSelected,
+                                ),
                               ),
                             ),
                           ),
@@ -262,6 +276,17 @@ class _CanvasAreaState extends State<CanvasArea> {
             ),
           ),
         ],
+      ),
+    );
+
+    return ScrollConfiguration(
+      behavior: const ScrollBehavior().copyWith(scrollbars: true),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.vertical,
+        child: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: content,
+        ),
       ),
     );
   }

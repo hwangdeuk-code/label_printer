@@ -34,12 +34,16 @@ class DrawableSerializer {
 
   static Map<String, dynamic> wrapScene({
     required double printerDpi,
+    required double labelWidthMm,
+    required double labelHeightMm,
     required List<Map<String, dynamic>> objects,
   }) {
     return {
       'version': _version,
       'generatedAt': DateTime.now().toIso8601String(),
       'printerDpi': printerDpi,
+      'labelWidthMm': labelWidthMm,
+      'labelHeightMm': labelHeightMm,
       'objects': objects,
     };
   }

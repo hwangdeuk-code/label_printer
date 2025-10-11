@@ -25,7 +25,30 @@ class _PainterPageState extends State<PainterPage> {
   double barcodeFontSize = 16.0;
   Color barcodeForeground = Colors.black;
   Color barcodeBackground = Colors.white;
-  double printerDpi = 300;
+  double printerDpi = 203;
+  double labelWidthMm = 80.0;
+  double labelHeightMm = 60.0;
+
+  double _mmToPixels(double mm) => (mm / 25.4) * printerDpi;
+
+  Size get labelPixelSize =>
+      Size(_mmToPixels(labelWidthMm), _mmToPixels(labelHeightMm));
+
+  void updateLabelSpec({
+    double? widthMm,
+    double? heightMm,
+    double? dpi,
+  }) {
+    final double newWidth = widthMm ?? labelWidthMm;
+    final double newHeight = heightMm ?? labelHeightMm;
+    final double newDpi = dpi ?? printerDpi;
+    debugPrint('Printer DPI: $newDpi');
+    setState(() {
+      labelWidthMm = newWidth;
+      labelHeightMm = newHeight;
+      printerDpi = newDpi;
+    });
+  }
 
   bool lockRatio = false;
   bool angleSnap = true;
@@ -296,6 +319,8 @@ class _PainterPageState extends State<PainterPage> {
       }
       final bundle = DrawableSerializer.wrapScene(
         printerDpi: printerDpi,
+        labelWidthMm: labelWidthMm,
+        labelHeightMm: labelHeightMm,
         objects: objects,
       );
       final path = location.path.endsWith('.json')
@@ -328,6 +353,22 @@ class _PainterPageState extends State<PainterPage> {
       if (objects is! List) {
         throw const FormatException('objects 배열이 존재하지 않습니다.');
       }
+
+      final double? savedDpi = (decoded['printerDpi'] as num?)?.toDouble();
+      final double? savedWidthMm = (decoded['labelWidthMm'] as num?)?.toDouble();
+      final double? savedHeightMm = (decoded['labelHeightMm'] as num?)?.toDouble();
+
+      setState(() {
+        if (savedDpi != null && savedDpi > 0) {
+          printerDpi = savedDpi;
+        }
+        if (savedWidthMm != null && savedWidthMm > 0) {
+          labelWidthMm = savedWidthMm;
+        }
+        if (savedHeightMm != null && savedHeightMm > 0) {
+          labelHeightMm = savedHeightMm;
+        }
+      });
 
       int added = 0;
       for (final entry in objects) {
@@ -403,6 +444,9 @@ class _PainterPageState extends State<PainterPage> {
   void _clearAll() => clearAll(this);
 
   Future<void> _saveAsPng(BuildContext context) => saveAsPng(this, context);
+
+  Future<void> _showPrintDialog(BuildContext context) =>
+      showPrintDialog(this, context);
 
   Future<void> _pickImageAndAdd() => pickImageAndAdd(this);
 

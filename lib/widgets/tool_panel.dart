@@ -52,6 +52,10 @@ class ToolPanel extends StatelessWidget {
     required this.onBarcodeBackgroundChanged,
     required this.scalePercent,
     required this.onScalePercentChanged,
+    required this.labelWidthMm,
+    required this.labelHeightMm,
+    required this.onLabelWidthChanged,
+    required this.onLabelHeightChanged,
   });
 
   final Tool currentTool;
@@ -93,9 +97,61 @@ class ToolPanel extends StatelessWidget {
   final ValueChanged<Color> onBarcodeForegroundChanged;
   final Color barcodeBackground;
   final ValueChanged<Color> onBarcodeBackgroundChanged;
+  final double labelWidthMm;
+  final double labelHeightMm;
+  final ValueChanged<double> onLabelWidthChanged;
+  final ValueChanged<double> onLabelHeightChanged;
 
   @override
   Widget build(BuildContext context) {
+    Widget labelField({
+      required String label,
+      required double value,
+      required void Function(double) onSubmitted,
+    }) {
+      return Expanded(
+        child: TextFormField(
+          key: ValueKey('$label-$value'),
+          initialValue: value.toStringAsFixed(1),
+          decoration: InputDecoration(
+            labelText: label,
+            suffixText: 'mm',
+            isDense: true,
+            border: const OutlineInputBorder(),
+          ),
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          onFieldSubmitted: (text) {
+            final parsed = double.tryParse(text);
+            if (parsed == null || parsed <= 0) return;
+            onSubmitted(parsed);
+          },
+        ),
+      );
+    }
+
+    final labelSection = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('Label Size', style: TextStyle(fontWeight: FontWeight.bold)),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            labelField(
+              label: 'Width',
+              value: labelWidthMm,
+              onSubmitted: onLabelWidthChanged,
+            ),
+            const SizedBox(width: 12),
+            labelField(
+              label: 'Height',
+              value: labelHeightMm,
+              onSubmitted: onLabelHeightChanged,
+            ),
+          ],
+        ),
+      ],
+    );
+
     final scaleSlider = Row(
       children: [
         const Text('Scale'),
@@ -117,6 +173,8 @@ class ToolPanel extends StatelessWidget {
       child: ListView(
         padding: const EdgeInsets.all(12),
         children: [
+          labelSection,
+          const SizedBox(height: 12),
           scaleSlider,
           const SizedBox(height: 12),
           const Text('Tools', style: TextStyle(fontWeight: FontWeight.bold)),

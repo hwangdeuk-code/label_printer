@@ -38,9 +38,13 @@ dependencies:
   file_selector: ^1.0.4
   flutter_quill: ^11.4.2
   package_info_plus: ^9.0.0
+  pdf: ^3.11.0
+  printing: ^5.13.3
   screen_retriever: ^0.2.0
   shared_preferences: ^2.3.2
   window_manager: ^0.5.1
+  win32: ^5.5.0
+  ffi: ^2.1.0
 
 dev_dependencies:
   flutter_test:

@@ -38,6 +38,11 @@ Widget buildPainterScaffold(_PainterPageState state, BuildContext context) {
           tooltip: 'Load Project',
         ),
         IconButton(
+          onPressed: () => state._showPrintDialog(context),
+          icon: const Icon(Icons.print),
+          tooltip: 'Print Label',
+        ),
+        IconButton(
           onPressed: () => state._saveAsPng(context),
           icon: const Icon(Icons.save_alt),
         ),
@@ -138,6 +143,12 @@ Widget buildPainterBody(_PainterPageState state, BuildContext context) {
           scalePercent: state.scalePercent,
           onScalePercentChanged: (value) =>
               state.setState(() => state.scalePercent = value),
+          labelWidthMm: state.labelWidthMm,
+          labelHeightMm: state.labelHeightMm,
+          onLabelWidthChanged: (value) =>
+              state.updateLabelSpec(widthMm: value),
+          onLabelHeightChanged: (value) =>
+              state.updateLabelSpec(heightMm: value),
         ),
         const VerticalDivider(width: 1),
         Expanded(
@@ -183,6 +194,7 @@ Widget buildPainterBody(_PainterPageState state, BuildContext context) {
             isEditingCell: state._quillController != null,
             printerDpi: state.printerDpi,
             scalePercent: state.scalePercent,
+            labelPixelSize: state.labelPixelSize,
           ),
         ),
         const VerticalDivider(width: 1),
