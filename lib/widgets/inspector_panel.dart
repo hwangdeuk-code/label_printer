@@ -1466,8 +1466,9 @@ class InspectorPanel extends StatelessWidget {
       return colStart <= range.rightCol && colEnd >= range.rightCol;
     }
 
-    double? uniformThicknessFor(
-      double Function(CellBorderThickness) pick,
+    // 실효 두께(렌더링 기준: 이웃 변과의 max)를 계산하여 범위 전체가 동일하면 값을, 아니면 null(혼합)을 반환
+    double? uniformEffectiveThicknessForSide(
+      String side, // 'top' | 'bottom' | 'left' | 'right'
       bool Function(TableDrawable, (int, int)) include,
     ) {
       double? value;
@@ -1475,11 +1476,63 @@ class InspectorPanel extends StatelessWidget {
       for (final cell in targetCells) {
         if (!include(table, cell)) continue;
         hasAny = true;
-        final current = pick(table.borderOf(cell.$1, cell.$2));
-        if (value == null) {
-          value = current;
-        } else if ((value - current).abs() > 1e-3) {
-          return null;
+        final (rowStart, rowEnd, colStart, colEnd) = cellBounds(table, cell);
+        if (side == 'top') {
+          // boundaryRow = rowStart
+          for (int c = colStart; c <= colEnd; c++) {
+            final selfT = table.borderOf(cell.$1, cell.$2).top;
+            double neighborB = 0.0;
+            final nr = rowStart - 1;
+            if (nr >= 0) {
+              final neigh = table.resolveRoot(nr, c);
+              neighborB = table.borderOf(neigh.$1, neigh.$2).bottom;
+            }
+            final eff = math.max(selfT, neighborB);
+            if (value == null) value = eff;
+            else if ((value - eff).abs() > 1e-3) return null;
+          }
+        } else if (side == 'bottom') {
+          // boundaryRow = rowEnd + 1
+          for (int c = colStart; c <= colEnd; c++) {
+            final selfB = table.borderOf(cell.$1, cell.$2).bottom;
+            double neighborT = 0.0;
+            final nr = rowEnd + 1;
+            if (nr < table.rows) {
+              final neigh = table.resolveRoot(nr, c);
+              neighborT = table.borderOf(neigh.$1, neigh.$2).top;
+            }
+            final eff = math.max(selfB, neighborT);
+            if (value == null) value = eff;
+            else if ((value - eff).abs() > 1e-3) return null;
+          }
+        } else if (side == 'left') {
+          // boundaryColumn = colStart
+          for (int r = rowStart; r <= rowEnd; r++) {
+            final selfL = table.borderOf(cell.$1, cell.$2).left;
+            double neighborR = 0.0;
+            final nc = colStart - 1;
+            if (nc >= 0) {
+              final neigh = table.resolveRoot(r, nc);
+              neighborR = table.borderOf(neigh.$1, neigh.$2).right;
+            }
+            final eff = math.max(selfL, neighborR);
+            if (value == null) value = eff;
+            else if ((value - eff).abs() > 1e-3) return null;
+          }
+        } else if (side == 'right') {
+          // boundaryColumn = colEnd + 1
+          for (int r = rowStart; r <= rowEnd; r++) {
+            final selfR = table.borderOf(cell.$1, cell.$2).right;
+            double neighborL = 0.0;
+            final nc = colEnd + 1;
+            if (nc < table.columns) {
+              final neigh = table.resolveRoot(r, nc);
+              neighborL = table.borderOf(neigh.$1, neigh.$2).left;
+            }
+            final eff = math.max(selfR, neighborL);
+            if (value == null) value = eff;
+            else if ((value - eff).abs() > 1e-3) return null;
+          }
         }
       }
       return hasAny ? value : null;
@@ -1517,12 +1570,10 @@ class InspectorPanel extends StatelessWidget {
       });
     }
 
-    final double? uniformTop = uniformThicknessFor((b) => b.top, touchesTop);
-    final double? uniformBottom =
-        uniformThicknessFor((b) => b.bottom, touchesBottom);
-    final double? uniformLeft = uniformThicknessFor((b) => b.left, touchesLeft);
-    final double? uniformRight =
-        uniformThicknessFor((b) => b.right, touchesRight);
+  final double? uniformTop = uniformEffectiveThicknessForSide('top', touchesTop);
+  final double? uniformBottom = uniformEffectiveThicknessForSide('bottom', touchesBottom);
+  final double? uniformLeft = uniformEffectiveThicknessForSide('left', touchesLeft);
+  final double? uniformRight = uniformEffectiveThicknessForSide('right', touchesRight);
     final topController = TextEditingController(
       text: uniformTop == null ? '' : uniformTop.toStringAsFixed(1),
     );
@@ -1547,11 +1598,18 @@ class InspectorPanel extends StatelessWidget {
       apply(sanitized);
     }
 
-    Widget borderField({
+    // 기존 borderField는 통합 UI로 대체되어 제거되었습니다.
+
+    // ==== 선 종류(실선/점선) 컨트롤 + 두께를 하나로 통합 ====
+    // 기존 borderField를 확장한 행 빌더: 두께(TextField) + 선 종류(콤보박스)
+    Widget borderWithStyleRow({
       required String label,
       required TextEditingController controller,
-      required void Function(double value) apply,
+      required void Function(double value) applyThickness,
+      required CellBorderStyle? uniformStyle,
+      required void Function(CellBorderStyle style) applyStyle,
     }) {
+      void submit() => submitBorder(controller, applyThickness);
       return Row(
         children: [
           SizedBox(width: 48, child: Text(label)),
@@ -1571,52 +1629,35 @@ class InspectorPanel extends StatelessWidget {
                 isDense: true,
                 border: OutlineInputBorder(),
               ),
-              onSubmitted: (_) => submitBorder(controller, apply),
-              onEditingComplete: () => submitBorder(controller, apply),
+              onSubmitted: (_) => submit(),
+              onEditingComplete: submit,
             ),
+          ),
+          const SizedBox(width: 8),
+          DropdownButton<CellBorderStyle>(
+            value: uniformStyle,
+            hint: const Text('혼합'),
+            items: const [
+              DropdownMenuItem(
+                value: CellBorderStyle.solid,
+                child: Text('실선'),
+              ),
+              DropdownMenuItem(
+                value: CellBorderStyle.dashed,
+                child: Text('점선'),
+              ),
+            ],
+            onChanged: (v) {
+              if (v != null) applyStyle(v);
+            },
           ),
         ],
       );
     }
 
-    final List<Widget> borderControls = targetCells.isEmpty
-        ? const []
-        : [
-            const SizedBox(height: 12),
-            const Divider(),
-            const Text(
-              '셀 테두리 두께',
-              style: TextStyle(fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 8),
-            borderField(
-              label: '위',
-              controller: topController,
-              apply: (v) => applyBorders(top: v),
-            ),
-            const SizedBox(height: 8),
-            borderField(
-              label: '아래',
-              controller: bottomController,
-              apply: (v) => applyBorders(bottom: v),
-            ),
-            const SizedBox(height: 8),
-            borderField(
-              label: '왼쪽',
-              controller: leftController,
-              apply: (v) => applyBorders(left: v),
-            ),
-            const SizedBox(height: 8),
-            borderField(
-              label: '오른쪽',
-              controller: rightController,
-              apply: (v) => applyBorders(right: v),
-            ),
-          ];
-
-    // ==== 선 종류(실선/점선) 컨트롤 ====
-    CellBorderStyle? uniformStyleFor(
-      CellBorderStyle Function(CellBorderStyles) pick,
+    // 혼합/단일 '실제 표시 스타일' 판별 (인접 셀의 반대편 변도 고려)
+    CellBorderStyle? uniformEffectiveStyleForSide(
+      String side, // 'top' | 'bottom' | 'left' | 'right'
       bool Function(TableDrawable, (int, int)) include,
     ) {
       CellBorderStyle? value;
@@ -1624,11 +1665,67 @@ class InspectorPanel extends StatelessWidget {
       for (final cell in targetCells) {
         if (!include(table, cell)) continue;
         hasAny = true;
-        final cur = pick(table.borderStyleOf(cell.$1, cell.$2));
+        final (rowStart, rowEnd, colStart, colEnd) = cellBounds(table, cell);
+        // 현재 루트 셀의 해당 변 스타일
+        CellBorderStyle current = switch (side) {
+          'top' => table.borderStyleOf(cell.$1, cell.$2).top,
+          'bottom' => table.borderStyleOf(cell.$1, cell.$2).bottom,
+          'left' => table.borderStyleOf(cell.$1, cell.$2).left,
+          'right' => table.borderStyleOf(cell.$1, cell.$2).right,
+          _ => CellBorderStyle.solid,
+        };
+
+        // 인접 셀의 반대편 변 스타일 고려 (하나라도 dashed면 dashed)
+        if (side == 'top') {
+          final nr = rowStart - 1;
+          if (nr >= 0) {
+            for (int c = colStart; c <= colEnd; c++) {
+              final neigh = table.resolveRoot(nr, c);
+              if (table.borderStyleOf(neigh.$1, neigh.$2).bottom == CellBorderStyle.dashed) {
+                current = CellBorderStyle.dashed;
+                break;
+              }
+            }
+          }
+        } else if (side == 'bottom') {
+          final nr = rowEnd + 1;
+          if (nr < table.rows) {
+            for (int c = colStart; c <= colEnd; c++) {
+              final neigh = table.resolveRoot(nr, c);
+              if (table.borderStyleOf(neigh.$1, neigh.$2).top == CellBorderStyle.dashed) {
+                current = CellBorderStyle.dashed;
+                break;
+              }
+            }
+          }
+        } else if (side == 'left') {
+          final nc = colStart - 1;
+          if (nc >= 0) {
+            for (int r = rowStart; r <= rowEnd; r++) {
+              final neigh = table.resolveRoot(r, nc);
+              if (table.borderStyleOf(neigh.$1, neigh.$2).right == CellBorderStyle.dashed) {
+                current = CellBorderStyle.dashed;
+                break;
+              }
+            }
+          }
+        } else if (side == 'right') {
+          final nc = colEnd + 1;
+          if (nc < table.columns) {
+            for (int r = rowStart; r <= rowEnd; r++) {
+              final neigh = table.resolveRoot(r, nc);
+              if (table.borderStyleOf(neigh.$1, neigh.$2).left == CellBorderStyle.dashed) {
+                current = CellBorderStyle.dashed;
+                break;
+              }
+            }
+          }
+        }
+
         if (value == null) {
-          value = cur;
-        } else if (value != cur) {
-          return null; // 혼합 상태
+          value = current;
+        } else if (value != current) {
+          return null; // 혼합
         }
       }
       return hasAny ? value : null;
@@ -1664,76 +1761,48 @@ class InspectorPanel extends StatelessWidget {
       });
     }
 
-    Widget styleRow({
-      required String label,
-      required CellBorderStyle? uniform,
-      required void Function(CellBorderStyle) apply,
-    }) {
-      String stateLabel;
-      if (uniform == null) stateLabel = '혼합';
-      else if (uniform == CellBorderStyle.dashed) stateLabel = '점선';
-      else stateLabel = '실선';
-      return Row(
-        children: [
-          SizedBox(width: 48, child: Text(label)),
-          const SizedBox(width: 8),
-          SizedBox(width: 56, child: Text(stateLabel, style: const TextStyle(color: Colors.black54))),
-          const Spacer(),
-          OutlinedButton(
-            onPressed: () => apply(CellBorderStyle.solid),
-            style: OutlinedButton.styleFrom(
-              backgroundColor: uniform == CellBorderStyle.solid
-                  ? Colors.black12
-                  : Colors.transparent,
-            ),
-            child: const Text('실선'),
-          ),
-          const SizedBox(width: 8),
-          OutlinedButton(
-            onPressed: () => apply(CellBorderStyle.dashed),
-            style: OutlinedButton.styleFrom(
-              backgroundColor: uniform == CellBorderStyle.dashed
-                  ? Colors.black12
-                  : Colors.transparent,
-            ),
-            child: const Text('점선'),
-          ),
-        ],
-      );
-    }
+    // 기존 styleRow는 통합 UI로 대체되어 제거되었습니다.
 
-    final List<Widget> styleControls = targetCells.isEmpty
+    final List<Widget> borderControls = targetCells.isEmpty
         ? const []
         : [
             const SizedBox(height: 12),
             const Divider(),
             const Text(
-              '셀 테두리 선 종류',
+              '셀 테두리 두께',
               style: TextStyle(fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
-            styleRow(
+            borderWithStyleRow(
               label: '위',
-              uniform: uniformStyleFor((s) => s.top, touchesTop),
-              apply: (st) => applyBorderStyles(top: st),
+              controller: topController,
+              applyThickness: (v) => applyBorders(top: v),
+              uniformStyle: uniformEffectiveStyleForSide('top', touchesTop),
+              applyStyle: (st) => applyBorderStyles(top: st),
             ),
             const SizedBox(height: 8),
-            styleRow(
+            borderWithStyleRow(
               label: '아래',
-              uniform: uniformStyleFor((s) => s.bottom, touchesBottom),
-              apply: (st) => applyBorderStyles(bottom: st),
+              controller: bottomController,
+              applyThickness: (v) => applyBorders(bottom: v),
+              uniformStyle: uniformEffectiveStyleForSide('bottom', touchesBottom),
+              applyStyle: (st) => applyBorderStyles(bottom: st),
             ),
             const SizedBox(height: 8),
-            styleRow(
+            borderWithStyleRow(
               label: '왼쪽',
-              uniform: uniformStyleFor((s) => s.left, touchesLeft),
-              apply: (st) => applyBorderStyles(left: st),
+              controller: leftController,
+              applyThickness: (v) => applyBorders(left: v),
+              uniformStyle: uniformEffectiveStyleForSide('left', touchesLeft),
+              applyStyle: (st) => applyBorderStyles(left: st),
             ),
             const SizedBox(height: 8),
-            styleRow(
+            borderWithStyleRow(
               label: '오른쪽',
-              uniform: uniformStyleFor((s) => s.right, touchesRight),
-              apply: (st) => applyBorderStyles(right: st),
+              controller: rightController,
+              applyThickness: (v) => applyBorders(right: v),
+              uniformStyle: uniformEffectiveStyleForSide('right', touchesRight),
+              applyStyle: (st) => applyBorderStyles(right: st),
             ),
           ];
 
@@ -1890,8 +1959,7 @@ class InspectorPanel extends StatelessWidget {
       _rowField(),
       const SizedBox(height: 8),
       _colField(),
-      ...borderControls,
-  ...styleControls,
+  ...borderControls,
       ...paddingControls,
       // ROW DEBUG (lists each row height in cm)
       ...(() {

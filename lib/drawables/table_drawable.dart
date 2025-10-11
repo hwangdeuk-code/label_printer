@@ -629,8 +629,8 @@ class TableDrawable extends Sized2DDrawable {
   }
 
   CellBorderStyle _horizontalBorderStyle(int boundaryRow, int column) {
-    // 경계선이 그려질 때, 두 셀의 해당 변 중 두께가 큰 쪽의 스타일을 우선.
-    // 두께가 동일하고 스타일이 다르면 dashed 우선.
+    // 경계선 스타일 판정: 어느 한쪽이라도 dashed면 dashed 우선.
+    // (두께 크기와 무관하게 점선을 우선 적용하여 이웃 셀에서도 스타일이 일관되게 보이도록)
     if (columns <= 0 || rows <= 0) return CellBorderStyle.solid;
     final int col = column.clamp(0, columns - 1);
     if (boundaryRow <= 0) {
@@ -639,16 +639,13 @@ class TableDrawable extends Sized2DDrawable {
     if (boundaryRow >= rows) {
       return borderStyleOf(rows - 1, col).bottom;
     }
-    final aboveB = borderOf(boundaryRow - 1, col).bottom;
-    final belowT = borderOf(boundaryRow, col).top;
     final aboveS = borderStyleOf(boundaryRow - 1, col).bottom;
     final belowS = borderStyleOf(boundaryRow, col).top;
-    if (aboveB > belowT) return aboveS;
-    if (belowT > aboveB) return belowS;
-    // equal thickness
-    return (aboveS == CellBorderStyle.dashed || belowS == CellBorderStyle.dashed)
-        ? CellBorderStyle.dashed
-        : CellBorderStyle.solid;
+    if (aboveS == CellBorderStyle.dashed || belowS == CellBorderStyle.dashed) {
+      return CellBorderStyle.dashed;
+    }
+    // 모두 solid인 경우에는 아무 쪽이나 solid
+    return CellBorderStyle.solid;
   }
 
   double _verticalBorderThickness(int boundaryColumn, int row) {
@@ -666,6 +663,7 @@ class TableDrawable extends Sized2DDrawable {
   }
 
   CellBorderStyle _verticalBorderStyle(int boundaryColumn, int row) {
+    // 세로 경계도 동일 정책: 한쪽이라도 dashed면 dashed
     if (columns <= 0 || rows <= 0) return CellBorderStyle.solid;
     final int r = row.clamp(0, rows - 1);
     if (boundaryColumn <= 0) {
@@ -674,15 +672,12 @@ class TableDrawable extends Sized2DDrawable {
     if (boundaryColumn >= columns) {
       return borderStyleOf(r, columns - 1).right;
     }
-    final leftR = borderOf(r, boundaryColumn - 1).right;
-    final rightL = borderOf(r, boundaryColumn).left;
     final leftS = borderStyleOf(r, boundaryColumn - 1).right;
     final rightS = borderStyleOf(r, boundaryColumn).left;
-    if (leftR > rightL) return leftS;
-    if (rightL > leftR) return rightS;
-    return (leftS == CellBorderStyle.dashed || rightS == CellBorderStyle.dashed)
-        ? CellBorderStyle.dashed
-        : CellBorderStyle.solid;
+    if (leftS == CellBorderStyle.dashed || rightS == CellBorderStyle.dashed) {
+      return CellBorderStyle.dashed;
+    }
+    return CellBorderStyle.solid;
   }
 
   /// 로컬(자기 중심) 좌표계 기준 셀 사각형
