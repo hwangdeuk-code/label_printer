@@ -1600,22 +1600,75 @@ class InspectorPanel extends StatelessWidget {
 
     // 기존 borderField는 통합 UI로 대체되어 제거되었습니다.
 
-    // ==== 선 종류(실선/점선) 컨트롤 + 두께를 하나로 통합 ====
-    // 기존 borderField를 확장한 행 빌더: 두께(TextField) + 선 종류(콤보박스)
+    // ==== 안쪽 여백(cm) + 테두리 두께(px) + 선 종류(콤보) 통합 행 ====
+    // 두 입력박스와 콤보박스 위에는 별도의 헤더 라벨을 추가
+    Widget _borderHeaderRow() {
+      const labelStyle = TextStyle(
+        color: Colors.black54,
+        fontWeight: FontWeight.w500,
+        fontSize: 12.0,
+      );
+      return Row(
+        children: [
+          const SizedBox(width: 48), // side label 자리
+          const SizedBox(width: 8),
+          SizedBox(width: 72, child: Text('안쪽 여백', style: labelStyle)),
+          const SizedBox(width: 8),
+          SizedBox(width: 72, child: Text('테두리 두께', style: labelStyle)),
+          const SizedBox(width: 8),
+          Expanded(child: Text('선 종류', style: labelStyle)),
+        ],
+      );
+    }
+
     Widget borderWithStyleRow({
       required String label,
+      required TextEditingController padController,
+      required void Function(double valuePx) applyPadding,
       required TextEditingController controller,
       required void Function(double value) applyThickness,
       required CellBorderStyle? uniformStyle,
       required void Function(CellBorderStyle style) applyStyle,
     }) {
-      void submit() => submitBorder(controller, applyThickness);
+      void submitThickness() => submitBorder(controller, applyThickness);
+      void submitPad() {
+        final raw = double.tryParse(padController.text);
+        if (raw == null) return;
+        final double valuePx = (pxPerCm > 0 ? raw * pxPerCm : raw)
+            .clamp(0.0, 400.0);
+        applyPadding(valuePx);
+        final shown = (pxPerCm > 0 ? (valuePx / pxPerCm) : valuePx)
+            .toStringAsFixed(2);
+        padController.text = shown;
+      }
       return Row(
         children: [
           SizedBox(width: 48, child: Text(label)),
           const SizedBox(width: 8),
+          // 안쪽 여백(cm)
           SizedBox(
-            width: 90,
+            width: 72,
+            child: TextField(
+              controller: padController,
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
+              inputFormatters: [
+                FilteringTextInputFormatter.allow(RegExp(r'[0-9\.]')),
+              ],
+              textAlign: TextAlign.right,
+              decoration: const InputDecoration(
+                isDense: true,
+                border: OutlineInputBorder(),
+              ),
+              onSubmitted: (_) => submitPad(),
+              onEditingComplete: submitPad,
+            ),
+          ),
+          const SizedBox(width: 8),
+          // 테두리 두께(px)
+          SizedBox(
+            width: 72,
             child: TextField(
               controller: controller,
               keyboardType: const TextInputType.numberWithOptions(
@@ -1629,27 +1682,30 @@ class InspectorPanel extends StatelessWidget {
                 isDense: true,
                 border: OutlineInputBorder(),
               ),
-              onSubmitted: (_) => submit(),
-              onEditingComplete: submit,
+              onSubmitted: (_) => submitThickness(),
+              onEditingComplete: submitThickness,
             ),
           ),
           const SizedBox(width: 8),
-          DropdownButton<CellBorderStyle>(
-            value: uniformStyle,
-            hint: const Text('혼합'),
-            items: const [
-              DropdownMenuItem(
-                value: CellBorderStyle.solid,
-                child: Text('실선'),
-              ),
-              DropdownMenuItem(
-                value: CellBorderStyle.dashed,
-                child: Text('점선'),
-              ),
-            ],
-            onChanged: (v) {
-              if (v != null) applyStyle(v);
-            },
+          Expanded(
+            child: DropdownButton<CellBorderStyle>(
+              isExpanded: true,
+              value: uniformStyle,
+              hint: const Text('혼합'),
+              items: const [
+                DropdownMenuItem(
+                  value: CellBorderStyle.solid,
+                  child: Text('실선'),
+                ),
+                DropdownMenuItem(
+                  value: CellBorderStyle.dashed,
+                  child: Text('점선'),
+                ),
+              ],
+              onChanged: (v) {
+                if (v != null) applyStyle(v);
+              },
+            ),
           ),
         ],
       );
@@ -1763,49 +1819,7 @@ class InspectorPanel extends StatelessWidget {
 
     // 기존 styleRow는 통합 UI로 대체되어 제거되었습니다.
 
-    final List<Widget> borderControls = targetCells.isEmpty
-        ? const []
-        : [
-            const SizedBox(height: 12),
-            const Divider(),
-            const Text(
-              '셀 테두리 두께',
-              style: TextStyle(fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 8),
-            borderWithStyleRow(
-              label: '위',
-              controller: topController,
-              applyThickness: (v) => applyBorders(top: v),
-              uniformStyle: uniformEffectiveStyleForSide('top', touchesTop),
-              applyStyle: (st) => applyBorderStyles(top: st),
-            ),
-            const SizedBox(height: 8),
-            borderWithStyleRow(
-              label: '아래',
-              controller: bottomController,
-              applyThickness: (v) => applyBorders(bottom: v),
-              uniformStyle: uniformEffectiveStyleForSide('bottom', touchesBottom),
-              applyStyle: (st) => applyBorderStyles(bottom: st),
-            ),
-            const SizedBox(height: 8),
-            borderWithStyleRow(
-              label: '왼쪽',
-              controller: leftController,
-              applyThickness: (v) => applyBorders(left: v),
-              uniformStyle: uniformEffectiveStyleForSide('left', touchesLeft),
-              applyStyle: (st) => applyBorderStyles(left: st),
-            ),
-            const SizedBox(height: 8),
-            borderWithStyleRow(
-              label: '오른쪽',
-              controller: rightController,
-              applyThickness: (v) => applyBorders(right: v),
-              uniformStyle: uniformEffectiveStyleForSide('right', touchesRight),
-              applyStyle: (st) => applyBorderStyles(right: st),
-            ),
-          ];
-
+    // 안쪽 여백(cm) 관련 헬퍼 및 컨트롤러를 먼저 준비
     double? uniformPaddingFor(double Function(CellPadding) pick) {
       double? value;
       for (final cell in targetCells) {
@@ -1819,8 +1833,7 @@ class InspectorPanel extends StatelessWidget {
       return value;
     }
 
-    double cmFromPx(double value) => pxPerCm > 0 ? value / pxPerCm : value;
-    double pxFromCm(double value) => pxPerCm > 0 ? value * pxPerCm : value;
+  double cmFromPx(double value) => pxPerCm > 0 ? value / pxPerCm : value;
 
     void applyPadding({
       double? top,
@@ -1842,50 +1855,6 @@ class InspectorPanel extends StatelessWidget {
         );
         return next;
       });
-    }
-
-    void submitPadding(
-      TextEditingController controller,
-      void Function(double valuePx) apply,
-    ) {
-      final raw = double.tryParse(controller.text);
-      if (raw == null) return;
-      final valuePx = pxFromCm(raw.clamp(0.0, 999.0));
-      final limitedPx = valuePx.clamp(0.0, 400.0);
-      apply(limitedPx);
-      controller.text = cmFromPx(limitedPx).toStringAsFixed(2);
-    }
-
-    Widget paddingField({
-      required String label,
-      required TextEditingController controller,
-      required void Function(double valuePx) apply,
-    }) {
-      return Row(
-        children: [
-          SizedBox(width: 48, child: Text(label)),
-          const SizedBox(width: 8),
-          SizedBox(
-            width: 90,
-            child: TextField(
-              controller: controller,
-              keyboardType: const TextInputType.numberWithOptions(
-                decimal: true,
-              ),
-              inputFormatters: [
-                FilteringTextInputFormatter.allow(RegExp(r'[0-9\.]')),
-              ],
-              textAlign: TextAlign.right,
-              decoration: const InputDecoration(
-                isDense: true,
-                border: OutlineInputBorder(),
-              ),
-              onSubmitted: (_) => submitPadding(controller, apply),
-              onEditingComplete: () => submitPadding(controller, apply),
-            ),
-          ),
-        ],
-      );
     }
 
     final double? uniformPadTopPx = uniformPaddingFor((p) => p.top);
@@ -1913,38 +1882,56 @@ class InspectorPanel extends StatelessWidget {
           : cmFromPx(uniformPadRightPx).toStringAsFixed(2),
     );
 
-    final List<Widget> paddingControls = targetCells.isEmpty
+    final List<Widget> borderControls = targetCells.isEmpty
         ? const []
         : [
             const SizedBox(height: 12),
             const Divider(),
             const Text(
-              '셀 안쪽 여백 (cm)',
+              '셀 테두리',
               style: TextStyle(fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
-            paddingField(
+            _borderHeaderRow(),
+            const SizedBox(height: 6),
+            borderWithStyleRow(
               label: '위',
-              controller: padTopController,
-              apply: (v) => applyPadding(top: v),
+              padController: padTopController,
+              applyPadding: (v) => applyPadding(top: v),
+              controller: topController,
+              applyThickness: (v) => applyBorders(top: v),
+              uniformStyle: uniformEffectiveStyleForSide('top', touchesTop),
+              applyStyle: (st) => applyBorderStyles(top: st),
             ),
             const SizedBox(height: 8),
-            paddingField(
+            borderWithStyleRow(
               label: '아래',
-              controller: padBottomController,
-              apply: (v) => applyPadding(bottom: v),
+              padController: padBottomController,
+              applyPadding: (v) => applyPadding(bottom: v),
+              controller: bottomController,
+              applyThickness: (v) => applyBorders(bottom: v),
+              uniformStyle: uniformEffectiveStyleForSide('bottom', touchesBottom),
+              applyStyle: (st) => applyBorderStyles(bottom: st),
             ),
             const SizedBox(height: 8),
-            paddingField(
+            borderWithStyleRow(
               label: '왼쪽',
-              controller: padLeftController,
-              apply: (v) => applyPadding(left: v),
+              padController: padLeftController,
+              applyPadding: (v) => applyPadding(left: v),
+              controller: leftController,
+              applyThickness: (v) => applyBorders(left: v),
+              uniformStyle: uniformEffectiveStyleForSide('left', touchesLeft),
+              applyStyle: (st) => applyBorderStyles(left: st),
             ),
             const SizedBox(height: 8),
-            paddingField(
+            borderWithStyleRow(
               label: '오른쪽',
-              controller: padRightController,
-              apply: (v) => applyPadding(right: v),
+              padController: padRightController,
+              applyPadding: (v) => applyPadding(right: v),
+              controller: rightController,
+              applyThickness: (v) => applyBorders(right: v),
+              uniformStyle: uniformEffectiveStyleForSide('right', touchesRight),
+              applyStyle: (st) => applyBorderStyles(right: st),
             ),
           ];
 
@@ -1960,7 +1947,6 @@ class InspectorPanel extends StatelessWidget {
       const SizedBox(height: 8),
       _colField(),
   ...borderControls,
-      ...paddingControls,
       // ROW DEBUG (lists each row height in cm)
       ...(() {
         final List<Widget> items = [];
