@@ -30,7 +30,7 @@ class DrawableSerializationResult {
 }
 
 class DrawableSerializer {
-  static const _version = 1;
+  static const _version = 2;
 
   static Map<String, dynamic> wrapScene({
     required double printerDpi,
@@ -164,6 +164,14 @@ class DrawableSerializer {
               'right': value.right,
               'bottom': value.bottom,
               'left': value.left,
+            }),
+          ),
+          'cellBorderStyles': table.cellBorderStyles.map(
+            (key, value) => MapEntry(key, {
+              'top': value.top.name,
+              'right': value.right.name,
+              'bottom': value.bottom.name,
+              'left': value.left.name,
             }),
           ),
           'cellPaddings': table.cellPaddings.map(
@@ -349,6 +357,7 @@ class DrawableSerializer {
             hidden: json['hidden'] == true,
             locked: json['locked'] == true,
             cellBorders: _jsonToBorders(json['cellBorders']),
+            cellBorderStyles: _jsonToBorderStyles(json['cellBorderStyles']),
             cellPaddings: _jsonToPaddings(json['cellPaddings']),
           );
           table.cellStyles.addAll(
@@ -616,6 +625,32 @@ class DrawableSerializer {
           right: (map['right'] as num?)?.toDouble() ?? 0,
           bottom: (map['bottom'] as num?)?.toDouble() ?? 0,
           left: (map['left'] as num?)?.toDouble() ?? 0,
+        ),
+      );
+    });
+  }
+
+  static Map<String, CellBorderStyles> _jsonToBorderStyles(dynamic value) {
+    if (value is! Map) return {};
+    CellBorderStyle _styleOf(dynamic name) {
+      if (name is String) {
+        return CellBorderStyle.values.firstWhere(
+          (e) => e.name == name,
+          orElse: () => CellBorderStyle.solid,
+        );
+      }
+      return CellBorderStyle.solid;
+    }
+
+    return value.map((key, dynamic v) {
+      final map = v as Map;
+      return MapEntry(
+        key as String,
+        CellBorderStyles(
+          top: _styleOf(map['top']),
+          right: _styleOf(map['right']),
+          bottom: _styleOf(map['bottom']),
+          left: _styleOf(map['left']),
         ),
       );
     });

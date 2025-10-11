@@ -49,6 +49,44 @@ class CellBorderThickness {
   static bool _approx(double a, double b) => (a - b).abs() < 1e-4;
 }
 
+/// 테두리 선 종류
+enum CellBorderStyle { solid, dashed }
+
+/// 셀 테두리 선 종류(사방)
+class CellBorderStyles {
+  final CellBorderStyle top;
+  final CellBorderStyle right;
+  final CellBorderStyle bottom;
+  final CellBorderStyle left;
+
+  const CellBorderStyles({
+    this.top = CellBorderStyle.solid,
+    this.right = CellBorderStyle.solid,
+    this.bottom = CellBorderStyle.solid,
+    this.left = CellBorderStyle.solid,
+  });
+
+  CellBorderStyles copyWith({
+    CellBorderStyle? top,
+    CellBorderStyle? right,
+    CellBorderStyle? bottom,
+    CellBorderStyle? left,
+  }) {
+    return CellBorderStyles(
+      top: top ?? this.top,
+      right: right ?? this.right,
+      bottom: bottom ?? this.bottom,
+      left: left ?? this.left,
+    );
+  }
+
+  bool get isDefault =>
+      top == CellBorderStyle.solid &&
+      right == CellBorderStyle.solid &&
+      bottom == CellBorderStyle.solid &&
+      left == CellBorderStyle.solid;
+}
+
 class CellPadding {
   final double top;
   final double right;
@@ -104,6 +142,8 @@ class TableDrawable extends Sized2DDrawable {
   final Map<String, CellBorderThickness> cellBorders =
       <String, CellBorderThickness>{};
   final Map<String, CellPadding> cellPaddings = <String, CellPadding>{};
+  final Map<String, CellBorderStyles> cellBorderStyles =
+    <String, CellBorderStyles>{};
 
   TableDrawable({
     required this.rows,
@@ -111,6 +151,7 @@ class TableDrawable extends Sized2DDrawable {
     List<double>? columnFractions,
     List<double>? rowFractions,
     Map<String, CellBorderThickness>? cellBorders,
+  Map<String, CellBorderStyles>? cellBorderStyles,
     Map<String, CellPadding>? cellPaddings,
     required super.size,
     required super.position,
@@ -132,6 +173,9 @@ class TableDrawable extends Sized2DDrawable {
                  : <double>[]) {
     if (cellBorders != null && cellBorders.isNotEmpty) {
       this.cellBorders.addAll(cellBorders);
+    }
+    if (cellBorderStyles != null && cellBorderStyles.isNotEmpty) {
+      this.cellBorderStyles.addAll(cellBorderStyles);
     }
     if (cellPaddings != null && cellPaddings.isNotEmpty) {
       this.cellPaddings.addAll(cellPaddings);
@@ -234,6 +278,11 @@ class TableDrawable extends Sized2DDrawable {
     return cellBorders[_k(root.$1, root.$2)] ?? const CellBorderThickness();
   }
 
+  CellBorderStyles borderStyleOf(int r, int c) {
+    final root = resolveRoot(r, c);
+    return cellBorderStyles[_k(root.$1, root.$2)] ?? const CellBorderStyles();
+  }
+
   CellPadding paddingOf(int r, int c) {
     final root = resolveRoot(r, c);
     return cellPaddings[_k(root.$1, root.$2)] ?? const CellPadding();
@@ -283,6 +332,49 @@ class TableDrawable extends Sized2DDrawable {
   }
 
   double _clampThickness(double value) => value.clamp(0.0, 24.0).toDouble();
+
+  void updateBorderStyle(
+    int r,
+    int c, {
+    CellBorderStyle? top,
+    CellBorderStyle? right,
+    CellBorderStyle? bottom,
+    CellBorderStyle? left,
+  }) {
+    final root = resolveRoot(r, c);
+    final key = _k(root.$1, root.$2);
+    final current = cellBorderStyles[key] ?? const CellBorderStyles();
+    final next = current.copyWith(
+      top: top ?? current.top,
+      right: right ?? current.right,
+      bottom: bottom ?? current.bottom,
+      left: left ?? current.left,
+    );
+    if (next.isDefault) {
+      cellBorderStyles.remove(key);
+    } else {
+      cellBorderStyles[key] = next;
+    }
+  }
+
+  void updateBorderStyleForCells(
+    Iterable<(int, int)> cells, {
+    CellBorderStyle? top,
+    CellBorderStyle? right,
+    CellBorderStyle? bottom,
+    CellBorderStyle? left,
+  }) {
+    for (final cell in cells) {
+      updateBorderStyle(
+        cell.$1,
+        cell.$2,
+        top: top,
+        right: right,
+        bottom: bottom,
+        left: left,
+      );
+    }
+  }
 
   void updatePadding(
     int r,
@@ -536,6 +628,29 @@ class TableDrawable extends Sized2DDrawable {
     return math.max(above, below);
   }
 
+  CellBorderStyle _horizontalBorderStyle(int boundaryRow, int column) {
+    // 경계선이 그려질 때, 두 셀의 해당 변 중 두께가 큰 쪽의 스타일을 우선.
+    // 두께가 동일하고 스타일이 다르면 dashed 우선.
+    if (columns <= 0 || rows <= 0) return CellBorderStyle.solid;
+    final int col = column.clamp(0, columns - 1);
+    if (boundaryRow <= 0) {
+      return borderStyleOf(0, col).top;
+    }
+    if (boundaryRow >= rows) {
+      return borderStyleOf(rows - 1, col).bottom;
+    }
+    final aboveB = borderOf(boundaryRow - 1, col).bottom;
+    final belowT = borderOf(boundaryRow, col).top;
+    final aboveS = borderStyleOf(boundaryRow - 1, col).bottom;
+    final belowS = borderStyleOf(boundaryRow, col).top;
+    if (aboveB > belowT) return aboveS;
+    if (belowT > aboveB) return belowS;
+    // equal thickness
+    return (aboveS == CellBorderStyle.dashed || belowS == CellBorderStyle.dashed)
+        ? CellBorderStyle.dashed
+        : CellBorderStyle.solid;
+  }
+
   double _verticalBorderThickness(int boundaryColumn, int row) {
     if (columns <= 0 || rows <= 0) return 0.0;
     final int r = row.clamp(0, rows - 1);
@@ -548,6 +663,26 @@ class TableDrawable extends Sized2DDrawable {
     final double left = borderOf(r, boundaryColumn - 1).right;
     final double right = borderOf(r, boundaryColumn).left;
     return math.max(left, right);
+  }
+
+  CellBorderStyle _verticalBorderStyle(int boundaryColumn, int row) {
+    if (columns <= 0 || rows <= 0) return CellBorderStyle.solid;
+    final int r = row.clamp(0, rows - 1);
+    if (boundaryColumn <= 0) {
+      return borderStyleOf(r, 0).left;
+    }
+    if (boundaryColumn >= columns) {
+      return borderStyleOf(r, columns - 1).right;
+    }
+    final leftR = borderOf(r, boundaryColumn - 1).right;
+    final rightL = borderOf(r, boundaryColumn).left;
+    final leftS = borderStyleOf(r, boundaryColumn - 1).right;
+    final rightS = borderStyleOf(r, boundaryColumn).left;
+    if (leftR > rightL) return leftS;
+    if (rightL > leftR) return rightS;
+    return (leftS == CellBorderStyle.dashed || rightS == CellBorderStyle.dashed)
+        ? CellBorderStyle.dashed
+        : CellBorderStyle.solid;
   }
 
   /// 로컬(자기 중심) 좌표계 기준 셀 사각형
@@ -683,6 +818,25 @@ class TableDrawable extends Sized2DDrawable {
     final columnBoundaries = _columnBoundaries(rect);
     final rowBoundaries = _rowBoundaries(rect);
 
+    // 내부 유틸: 대시 라인 그리기
+    void drawDashedLine(Offset a, Offset b, Paint p) {
+      final dx = b.dx - a.dx;
+      final dy = b.dy - a.dy;
+      final len = math.sqrt(dx * dx + dy * dy);
+      if (len <= 0.0) return;
+      final dir = Offset(dx / len, dy / len);
+      final double dash = p.strokeWidth * 3.0; // 길이
+      final double gap = p.strokeWidth * 1.5; // 간격
+      double t = 0.0;
+      while (t < len) {
+        final double tEnd = math.min(t + dash, len);
+        final o1 = a + dir * t;
+        final o2 = a + dir * tEnd;
+        canvas.drawLine(o1, o2, p);
+        t = tEnd + gap;
+      }
+    }
+
     for (int r = 0; r <= rows; r++) {
       final double y = rowBoundaries[r];
       double segmentStart = rect.left;
@@ -693,11 +847,20 @@ class TableDrawable extends Sized2DDrawable {
           final double thickness = _horizontalBorderThickness(r, c);
           if (thickness > 0) {
             gridPaint.strokeWidth = thickness;
-            canvas.drawLine(
-              Offset(segmentStart, y),
-              Offset(segmentEnd, y),
-              gridPaint,
-            );
+            final style = _horizontalBorderStyle(r, c);
+            if (style == CellBorderStyle.dashed) {
+              drawDashedLine(
+                Offset(segmentStart, y),
+                Offset(segmentEnd, y),
+                gridPaint,
+              );
+            } else {
+              canvas.drawLine(
+                Offset(segmentStart, y),
+                Offset(segmentEnd, y),
+                gridPaint,
+              );
+            }
           }
         }
         segmentStart = segmentEnd;
@@ -714,11 +877,20 @@ class TableDrawable extends Sized2DDrawable {
           final double thickness = _verticalBorderThickness(c, r);
           if (thickness > 0) {
             gridPaint.strokeWidth = thickness;
-            canvas.drawLine(
-              Offset(x, segmentStart),
-              Offset(x, segmentEnd),
-              gridPaint,
-            );
+            final style = _verticalBorderStyle(c, r);
+            if (style == CellBorderStyle.dashed) {
+              drawDashedLine(
+                Offset(x, segmentStart),
+                Offset(x, segmentEnd),
+                gridPaint,
+              );
+            } else {
+              canvas.drawLine(
+                Offset(x, segmentStart),
+                Offset(x, segmentEnd),
+                gridPaint,
+              );
+            }
           }
         }
         segmentStart = segmentEnd;
@@ -801,6 +973,7 @@ class TableDrawable extends Sized2DDrawable {
     Map<String, String>? cellDeltaJson,
     Map<String, Map<String, dynamic>>? cellStyles,
     Map<String, CellBorderThickness>? cellBorders,
+    Map<String, CellBorderStyles>? cellBorderStyles,
     Map<String, CellPadding>? cellPaddings,
   }) {
     final next = TableDrawable(
@@ -809,6 +982,7 @@ class TableDrawable extends Sized2DDrawable {
       columnFractions: columnFractions ?? this.columnFractions,
       rowFractions: rowFractions ?? this.rowFractions,
       cellBorders: cellBorders ?? this.cellBorders,
+      cellBorderStyles: cellBorderStyles ?? this.cellBorderStyles,
       cellPaddings: cellPaddings ?? this.cellPaddings,
       size: size ?? this.size,
       position: position ?? this.position,
@@ -823,6 +997,7 @@ class TableDrawable extends Sized2DDrawable {
     next.cellDeltaJson.addAll(cellDeltaJson ?? this.cellDeltaJson);
     next.cellStyles.addAll(cellStyles ?? this.cellStyles);
     next.cellBorders.addAll(cellBorders ?? this.cellBorders);
+  next.cellBorderStyles.addAll(cellBorderStyles ?? this.cellBorderStyles);
     next.cellPaddings.addAll(cellPaddings ?? this.cellPaddings);
     next.editingRow = editingRow;
     next.editingCol = editingCol;
