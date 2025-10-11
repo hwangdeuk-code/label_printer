@@ -34,6 +34,14 @@ class _PainterPageState extends State<PainterPage> {
   Size get labelPixelSize =>
       Size(_mmToPixels(labelWidthMm), _mmToPixels(labelHeightMm));
 
+  Offset clampToLabel(Offset point) {
+    final Size size = labelPixelSize;
+    return Offset(
+      point.dx.clamp(0.0, size.width),
+      point.dy.clamp(0.0, size.height),
+    );
+  }
+
   void updateLabelSpec({
     double? widthMm,
     double? heightMm,

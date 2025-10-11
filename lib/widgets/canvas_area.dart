@@ -173,8 +173,7 @@ class _CanvasAreaState extends State<CanvasArea> {
               decoration: BoxDecoration(border: Border.all(color: Colors.black12)),
               child: Stack(
                 children: [
-                  
-                  // 실제 페인터
+                  // 실제 페인터(컨텐츠)는 라벨 영역 -1px 인셋으로만 클립
                   AbsorbPointer(
                     absorbing: absorbPainter,
                     child: RepaintBoundary(
@@ -185,7 +184,10 @@ class _CanvasAreaState extends State<CanvasArea> {
                         child: SizedBox(
                           width: widget.labelPixelSize.width,
                           height: widget.labelPixelSize.height,
-                          child: FlutterPainter(controller: widget.controller),
+                          child: ClipRect(
+                            clipper: _InsetClipper(1.0),
+                            child: FlutterPainter(controller: widget.controller),
+                          ),
                         ),
                       ),
                     ),
@@ -199,8 +201,7 @@ class _CanvasAreaState extends State<CanvasArea> {
                     ),
                   ),
 
-                  // 선택/드래그 오버레이
-// 선택/드래그 오버레이
+                  // 선택/드래그 오버레이 (핸들은 경계 밖으로도 그려지도록 클립 없음)
                   Positioned.fill(
                     child: IgnorePointer(
                       ignoring: overlayIgnored,
@@ -525,4 +526,21 @@ class _SelectionPainter extends CustomPainter {
         old.handleSize != handleSize ||
         old.isText != isText;
   }
+}
+
+class _InsetClipper extends CustomClipper<Rect> {
+  final double inset;
+  _InsetClipper(this.inset);
+
+  @override
+  Rect getClip(Size size) {
+    final left = inset.clamp(0.0, size.width / 2);
+    final top = inset.clamp(0.0, size.height / 2);
+    final width = (size.width - 2 * left).clamp(0.0, size.width);
+    final height = (size.height - 2 * top).clamp(0.0, size.height);
+    return Rect.fromLTWH(left, top, width, height);
+  }
+
+  @override
+  bool shouldReclip(covariant _InsetClipper oldClipper) => oldClipper.inset != inset;
 }

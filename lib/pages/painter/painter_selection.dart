@@ -1,11 +1,195 @@
 part of 'painter_page.dart';
 
+/// 라벨 영역(-1px 인셋) 안에 머물도록 이동 델타를 클램프한다.
+Offset _clampMoveDeltaToLabel(
+  _PainterPageState state,
+  Rect startRect,
+  Offset desiredDelta, {
+  double inset = 1.0,
+}) {
+  final Size label = state.labelPixelSize;
+  final Rect allowed = Rect.fromLTWH(
+    inset,
+    inset,
+    (label.width - inset * 2).clamp(0.0, double.infinity),
+    (label.height - inset * 2).clamp(0.0, double.infinity),
+  );
+
+  final Rect newRect = startRect.shift(desiredDelta);
+  double dx = desiredDelta.dx;
+  double dy = desiredDelta.dy;
+
+  // 좌/우 경계 보정
+  if (newRect.left < allowed.left) {
+    dx += allowed.left - newRect.left;
+  }
+  if (newRect.right > allowed.right) {
+    dx += allowed.right - newRect.right;
+  }
+
+  // 상/하 경계 보정
+  if (newRect.top < allowed.top) {
+    dy += allowed.top - newRect.top;
+  }
+  if (newRect.bottom > allowed.bottom) {
+    dy += allowed.bottom - newRect.bottom;
+  }
+
+  return Offset(dx, dy);
+}
+
+/// 회전된 객체의 이동 델타를, 시작 시점의 크기(startRect.size)와 각도(angle)를 기준으로
+/// 회전 AABB가 라벨(-inset) 내부에 유지되도록 중심을 클램프하여 반환한다.
+Offset _clampMoveDeltaToLabelRotated(
+  _PainterPageState state,
+  Rect startRect,
+  double angle,
+  Offset desiredDelta, {
+  double inset = 1.0,
+}) {
+  final Size label = state.labelPixelSize;
+  final Rect allowed = Rect.fromLTWH(
+    inset,
+    inset,
+    (label.width - inset * 2).clamp(0.0, double.infinity),
+    (label.height - inset * 2).clamp(0.0, double.infinity),
+  );
+
+  // 시작 시점 콘텐츠 크기와 각도로 회전 AABB 반폭 계산
+  final Size s = startRect.size;
+  final double cosA = math.cos(angle).abs();
+  final double sinA = math.sin(angle).abs();
+  final double rotW = s.width * cosA + s.height * sinA;
+  final double rotH = s.width * sinA + s.height * cosA;
+  final double halfW = rotW / 2.0;
+  final double halfH = rotH / 2.0;
+
+  final Offset desiredCenter = startRect.center + desiredDelta;
+  final double minX = allowed.left + halfW;
+  final double maxX = allowed.right - halfW;
+  final double minY = allowed.top + halfH;
+  final double maxY = allowed.bottom - halfH;
+
+  final double clampedX = desiredCenter.dx.clamp(minX, maxX);
+  final double clampedY = desiredCenter.dy.clamp(minY, maxY);
+  return Offset(clampedX - startRect.center.dx, clampedY - startRect.center.dy);
+}
+
+/// 현재 라벨 픽셀 크기를 기준으로 허용 사각형을 돌려준다. (-1px 인셋 기본)
+Rect _allowedLabelRect(_PainterPageState state, {double inset = 1.0}) {
+  final Size label = state.labelPixelSize;
+  return Rect.fromLTWH(
+    inset,
+    inset,
+    (label.width - inset * 2).clamp(0.0, double.infinity),
+    (label.height - inset * 2).clamp(0.0, double.infinity),
+  );
+}
+
+/// r 이 allowed 내부에 완전히 포함되는지 검사한다.
+bool _isRectInside(Rect r, Rect allowed) {
+  return r.left >= allowed.left &&
+      r.top >= allowed.top &&
+      r.right <= allowed.right &&
+      r.bottom <= allowed.bottom;
+}
+
+/// 점 p 를 사각형 r 안으로 클램프한다.
+Offset _clampPointToRect(Offset p, Rect r) {
+  return Offset(
+    p.dx.clamp(r.left, r.right),
+    p.dy.clamp(r.top, r.bottom),
+  );
+}
+
+
+/// 코너 리사이즈 시, 시작 경계(startRect)와 고정 코너(worldFixed), 원하는 이동점(worldDesired)을 바탕으로
+/// 결과 도형의 bounds(AABB)가 허용 사각형(라벨 - inset) 안에만 있도록 vMoveLocal(이동 코너의 로컬 좌표)를 이분 탐색으로 제한한다.
+/// buildCandidate는 주어진 vMoveLocal로 Drawable 후보를 생성하는 클로저여야 한다.
+Drawable _clampCornerResizeByBisection({
+  required _PainterPageState state,
+  required Rect startRect,
+  required double angle,
+  required Offset worldFixed,
+  required Offset worldDesired,
+  required DragAction action,
+  double inset = 1.0,
+  required Drawable Function(Offset vMoveLocal) buildCandidate,
+  required Drawable Function(Offset vMoveLocal) buildStartCandidate,
+}) {
+  final allowed = _allowedLabelRect(state, inset: inset);
+  final center0 = startRect.center;
+  // 로컬 좌표들 계산
+  // 시작 시점의 이동 코너(= 드래그 중 움직이는 코너)의 월드 좌표 추정 -> 로컬 변환
+  Offset _movingCornerForAction(Rect r, DragAction a) {
+    switch (a) {
+      case DragAction.resizeNW:
+        return r.topLeft;
+      case DragAction.resizeNE:
+        return r.topRight;
+      case DragAction.resizeSW:
+        return r.bottomLeft;
+      case DragAction.resizeSE:
+        return r.bottomRight;
+      default:
+        return r.center;
+    }
+  }
+
+  final startMovingCornerWorld = state._rotPoint(
+    _movingCornerForAction(startRect, action),
+    center0,
+    angle,
+  );
+  final vMove0 = state._toLocalVec(startMovingCornerWorld, center0, angle);
+  final vDesired = state._toLocalVec(worldDesired, center0, angle);
+
+  // 빠른 경로: 원하는 위치가 이미 허용 영역 안인 경우 바로 반환
+  final desiredCandidate = buildCandidate(vDesired);
+  final desiredBounds = state._boundsOf(desiredCandidate);
+  if (_isRectInside(desiredBounds, allowed)) {
+    return desiredCandidate;
+  }
+
+  // 시작 후보(항상 inside 여야 함)
+  final startCandidate = buildStartCandidate(vMove0);
+  final startBounds = state._boundsOf(startCandidate);
+  if (!_isRectInside(startBounds, allowed)) {
+    // 안전장치: 만약 시작 상태가 내부가 아니면 시작 상태로 되돌린다.
+    return startCandidate;
+  }
+
+  // [0,1] 구간에서 이분 탐색으로 허용되는 최대 t 를 찾는다.
+  double tLow = 0.0;
+  double tHigh = 1.0;
+  Drawable best = startCandidate;
+
+  for (int i = 0; i < 18; i++) {
+    final tMid = (tLow + tHigh) / 2.0;
+    final vMid = Offset(
+      vMove0.dx + (vDesired.dx - vMove0.dx) * tMid,
+      vMove0.dy + (vDesired.dy - vMove0.dy) * tMid,
+    );
+    final cand = buildCandidate(vMid);
+    final b = state._boundsOf(cand);
+    if (_isRectInside(b, allowed)) {
+      best = cand;
+      tLow = tMid;
+    } else {
+      tHigh = tMid;
+    }
+  }
+
+  return best;
+}
+
 void handlePointerDownSelect(
   _PainterPageState state,
   PointerDownEvent event,
 ) async {
   if (state.currentTool == tool.Tool.text) {
-    final scenePoint = state._sceneFromGlobal(event.position);
+    final scenePoint =
+        state.clampToLabel(state._sceneFromGlobal(event.position));
     await state._createTextAt(scenePoint);
     return;
   }
@@ -22,7 +206,8 @@ void handlePointerDownSelect(
     });
   }
 
-  final scenePoint = state._sceneFromGlobal(event.position);
+  final scenePoint =
+      state.clampToLabel(state._sceneFromGlobal(event.position));
   state._downScene = scenePoint;
   state._movedSinceDown = false;
   state._pressOnSelection = state._hitSelectionChromeScene(scenePoint);
@@ -56,7 +241,8 @@ void handleOverlayPanStart(_PainterPageState state, DragStartDetails details) {
   state._isCreatingLineLike = false;
   state._firstAngleLockPending = false;
 
-  final localScene = state._sceneFromGlobal(details.globalPosition);
+  final localScene =
+      state.clampToLabel(state._sceneFromGlobal(details.globalPosition));
   final current = state.selectedDrawable;
 
   void clearLineResize() {
@@ -167,39 +353,36 @@ void handleOverlayPanUpdate(
   state._movedSinceDown = true;
 
   final scenePtWorld = state._sceneFromGlobal(details.globalPosition);
-  var scenePtLocal = scenePtWorld;
 
   final original = state.selectedDrawable!;
   final startRect = state.dragStartBounds!;
   final startPtWorld = state.dragStartPointer!;
   Drawable? replaced;
 
-  final isTextLike =
-      original is BarcodeDrawable ||
-      original is ConstrainedTextDrawable ||
-      original is TextDrawable ||
-      original is ImageBoxDrawable ||
-      original is TableDrawable;
   final isCornerResize =
       state.dragAction == DragAction.resizeNW ||
       state.dragAction == DragAction.resizeNE ||
       state.dragAction == DragAction.resizeSW ||
       state.dragAction == DragAction.resizeSE;
 
-  if (isTextLike && isCornerResize) {
-    final angle = (original as ObjectDrawable).rotationAngle;
-    if (angle != 0) {
-      final c = startRect.center;
-      final dx = scenePtWorld.dx - c.dx;
-      final dy = scenePtWorld.dy - c.dy;
-      final ca = math.cos(-angle);
-      final sa = math.sin(-angle);
-      scenePtLocal = Offset(ca * dx - sa * dy + c.dx, sa * dx + ca * dy + c.dy);
-    }
-  }
-
   if (state.dragAction == DragAction.move) {
-    final delta = scenePtWorld - startPtWorld;
+    final desired = scenePtWorld - startPtWorld;
+    Offset delta;
+    if (original is LineDrawable || original is ArrowDrawable) {
+      // 선/화살표는 startRect가 이미 AABB이며, 기존 방식으로 충분
+      delta = _clampMoveDeltaToLabel(state, startRect, desired, inset: 1.0);
+    } else if (original is ObjectDrawable) {
+      final angle = original.rotationAngle;
+      delta = _clampMoveDeltaToLabelRotated(
+        state,
+        startRect,
+        angle,
+        desired,
+        inset: 1.0,
+      );
+    } else {
+      delta = _clampMoveDeltaToLabel(state, startRect, desired, inset: 1.0);
+    }
     if (original is ObjectDrawable) {
       replaced = (original as dynamic).copyWith(
         position: startRect.center + delta,
@@ -242,18 +425,25 @@ void handleOverlayPanUpdate(
       } else if (original is ImageBoxDrawable) {
         replaced = original.copyWithExt(rotation: newAngle);
       }
+
+      if (replaced != null) {
+        replaced = adjustInsideAllowed(state, replaced, inset: 1.0);
+      }
     }
   } else {
     if (original is RectangleDrawable || original is OvalDrawable) {
       final fixed =
           state.dragFixedCorner ??
           _fixedCornerForAction(startRect, state.dragAction);
-      Rect newRect = Rect.fromPoints(fixed, scenePtWorld);
+      // 경계(-1px) 내로 이동 코너를 먼저 클램프한다 (축회전 없음)
+      final allowed = _allowedLabelRect(state, inset: 1.0);
+      final clampedMove = _clampPointToRect(scenePtWorld, allowed);
+      Rect newRect = Rect.fromPoints(fixed, clampedMove);
 
       if (state.lockRatio) {
         final size = newRect.size;
         final m = math.max(size.width.abs(), size.height.abs());
-        final dir = (scenePtWorld - fixed);
+        final dir = (clampedMove - fixed);
         final ddx = dir.dx.isNegative ? -m : m;
         final ddy = dir.dy.isNegative ? -m : m;
         newRect = Rect.fromPoints(fixed, fixed + Offset(ddx, ddy));
@@ -281,33 +471,45 @@ void handleOverlayPanUpdate(
         final worldFixed = state.dragFixedCorner!;
         final worldMove = scenePtWorld;
 
-        final vFixed = state._toLocalVec(worldFixed, center0, angle);
-        final vMove = state._toLocalVec(worldMove, center0, angle);
-
-        Offset vCenter = (vFixed + vMove) / 2;
-        Size newSize = Size(
-          (vMove.dx - vFixed.dx).abs(),
-          (vMove.dy - vFixed.dy).abs(),
-        );
-
-        if (state.lockRatio) {
-          final size = math.max(newSize.width, newSize.height);
-          final signX = (vMove.dx - vFixed.dx) >= 0 ? 1.0 : -1.0;
-          final signY = (vMove.dy - vFixed.dy) >= 0 ? 1.0 : -1.0;
-          final vMoveLocked = Offset(
-            vFixed.dx + signX * size,
-            vFixed.dy + signY * size,
+        Drawable buildWith(Offset vMoveLocal) {
+          // vFixed 는 build 범위 밖에서 캡처
+          final vFixed = state._toLocalVec(worldFixed, center0, angle);
+          Offset vCenter = (vFixed + vMoveLocal) / 2;
+          Size newSize = Size(
+            (vMoveLocal.dx - vFixed.dx).abs(),
+            (vMoveLocal.dy - vFixed.dy).abs(),
           );
-          vCenter = (vFixed + vMoveLocked) / 2;
-          newSize = Size(size, size);
+          if (state.lockRatio) {
+            final size = math.max(newSize.width, newSize.height);
+            final signX = (vMoveLocal.dx - vFixed.dx) >= 0 ? 1.0 : -1.0;
+            final signY = (vMoveLocal.dy - vFixed.dy) >= 0 ? 1.0 : -1.0;
+            final vMoveLocked = Offset(
+              vFixed.dx + signX * size,
+              vFixed.dy + signY * size,
+            );
+            vCenter = (vFixed + vMoveLocked) / 2;
+            newSize = Size(size, size);
+          }
+          final newCenterWorld = state._fromLocalVec(vCenter, center0, angle);
+          return original.copyWith(
+            position: newCenterWorld,
+            size: newSize,
+            rotation: angle,
+          );
         }
 
-        final newCenterWorld = state._fromLocalVec(vCenter, center0, angle);
+        Drawable buildStart(Offset vMove0) => buildWith(vMove0);
 
-        replaced = original.copyWith(
-          position: newCenterWorld,
-          size: newSize,
-          rotation: angle,
+        replaced = _clampCornerResizeByBisection(
+          state: state,
+          startRect: startRect,
+          angle: angle,
+          worldFixed: worldFixed,
+          worldDesired: worldMove,
+          action: state.dragAction,
+          inset: 1.0,
+          buildCandidate: buildWith,
+          buildStartCandidate: buildStart,
         );
       }
     } else if (original is ConstrainedTextDrawable) {
@@ -318,18 +520,32 @@ void handleOverlayPanUpdate(
         final worldFixed = state.dragFixedCorner!;
         final worldMove = scenePtWorld;
 
-        final vFixed = state._toLocalVec(worldFixed, center0, angle);
-        final vMove = state._toLocalVec(worldMove, center0, angle);
+        Drawable buildWith(Offset vMoveLocal) {
+          final vFixed = state._toLocalVec(worldFixed, center0, angle);
+          final newWidth = (vMoveLocal.dx - vFixed.dx).abs().clamp(40.0, 2000.0);
+          final signX = (vMoveLocal.dx - vFixed.dx) >= 0 ? 1.0 : -1.0;
+          final vMoveAdjusted = Offset(vFixed.dx + signX * newWidth, vMoveLocal.dy);
+          final vCenter = (vFixed + vMoveAdjusted) / 2;
+          final newCenterWorld = state._fromLocalVec(vCenter, center0, angle);
+          return original.copyWith(
+            position: newCenterWorld,
+            maxWidth: newWidth,
+            rotation: angle,
+          );
+        }
 
-        final vCenter = (vFixed + vMove) / 2;
-        final newWidth = (vMove.dx - vFixed.dx).abs().clamp(40.0, 2000.0);
+        Drawable buildStart(Offset vMove0) => buildWith(vMove0);
 
-        final newCenterWorld = state._fromLocalVec(vCenter, center0, angle);
-
-        replaced = original.copyWith(
-          position: newCenterWorld,
-          maxWidth: newWidth,
-          rotation: angle,
+        replaced = _clampCornerResizeByBisection(
+          state: state,
+          startRect: startRect,
+          angle: angle,
+          worldFixed: worldFixed,
+          worldDesired: worldMove,
+          action: state.dragAction,
+          inset: 1.0,
+          buildCandidate: buildWith,
+          buildStartCandidate: buildStart,
         );
       }
     } else if (original is TextDrawable) {
@@ -340,13 +556,26 @@ void handleOverlayPanUpdate(
         final worldFixed = state.dragFixedCorner!;
         final worldMove = scenePtWorld;
 
-        final vFixed = state._toLocalVec(worldFixed, center0, angle);
-        final vMove = state._toLocalVec(worldMove, center0, angle);
-        final vCenter = (vFixed + vMove) / 2;
+        Drawable buildWith(Offset vMoveLocal) {
+          final vFixed = state._toLocalVec(worldFixed, center0, angle);
+          final vCenter = (vFixed + vMoveLocal) / 2;
+          final newCenterWorld = state._fromLocalVec(vCenter, center0, angle);
+          return original.copyWith(position: newCenterWorld, rotation: angle);
+        }
 
-        final newCenterWorld = state._fromLocalVec(vCenter, center0, angle);
+        Drawable buildStart(Offset vMove0) => buildWith(vMove0);
 
-        replaced = original.copyWith(position: newCenterWorld, rotation: angle);
+        replaced = _clampCornerResizeByBisection(
+          state: state,
+          startRect: startRect,
+          angle: angle,
+          worldFixed: worldFixed,
+          worldDesired: worldMove,
+          action: state.dragAction,
+          inset: 1.0,
+          buildCandidate: buildWith,
+          buildStartCandidate: buildStart,
+        );
       }
     } else if (original is ImageBoxDrawable) {
       if (isCornerResize) {
@@ -356,33 +585,44 @@ void handleOverlayPanUpdate(
         final worldFixed = state.dragFixedCorner!;
         final worldMove = scenePtWorld;
 
-        final vFixed = state._toLocalVec(worldFixed, center0, angle);
-        final vMove = state._toLocalVec(worldMove, center0, angle);
-
-        Offset vCenter = (vFixed + vMove) / 2;
-        Size newSize = Size(
-          (vMove.dx - vFixed.dx).abs(),
-          (vMove.dy - vFixed.dy).abs(),
-        );
-
-        if (state.lockRatio) {
-          final size = math.max(newSize.width, newSize.height);
-          final signX = (vMove.dx - vFixed.dx) >= 0 ? 1.0 : -1.0;
-          final signY = (vMove.dy - vFixed.dy) >= 0 ? 1.0 : -1.0;
-          final vMoveLocked = Offset(
-            vFixed.dx + signX * size,
-            vFixed.dy + signY * size,
+        Drawable buildWith(Offset vMoveLocal) {
+          final vFixed = state._toLocalVec(worldFixed, center0, angle);
+          Offset vCenter = (vFixed + vMoveLocal) / 2;
+          Size newSize = Size(
+            (vMoveLocal.dx - vFixed.dx).abs(),
+            (vMoveLocal.dy - vFixed.dy).abs(),
           );
-          vCenter = (vFixed + vMoveLocked) / 2;
-          newSize = Size(size, size);
+          if (state.lockRatio) {
+            final size = math.max(newSize.width, newSize.height);
+            final signX = (vMoveLocal.dx - vFixed.dx) >= 0 ? 1.0 : -1.0;
+            final signY = (vMoveLocal.dy - vFixed.dy) >= 0 ? 1.0 : -1.0;
+            final vMoveLocked = Offset(
+              vFixed.dx + signX * size,
+              vFixed.dy + signY * size,
+            );
+            vCenter = (vFixed + vMoveLocked) / 2;
+            newSize = Size(size, size);
+          }
+          final newCenterWorld = state._fromLocalVec(vCenter, center0, angle);
+          return original.copyWithExt(
+            position: newCenterWorld,
+            size: newSize,
+            rotation: angle,
+          );
         }
 
-        final newCenterWorld = state._fromLocalVec(vCenter, center0, angle);
+        Drawable buildStart(Offset vMove0) => buildWith(vMove0);
 
-        replaced = original.copyWithExt(
-          position: newCenterWorld,
-          size: newSize,
-          rotation: angle,
+        replaced = _clampCornerResizeByBisection(
+          state: state,
+          startRect: startRect,
+          angle: angle,
+          worldFixed: worldFixed,
+          worldDesired: worldMove,
+          action: state.dragAction,
+          inset: 1.0,
+          buildCandidate: buildWith,
+          buildStartCandidate: buildStart,
         );
       }
     } else if (original is TableDrawable) {
@@ -393,39 +633,46 @@ void handleOverlayPanUpdate(
         final worldFixed = state.dragFixedCorner!;
         final worldMove = scenePtWorld;
 
-        final vFixed = state._toLocalVec(worldFixed, center0, angle);
-        final vMove = state._toLocalVec(worldMove, center0, angle);
+        Drawable buildWith(Offset vMoveLocal) {
+          final vFixed = state._toLocalVec(worldFixed, center0, angle);
+          final minWidth = original.columns * 16.0;
+          final minHeight = original.rows * 16.0;
+          final width = (vMoveLocal.dx - vFixed.dx).abs().clamp(minWidth, double.infinity);
+          final height = (vMoveLocal.dy - vFixed.dy).abs().clamp(minHeight, double.infinity);
+          final signX = (vMoveLocal.dx - vFixed.dx) >= 0 ? 1.0 : -1.0;
+          final signY = (vMoveLocal.dy - vFixed.dy) >= 0 ? 1.0 : -1.0;
+          final vMoveAdjusted = Offset(
+            vFixed.dx + signX * width,
+            vFixed.dy + signY * height,
+          );
+          final vCenter = (vFixed + vMoveAdjusted) / 2;
+          final newCenterWorld = state._fromLocalVec(vCenter, center0, angle);
+          return original.copyWith(
+            position: newCenterWorld,
+            size: Size(width, height),
+            rotation: angle,
+          );
+        }
 
-        final minWidth = original.columns * 16.0;
-        final minHeight = original.rows * 16.0;
-        final width = (vMove.dx - vFixed.dx).abs().clamp(
-          minWidth,
-          double.infinity,
-        );
-        final height = (vMove.dy - vFixed.dy).abs().clamp(
-          minHeight,
-          double.infinity,
-        );
-        final signX = (vMove.dx - vFixed.dx) >= 0 ? 1.0 : -1.0;
-        final signY = (vMove.dy - vFixed.dy) >= 0 ? 1.0 : -1.0;
-        final vMoveAdjusted = Offset(
-          vFixed.dx + signX * width,
-          vFixed.dy + signY * height,
-        );
-        final vCenter = (vFixed + vMoveAdjusted) / 2;
+        Drawable buildStart(Offset vMove0) => buildWith(vMove0);
 
-        final newCenterWorld = state._fromLocalVec(vCenter, center0, angle);
-
-        replaced = original.copyWith(
-          position: newCenterWorld,
-          size: Size(width, height),
-          rotation: angle,
+        replaced = _clampCornerResizeByBisection(
+          state: state,
+          startRect: startRect,
+          angle: angle,
+          worldFixed: worldFixed,
+          worldDesired: worldMove,
+          action: state.dragAction,
+          inset: 1.0,
+          buildCandidate: buildWith,
+          buildStartCandidate: buildStart,
         );
       }
     } else if (original is LineDrawable || original is ArrowDrawable) {
       if (state._laFixedEnd != null) {
         final fixed = state._laFixedEnd!;
-        final pnt = scenePtWorld;
+        final allowed = _allowedLabelRect(state, inset: 1.0);
+        final pnt = _clampPointToRect(scenePtWorld, allowed);
 
         double ang;
         double len;
@@ -920,3 +1167,4 @@ void createTableDrawable(_PainterPageState state, int rows, int columns) {
   });
   state._setTool(tool.Tool.select);
 }
+

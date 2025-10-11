@@ -769,8 +769,13 @@ class _ObjectWidgetState extends State<_ObjectWidget> {
       rotation: assistedRotation,
       assists: assists,
     );
+    // 경계 내로 위치 클램프 (컨트롤 패딩 포함)
+    final objSizeForClamp = newDrawable.getSize(maxWidth: double.infinity);
+    final clampedPos = _clampPositionToCanvas(
+        newDrawable.position, objSizeForClamp, newDrawable.rotationAngle);
+    final clampedDrawable = newDrawable.copyWith(position: clampedPos);
 
-    updateDrawable(drawable, newDrawable);
+    updateDrawable(drawable, clampedDrawable);
   }
 
   /// Calculates whether the object entered or exited the horizontal and vertical assist areas.
@@ -867,6 +872,44 @@ class _ObjectWidgetState extends State<_ObjectWidget> {
             renderBox.size.height / 2,
           );
     return center;
+  }
+
+  /// Returns the size of the painter canvas, or Size.zero if not available.
+  Size get canvasSize {
+    final renderBox = PainterController.of(context)
+        .painterKey
+        .currentContext
+        ?.findRenderObject() as RenderBox?;
+    return renderBox?.size ?? Size.zero;
+  }
+
+  /// Clamp an object center position so that its axis-aligned bounding box
+  /// (taking rotation into account) remains fully inside the painter canvas.
+  Offset _clampPositionToCanvas(Offset position, Size objectSize, double angle) {
+    final Size cs = canvasSize;
+    if (cs == Size.zero) return position;
+    // 콘텐츠 기준 크기만 사용 (핸들/오버레이는 클립하지 않으므로 경계 계산에서 제외)
+    final Size padded = objectSize;
+    
+    // Account for rotation: compute axis-aligned bounding box of rotated rect
+    final double cosA = math.cos(angle).abs();
+    final double sinA = math.sin(angle).abs();
+    final double rotW = padded.width * cosA + padded.height * sinA;
+    final double rotH = padded.width * sinA + padded.height * cosA;
+    final double halfW = rotW / 2.0;
+    final double halfH = rotH / 2.0;
+
+    // 1px 안쪽에서 멈추도록 인셋 적용
+    const double boundaryInset = 1.0;
+    final double minX = halfW + boundaryInset;
+    final double maxX = math.max(minX, cs.width - halfW - boundaryInset);
+    final double minY = halfH + boundaryInset;
+    final double maxY = math.max(minY, cs.height - halfH - boundaryInset);
+
+    final double clampedX = position.dx.clamp(minX, maxX);
+    final double clampedY = position.dy.clamp(minY, maxY);
+
+    return Offset(clampedX, clampedY);
   }
 
   /// Replaces a drawable with a new one.
@@ -994,8 +1037,8 @@ class _ObjectWidgetState extends State<_ObjectWidget> {
             (isReversed ? -1 : 1));
     final initialLength = vertical ? initial.size.height : initial.size.width;
 
-    final totalLength = (length / initial.scale + initialLength)
-        .clamp(0, double.infinity) as double;
+  final totalLengthDesired = (length / initial.scale + initialLength)
+    .clamp(0, double.infinity) as double;
 
     // final double scale = initialLength == 0 ?
     //   (length*2).clamp(0.001, double.infinity) :
@@ -1006,9 +1049,59 @@ class _ObjectWidgetState extends State<_ObjectWidget> {
     // So, a [Matrix4] is used to transform the needed event details to be consistent with
     // the current rotation of the object
 
+    // 현재 패딩(내부) 및 스케일 고려한 경계 내 최대 길이 계산
+    final Size initialRendered = initial.getSize(maxWidth: double.infinity);
+    final double paddingX =
+        (initialRendered.width - initial.size.width * initial.scale).toDouble();
+    final double paddingY =
+        (initialRendered.height - initial.size.height * initial.scale).toDouble();
+    final Size cs = canvasSize;
+    final double cosA = math.cos(initial.rotationAngle).abs();
+    final double sinA = math.sin(initial.rotationAngle).abs();
+
+    double allowedTotalLength = totalLengthDesired;
+    if (cs != Size.zero) {
+      // 변하는 축의 스케일 적용 후 값(패딩 포함)을 변수로 두고 경계 내 최대값 계산
+      double maxScaledVar = double.infinity;
+      if (!vertical) {
+        // 가로 리사이즈: 변수는 scaledW
+        // rotW = scaledW*cos + scaledH*sin <= cs.width
+        // rotH = scaledW*sin + scaledH*cos <= cs.height
+        final double scaledH =
+            initial.size.height * initial.scale + paddingY + objectPadding * 2;
+        if (cosA > 1e-6) {
+          maxScaledVar = math.min(maxScaledVar, (cs.width - scaledH * sinA) / cosA);
+        }
+        if (sinA > 1e-6) {
+          maxScaledVar = math.min(maxScaledVar, (cs.height - scaledH * cosA) / sinA);
+        }
+      } else {
+        // 세로 리사이즈: 변수는 scaledH
+        final double scaledW =
+            initial.size.width * initial.scale + paddingX + objectPadding * 2;
+        if (sinA > 1e-6) {
+          maxScaledVar = math.min(maxScaledVar, (cs.width - scaledW * cosA) / sinA);
+        }
+        if (cosA > 1e-6) {
+          maxScaledVar = math.min(maxScaledVar, (cs.height - scaledW * sinA) / cosA);
+        }
+      }
+
+      // scaledVar = totalLength*scale + paddingVar + objectPadding*2
+      if (maxScaledVar.isFinite) {
+        final double paddingVar = vertical ? paddingY : paddingX;
+        final double maxTotalLength =
+            (maxScaledVar - paddingVar - objectPadding * 2) / initial.scale;
+        allowedTotalLength = allowedTotalLength.clamp(0.0, maxTotalLength);
+      }
+    }
+
+    // 최종 사용 길이로 보정 후 위치 오프셋 재계산
+    final double adjustedLength =
+        (allowedTotalLength - initialLength) * initial.scale;
     final offsetPosition = Offset(
-      vertical ? 0 : (isReversed ? -1 : 1) * length / 2,
-      vertical ? (isReversed ? -1 : 1) * length / 2 : 0,
+      vertical ? 0 : (isReversed ? -1 : 1) * adjustedLength / 2,
+      vertical ? (isReversed ? -1 : 1) * adjustedLength / 2 : 0,
     );
 
     final rotateOffset = Matrix4.identity()
@@ -1019,16 +1112,17 @@ class _ObjectWidgetState extends State<_ObjectWidget> {
 
     final newDrawable = drawable.copyWith(
       size: Size(
-        vertical ? drawable.size.width : totalLength,
-        vertical ? totalLength : drawable.size.height,
+        vertical ? drawable.size.width : allowedTotalLength,
+        vertical ? allowedTotalLength : drawable.size.height,
       ),
       position: initial.position + position,
-      // scale: scale,
-      // rotation: assistedRotation,
-      // assists: assists,
     );
 
-    updateDrawable(drawable, newDrawable);
+    // 위치를 한 번 더 캔버스 안으로 클램프 (회전/컨트롤 패딩 포함)
+    final objSizeForClamp = newDrawable.getSize(maxWidth: double.infinity);
+    final clampedPos = _clampPositionToCanvas(
+        newDrawable.position, objSizeForClamp, newDrawable.rotationAngle);
+    updateDrawable(drawable, newDrawable.copyWith(position: clampedPos));
   }
 
   void onResizeControlPanEnd(int controlIndex,

@@ -93,6 +93,89 @@ Rect boundsOf(_PainterPageState state, Drawable drawable) {
   return Rect.zero;
 }
 
+/// 회전된 객체의 축정렬 경계(AABB)를 계산한다. (컨트롤 패딩 제외, 콘텐츠 기준)
+Rect rotatedAabbOf(_PainterPageState state, Drawable drawable) {
+  if (drawable is LineDrawable || drawable is ArrowDrawable) {
+    final a = lineStart(drawable);
+    final b = lineEnd(drawable);
+    return Rect.fromPoints(a, b);
+  }
+  if (drawable is ObjectDrawable) {
+    Size contentSize;
+    if (drawable is ConstrainedTextDrawable) {
+      contentSize = drawable.getSize(maxWidth: drawable.maxWidth);
+    } else if (drawable is TextDrawable) {
+      contentSize = drawable.getSize();
+    } else if (drawable is Sized2DDrawable) {
+      contentSize = drawable.getSize();
+    } else {
+      contentSize = drawable.getSize();
+    }
+
+    final angle = drawable.rotationAngle;
+    final cosA = math.cos(angle).abs();
+    final sinA = math.sin(angle).abs();
+    final rotW = contentSize.width * cosA + contentSize.height * sinA;
+    final rotH = contentSize.width * sinA + contentSize.height * cosA;
+    final halfW = rotW / 2;
+    final halfH = rotH / 2;
+    return Rect.fromLTRB(
+      drawable.position.dx - halfW,
+      drawable.position.dy - halfH,
+      drawable.position.dx + halfW,
+      drawable.position.dy + halfH,
+    );
+  }
+  return boundsOf(state, drawable);
+}
+
+/// 후보 도형이 라벨(-inset) 허용 영역을 벗어나면 position을 평행이동해 완전히 안쪽으로 들여보낸다.
+Drawable adjustInsideAllowed(_PainterPageState state, Drawable candidate,
+    {double inset = 1.0}) {
+  final Size label = state.labelPixelSize;
+  final Rect allowed = Rect.fromLTWH(
+    inset,
+    inset,
+    (label.width - inset * 2).clamp(0.0, double.infinity),
+    (label.height - inset * 2).clamp(0.0, double.infinity),
+  );
+
+  final Rect b = rotatedAabbOf(state, candidate);
+  double dx = 0.0;
+  double dy = 0.0;
+  if (b.left < allowed.left) {
+    dx = allowed.left - b.left;
+  } else if (b.right > allowed.right) {
+    dx = allowed.right - b.right;
+  }
+  if (b.top < allowed.top) {
+    dy = allowed.top - b.top;
+  } else if (b.bottom > allowed.bottom) {
+    dy = allowed.bottom - b.bottom;
+  }
+  if (dx == 0.0 && dy == 0.0) return candidate;
+
+  if (candidate is ObjectDrawable) {
+    final Offset newPos = candidate.position + Offset(dx, dy);
+    if (candidate is LineDrawable) {
+      return candidate.copyWith(position: newPos);
+    } else if (candidate is ArrowDrawable) {
+      return candidate.copyWith(position: newPos);
+    } else if (candidate is ConstrainedTextDrawable) {
+      return candidate.copyWith(position: newPos);
+    } else if (candidate is TextDrawable) {
+      return candidate.copyWith(position: newPos);
+    } else if (candidate is BarcodeDrawable) {
+      return candidate.copyWith(position: newPos);
+    } else if (candidate is ImageBoxDrawable) {
+      return candidate.copyWithExt(position: newPos);
+    } else if (candidate is TableDrawable) {
+      return candidate.copyWith(position: newPos);
+    }
+  }
+  return candidate;
+}
+
 bool isPainterGestureTool(_PainterPageState state) =>
     state.currentTool == tool.Tool.pen ||
     state.currentTool == tool.Tool.eraser ||

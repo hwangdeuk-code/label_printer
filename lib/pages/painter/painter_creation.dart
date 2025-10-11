@@ -21,7 +21,8 @@ void handlePanStartCreate(_PainterPageState state, DragStartDetails details) {
     });
   }
 
-  state.dragStart = state._sceneFromGlobal(details.globalPosition);
+  state.dragStart =
+      state.clampToLabel(state._sceneFromGlobal(details.globalPosition));
   state.previewShape = state._makeShape(state.dragStart!, state.dragStart!);
   if (state.previewShape != null) {
     state.controller.addDrawables([state.previewShape!]);
@@ -35,7 +36,8 @@ void handlePanUpdateCreate(_PainterPageState state, DragUpdateDetails details) {
     return;
   }
   if (state.dragStart == null || state.previewShape == null) return;
-  final current = state._sceneFromGlobal(details.globalPosition);
+  final current =
+      state.clampToLabel(state._sceneFromGlobal(details.globalPosition));
 
   if (state._isCreatingLineLike) {
     final delta = current - state.dragStart!;

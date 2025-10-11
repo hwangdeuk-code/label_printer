@@ -213,8 +213,9 @@ Widget buildPainterBody(_PainterPageState state, BuildContext context) {
           strokeWidth: state.strokeWidth,
           onApplyStroke: state._applyInspector,
           onReplaceDrawable: (original, replacement) {
-            state.controller.replaceDrawable(original, replacement);
-            state.setState(() => state.selectedDrawable = replacement);
+            final adjusted = adjustInsideAllowed(state, replacement, inset: 1.0);
+            state.controller.replaceDrawable(original, adjusted);
+            state.setState(() => state.selectedDrawable = adjusted);
           },
           angleSnap: state.angleSnap,
           snapAngle: state._snapAngle,
@@ -231,8 +232,9 @@ Widget buildPainterBody(_PainterPageState state, BuildContext context) {
             if (current == null) return;
             final replacement = rewriter(current);
             if (identical(replacement, current)) return;
-            state.controller.replaceDrawable(current, replacement);
-            state.setState(() => state.selectedDrawable = replacement);
+            final adjusted = adjustInsideAllowed(state, replacement, inset: 1.0);
+            state.controller.replaceDrawable(current, adjusted);
+            state.setState(() => state.selectedDrawable = adjusted);
           },
           showCellQuillSection:
               state._editingTable != null &&
