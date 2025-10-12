@@ -1,4 +1,4 @@
-import 'package:barcode/barcode.dart';
+import '../models/barcode.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/gestures.dart';
@@ -481,18 +481,26 @@ class ToolPanel extends StatelessWidget {
   ];
 
   static const _barcodeTypes = [
-    BarcodeType.Code128,
-    BarcodeType.Code39,
-    BarcodeType.QrCode,
-    BarcodeType.PDF417,
-    BarcodeType.DataMatrix,
+    BarcodeType.CodeEAN13, // EAN13
+    BarcodeType.Code128,   // CODE128
+    BarcodeType.Itf,       // ISOF5 (ITF)
+    BarcodeType.Code39,    // CODE39
+    BarcodeType.Code93,    // CODE93
+    BarcodeType.UpcA,      // UPC-A
+    BarcodeType.QrCode,    // QRCode
+    BarcodeType.MicroQrCode, // MicroQRCode
+    BarcodeType.DataMatrix,  // DataMatrix
   ];
 
   static const _barcodeLabels = <BarcodeType, String>{
+    BarcodeType.CodeEAN13: 'EAN-13',
     BarcodeType.Code128: 'Code 128',
+    BarcodeType.Itf: 'ISOF5 (ITF)',
     BarcodeType.Code39: 'Code 39',
+    BarcodeType.Code93: 'Code 93',
+    BarcodeType.UpcA: 'UPC-A',
     BarcodeType.QrCode: 'QR Code',
-    BarcodeType.PDF417: 'PDF417',
+    BarcodeType.MicroQrCode: 'Micro QR Code',
     BarcodeType.DataMatrix: 'Data Matrix',
   };
 
@@ -524,7 +532,7 @@ class _TableToolButtonState extends State<_TableToolButton> {
 
   void _showOverlay() {
     if (_overlay != null) return;
-    final overlayState = Overlay.of(context);
+    final overlayState = Overlay.maybeOf(context);
     final renderBox = context.findRenderObject() as RenderBox?;
     if (overlayState == null || renderBox == null || !renderBox.attached)
       return;
@@ -649,18 +657,10 @@ class _TablePickerOverlay extends StatefulWidget {
   const _TablePickerOverlay({
     required this.onConfirm,
     required this.onCancel,
-    this.maxRows = defaultGridRows,
-    this.maxColumns = defaultGridColumns,
-    this.initialRows = 1,
-    this.initialColumns = 1,
   });
 
   final void Function(int rows, int columns) onConfirm;
   final VoidCallback onCancel;
-  final int maxRows;
-  final int maxColumns;
-  final int initialRows;
-  final int initialColumns;
 
   static const int defaultGridRows = 10;
   static const int defaultGridColumns = 10;
@@ -687,15 +687,15 @@ class _TablePickerOverlayState extends State<_TablePickerOverlay> {
   @override
   void initState() {
     super.initState();
-    _rows = widget.initialRows.clamp(1, widget.maxRows);
-    _columns = widget.initialColumns.clamp(1, widget.maxColumns);
+    _rows = 1;
+    _columns = 1;
   }
 
   void _updateFromPosition(Offset local) {
     final dx = local.dx - _TablePickerOverlay.padding;
     final dy = local.dy - _TablePickerOverlay.padding;
-    final col = _indexForOffset(dx, widget.maxColumns);
-    final row = _indexForOffset(dy, widget.maxRows);
+    final col = _indexForOffset(dx, _TablePickerOverlay.defaultGridColumns);
+    final row = _indexForOffset(dy, _TablePickerOverlay.defaultGridRows);
     setState(() {
       _columns = col + 1;
       _rows = row + 1;
@@ -748,19 +748,19 @@ class _TablePickerOverlayState extends State<_TablePickerOverlay> {
     final borderInactive = theme.dividerColor;
 
     final rows = <Widget>[];
-    for (var r = 0; r < widget.maxRows; r++) {
+    for (var r = 0; r < _TablePickerOverlay.defaultGridRows; r++) {
       rows.add(
         Padding(
           padding: EdgeInsets.only(
-            bottom: r == widget.maxRows - 1 ? 0 : _TablePickerOverlay.cellGap,
+            bottom: r == _TablePickerOverlay.defaultGridRows - 1 ? 0 : _TablePickerOverlay.cellGap,
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              for (var c = 0; c < widget.maxColumns; c++)
+              for (var c = 0; c < _TablePickerOverlay.defaultGridColumns; c++)
                 Padding(
                   padding: EdgeInsets.only(
-                    right: c == widget.maxColumns - 1
+                    right: c == _TablePickerOverlay.defaultGridColumns - 1
                         ? 0
                         : _TablePickerOverlay.cellGap,
                   ),

@@ -1,6 +1,7 @@
 import 'dart:math' as math;
+import 'dart:convert';
 
-import 'package:barcode/barcode.dart';
+import '../models/barcode.dart';
 import 'package:flutter/material.dart';
 
 import '../drawables/barcode_drawable.dart';
@@ -17,7 +18,6 @@ import '../flutter_painter_v2/controllers/drawables/shape/line_drawable.dart';
 import '../flutter_painter_v2/controllers/drawables/shape/oval_drawable.dart';
 import '../flutter_painter_v2/controllers/drawables/shape/rectangle_drawable.dart';
 import '../flutter_painter_v2/controllers/drawables/text_drawable.dart';
-import '../models/tool.dart';
 
 class EzplBuildResult {
   final String commands;
@@ -36,15 +36,34 @@ class EzplBuilder {
   final Size labelSizeDots;
   final Size sourceSize;
   final double dpi;
+  // When true, we should prefer raster fallback (e.g., background fills not supported in EZPL vector path)
+  bool _requiresRaster = false;
 
   double get _scaleX => labelSizeDots.width / sourceSize.width;
   double get _scaleY => labelSizeDots.height / sourceSize.height;
 
   EzplBuildResult build(Iterable<Drawable> drawables) {
+    // Special-case: EZPL Micro QR (W command) when the page has only a single Micro QR barcode.
+    final visible = [
+      for (final d in drawables)
+        if (!d.hidden) d,
+    ];
+    if (visible.length == 1 && visible.first is BarcodeDrawable) {
+      final b = visible.first as BarcodeDrawable;
+      if (b.type == BarcodeType.MicroQrCode && _isAxisAligned(b.rotationAngle)) {
+        final commands = _buildEzplMicroQrStandalone(b);
+        if (commands != null && commands.isNotEmpty) {
+          return EzplBuildResult(commands: commands, fullyVector: true);
+        }
+      }
+    }
+
+    // EZPL framing
+    final double heightMm = labelSizeDots.height / dpi * 25.4;
+    final int qHeightMm = heightMm.isFinite && heightMm > 0 ? heightMm.round() : 50;
     final buffer = StringBuffer()
-      ..write('^XA\r\n')
-      ..write('^PW${labelSizeDots.width.round()}\r\n')
-      ..write('^LL${labelSizeDots.height.round()}\r\n');
+      ..write('^Q$qHeightMm,0,0\r\n')
+      ..write('^L\r\n');
 
     bool allSupported = true;
     for (final drawable in drawables) {
@@ -59,14 +78,58 @@ class EzplBuilder {
       }
     }
 
-    buffer
-      ..write('^PQ1\r\n')
-      ..write('^XZ\r\n');
+    buffer.write('E\r\n');
 
     return EzplBuildResult(
       commands: buffer.toString(),
-      fullyVector: allSupported,
+      // If any drawable was unsupported or vector path can't represent something (e.g., backgrounds),
+      // mark as not fully vector so callers can default to raster.
+      fullyVector: allSupported && !_requiresRaster,
     );
+  }
+
+  // Build an EZPL label using the W command for Micro QR, when the page contains only this barcode.
+  String? _buildEzplMicroQrStandalone(BarcodeDrawable b) {
+    // Compute label height in millimeters for ^Q parameter (approximation)
+    final double heightMm = labelSizeDots.height / dpi * 25.4;
+    final int qHeightMm = heightMm.isFinite && heightMm > 0 ? heightMm.round() : 50;
+
+    // Compute top-left in dots
+    final size = b.size;
+    final center = b.position;
+    final topLeft = center - Offset(size.width / 2, size.height / 2);
+    final int x = _x(topLeft.dx);
+    final int y = _y(topLeft.dy);
+
+    // Rotation mapping: 0,90,180,270 -> 0,1,2,3
+    int rotationIndex = 0;
+    final a = (_normalizeAngle(b.rotationAngle)).abs();
+    if ((a - (math.pi / 2)).abs() < 0.0001) rotationIndex = 1;
+    if ((a - math.pi).abs() < 0.0001) rotationIndex = 2;
+    if ((a - (3 * math.pi / 2)).abs() < 0.0001) rotationIndex = 3;
+
+  // Module size: use drawable override if provided, else derive from width
+  int module = b.microModule ?? (_w(size.width) / 32).round();
+  module = math.max(2, math.min(10, module));
+
+    // Data length in bytes
+    final data = _sanitizeBarcodeData(b.data);
+    final int len = utf8.encode(data).length;
+
+    // EZPL Micro QR constraints
+    // mode=1 (auto), type=3 (Micro QR), ec=M (H not supported), mask=0 as required
+    const int mode = 1;
+    const int type = 3;
+    const String ec = 'M';
+    const int mask = 0;
+
+    final sb = StringBuffer()
+      ..write('^Q$qHeightMm,0,0\r\n')
+      ..write('^L\r\n')
+      ..write('W$x,$y,$mode,$type,$ec,$mask,$module,$len,$rotationIndex\r\n')
+      ..write('$data\r\n')
+      ..write('E\r\n');
+    return sb.toString();
   }
 
   int _x(double value) => (value * _scaleX).round();
@@ -78,13 +141,13 @@ class EzplBuilder {
 
   String? _encodeDrawable(Drawable drawable) {
     if (drawable is RectangleDrawable) {
-      return _encodeRectangle(drawable);
+      return _encodeRectangleEzpl(drawable);
     }
     if (drawable is OvalDrawable) {
-      return _encodeOval(drawable);
+      return null; // not supported in EZPL vector path currently
     }
     if (drawable is LineDrawable) {
-      return _encodeLine(
+      return _encodeLineEzpl(
         drawable.position,
         drawable.length,
         drawable.rotationAngle,
@@ -92,7 +155,7 @@ class EzplBuilder {
       );
     }
     if (drawable is ArrowDrawable) {
-      return _encodeLine(
+      return _encodeLineEzpl(
         drawable.position,
         drawable.length,
         drawable.rotationAngle,
@@ -100,7 +163,7 @@ class EzplBuilder {
       );
     }
     if (drawable is DoubleArrowDrawable) {
-      return _encodeLine(
+      return _encodeLineEzpl(
         drawable.position,
         drawable.length,
         drawable.rotationAngle,
@@ -108,16 +171,16 @@ class EzplBuilder {
       );
     }
     if (drawable is ConstrainedTextDrawable) {
-      return _encodeConstrainedText(drawable);
+      return _encodeConstrainedTextEzpl(drawable);
     }
     if (drawable is TextDrawable) {
-      return _encodeText(drawable);
+      return _encodeTextEzpl(drawable);
     }
     if (drawable is BarcodeDrawable) {
-      return _encodeBarcode(drawable);
+      return _encodeBarcodeEzpl(drawable);
     }
     if (drawable is TableDrawable) {
-      return _encodeTable(drawable);
+      return _encodeTableEzpl(drawable);
     }
     if (drawable is FreeStyleDrawable ||
         drawable is EraseDrawable ||
@@ -128,7 +191,7 @@ class EzplBuilder {
     return null;
   }
 
-  String? _encodeTable(TableDrawable table) {
+  String? _encodeTableEzpl(TableDrawable table) {
     // 테이블은 회전 없이 축 정렬일 때만 벡터로 출력 지원
     if (!_isAxisAligned(table.rotationAngle)) return null;
 
@@ -173,21 +236,20 @@ class EzplBuilder {
     // 보더 그리기 유틸리티
     void _drawSolidH(int x1, int x2, int y, int stroke) {
       if (x2 <= x1 || stroke <= 0) return;
-      final len = x2 - x1;
-      sb.write('^FO$x1,$y^GB$len,0,$stroke,B,0^FS\r\n');
+      sb.write('La,$x1,$y,$x2,$y\r\n');
     }
 
     void _drawSolidV(int x, int y1, int y2, int stroke) {
       if (y2 <= y1 || stroke <= 0) return;
-      final len = y2 - y1;
-      sb.write('^FO$x,$y1^GB0,$len,$stroke,B,0^FS\r\n');
+      sb.write('La,$x,$y1,$x,$y2\r\n');
     }
 
     void _drawDashedH(int x1, int x2, int y, int stroke) {
       if (x2 <= x1 || stroke <= 0) return;
+      // EZPL doesn't have dashed primitive directly; approximate with small segments
       final total = x2 - x1;
-      final dash = math.max(2, (stroke * 6).round());
-      final gap = math.max(2, (stroke * 3).round());
+      final dash = math.max(6, (stroke * 6).round());
+      final gap = math.max(4, (stroke * 3).round());
       int offset = 0;
       while (offset < total) {
         final seg = math.min(dash, total - offset);
@@ -200,8 +262,8 @@ class EzplBuilder {
     void _drawDashedV(int x, int y1, int y2, int stroke) {
       if (y2 <= y1 || stroke <= 0) return;
       final total = y2 - y1;
-      final dash = math.max(2, (stroke * 6).round());
-      final gap = math.max(2, (stroke * 3).round());
+      final dash = math.max(6, (stroke * 6).round());
+      final gap = math.max(4, (stroke * 3).round());
       int offset = 0;
       while (offset < total) {
         final seg = math.min(dash, total - offset);
@@ -310,62 +372,168 @@ class EzplBuilder {
       }
     }
 
+    // === 셀/서브셀 컨텐츠 및 배경 ===
+    // helper: 셀 루트 여부
+    bool _isRoot(int r, int c) {
+      final rt = table.resolveRoot(r, c);
+      return rt.$1 == r && rt.$2 == c;
+    }
+
+    // alignment is not mapped in this EZPL text path; ignored for now
+
+    // helper: plain text from quill delta json
+    String _plainFromDelta(String? jsonStr) {
+      if (jsonStr == null || jsonStr.isEmpty) return '';
+      try {
+        final decoded = json.decode(jsonStr);
+        final List ops;
+        if (decoded is List) {
+          ops = decoded.cast<dynamic>();
+        } else if (decoded is Map && decoded['ops'] is List) {
+          ops = (decoded['ops'] as List).cast<dynamic>();
+        } else {
+          return '';
+        }
+        final buf = StringBuffer();
+        for (final op in ops) {
+          if (op is Map && op['insert'] != null) {
+            buf.write(op['insert'].toString());
+          }
+        }
+        return _sanitizeText(buf.toString());
+      } catch (_) {
+        return '';
+      }
+    }
+
+    // 반복: 루트 셀 단위로 컨텐츠 인코딩
+    for (int r = 0; r < table.rows; r++) {
+      for (int c = 0; c < table.columns; c++) {
+        if (!_isRoot(r, c)) continue;
+        final span = table.spanForRoot(r, c);
+        final rowSpan = span?.rowSpan ?? 1;
+        final colSpan = span?.colSpan ?? 1;
+
+        // 셀의 도트 좌표(rect)
+        final int leftDot = xs[c];
+        final int rightDot = xs[c + colSpan];
+        final int topDot = ys[r];
+        final int bottomDot = ys[r + rowSpan];
+        final int cellW = rightDot - leftDot;
+        final int cellH = bottomDot - topDot;
+        if (cellW <= 0 || cellH <= 0) continue;
+
+        // 내부 분할 여부 판단
+  final innerFracs = table.internalFractionsOf(r, c);
+  final bool hasInner = innerFracs != null && innerFracs.length > 1;
+
+        if (hasInner) {
+          // 내부 서브셀 폭 경계(도트)
+          final innerStops = () {
+            final fracs = innerFracs; // not null when hasInner == true
+            final sum = fracs.fold<double>(0.0, (a, b) => a + b);
+            final fr = sum == 0 ? fracs : fracs.map((f) => f / sum).toList();
+            final stops = <int>[leftDot];
+            double acc = 0;
+            for (int i = 0; i < fr.length; i++) {
+              acc += fr[i] * cellW;
+              int pos = leftDot + acc.round();
+              if (pos <= stops.last) pos = stops.last + 1;
+              stops.add(pos);
+            }
+            stops[stops.length - 1] = rightDot;
+            return stops;
+          }();
+
+          for (int i = 0; i < innerFracs.length; i++) {
+            final subL = innerStops[i];
+            final subR = innerStops[i + 1];
+            final subT = topDot;
+            final subB = bottomDot;
+            final subW = subR - subL;
+            final subH = subB - subT;
+            if (subW <= 0 || subH <= 0) continue;
+
+            // 배경색 (내부 스타일의 bgColor 우선)
+            final subStyle = table.internalStyleOf(r, c, i);
+            final bgVal = subStyle['bgColor'];
+            if (bgVal is int) {
+              final color = Color(bgVal);
+              if (color.a > 0) {
+                // EZPL: no direct fill primitive here; request raster fallback
+                _requiresRaster = true;
+              }
+            }
+
+            // 텍스트 컨텐츠
+            final padding = table.internalPaddingOf(r, c, i);
+            final int padL = _w(padding.left);
+            final int padT = _h(padding.top);
+            final int padR = _w(padding.right);
+            final int padB = _h(padding.bottom);
+            final int textL = subL + padL;
+            final int textT = subT + padT;
+            final int textW = subW - padL - padR;
+            final int textH = subH - padT - padB;
+            if (textW <= 0 || textH <= 0) continue;
+            final String content = _plainFromDelta(
+              table.internalDeltaJsonOf(r, c, i),
+            );
+            if (content.isEmpty) continue;
+            final double fs = (subStyle['fontSize'] as double?) ?? 12.0;
+            final int fontH = math.max(10, _h(fs));
+            final int fontW = math.max(1, (fontH * 0.6).round());
+            // EZPL AT: x,y,w,h,g,s,d,m,data (rough mapping; alignment ignored)
+            sb.write('AT,$textL,$textT,$fontW,$fontH,0,0,0,0,$content\r\n');
+          }
+        } else {
+          // 셀 배경
+          final bg = table.backgroundColorOf(r, c);
+          if (bg != null && bg.a > 0) {
+            // EZPL: no direct fill primitive here; request raster fallback
+            _requiresRaster = true;
+          }
+
+          // 텍스트 컨텐츠
+          final padding = table.paddingOf(r, c);
+          final int padL = _w(padding.left);
+          final int padT = _h(padding.top);
+          final int padR = _w(padding.right);
+          final int padB = _h(padding.bottom);
+          final int textL = leftDot + padL;
+          final int textT = topDot + padT;
+          final int textW = cellW - padL - padR;
+          final int textH = cellH - padT - padB;
+          if (textW > 0 && textH > 0) {
+            final String content = _plainFromDelta(table.deltaJson(r, c));
+            if (content.isNotEmpty) {
+              final style = table.styleOf(r, c);
+              final double fs = (style['fontSize'] as double?) ?? 12.0;
+              final int fontH = math.max(10, _h(fs));
+              final int fontW = math.max(1, (fontH * 0.6).round());
+              sb.write('AT,$textL,$textT,$fontW,$fontH,0,0,0,0,$content\r\n');
+            }
+          }
+        }
+      }
+    }
+
     return sb.toString();
   }
-
-  String? _encodeRectangle(RectangleDrawable rect) {
+  String? _encodeRectangleEzpl(RectangleDrawable rect) {
     if (!_isAxisAligned(rect.rotationAngle)) return null;
     final size = rect.size;
     final center = rect.position;
     final topLeft = center - Offset(size.width / 2, size.height / 2);
     final left = _x(topLeft.dx);
     final top = _y(topLeft.dy);
-    final width = _w(size.width);
-    final height = _h(size.height);
-    final stroke = _avgStroke(rect.paint.strokeWidth);
-    final int roundness = rect.borderRadius.topLeft.x > 0
-        ? math.min(8, (_w(rect.borderRadius.topLeft.x) / 2).round())
-        : 0;
-    final color = _colorCode(rect.paint.color);
-
-    final buffer = StringBuffer()
-      ..write('^FO$left,$top')
-      ..write('^GB$width,$height,$stroke,$color,$roundness^FS\r\n');
-
-    if (rect.paint.style == PaintingStyle.fill) {
-      final fillStroke = math.max(width, height);
-      buffer
-        ..write('^FO$left,$top')
-        ..write('^GB$width,$height,$fillStroke,$color,$roundness^FS\r\n');
-    }
-    return buffer.toString();
+    final right = left + _w(size.width);
+    final bottom = top + _h(size.height);
+    // Stroke width ignored; EZPL La draws 1-pixel lines typically; approximate with 1
+    return 'Rx,$left,$top,$right,$bottom,1,0\r\n';
   }
 
-  String? _encodeOval(OvalDrawable oval) {
-    if (!_isAxisAligned(oval.rotationAngle)) return null;
-    final size = oval.size;
-    final center = oval.position;
-    final topLeft = center - Offset(size.width / 2, size.height / 2);
-    final left = _x(topLeft.dx);
-    final top = _y(topLeft.dy);
-    final width = _w(size.width);
-    final height = _h(size.height);
-    final stroke = _avgStroke(oval.paint.strokeWidth);
-    final color = _colorCode(oval.paint.color);
-
-    final buffer = StringBuffer()
-      ..write('^FO$left,$top')
-      ..write('^GE$width,$height,$stroke,$color^FS\r\n');
-    if (oval.paint.style == PaintingStyle.fill) {
-      final fillStroke = math.max(width, height);
-      buffer
-        ..write('^FO$left,$top')
-        ..write('^GE$width,$height,$fillStroke,$color^FS\r\n');
-    }
-    return buffer.toString();
-  }
-
-  String? _encodeLine(
+  String? _encodeLineEzpl(
     Offset center,
     double length,
     double angle,
@@ -376,25 +544,14 @@ class EzplBuilder {
     final sin = math.sin(angle);
     final start = center - Offset(cos * half, sin * half);
     final end = center + Offset(cos * half, sin * half);
-    final left = _x(math.min(start.dx, end.dx));
-    final top = _y(math.min(start.dy, end.dy));
-    final width = _w((start.dx - end.dx).abs());
-    final height = _h((start.dy - end.dy).abs());
-    final stroke = _avgStroke(strokeWidth);
-
-    if (width == 0 && height == 0) return '';
-    if (height == 0) {
-      return '^FO$left,${_y(start.dy)}^GB$width,0,$stroke,B,0^FS\r\n';
-    }
-    if (width == 0) {
-      return '^FO${_x(start.dx)},$top^GB0,$height,$stroke,B,0^FS\r\n';
-    }
-
-    final orientation = (start.dy > end.dy) ? 'R' : 'L';
-    return '^FO$left,$top^GD$width,$height,$stroke,B,$orientation^FS\r\n';
+    final x1 = _x(start.dx);
+    final y1 = _y(start.dy);
+    final x2 = _x(end.dx);
+    final y2 = _y(end.dy);
+    return 'La,$x1,$y1,$x2,$y2\r\n';
   }
 
-  String? _encodeConstrainedText(ConstrainedTextDrawable text) {
+  String? _encodeConstrainedTextEzpl(ConstrainedTextDrawable text) {
     if (!_isAxisAligned(text.rotationAngle)) return null;
     if (text.text.isEmpty) return '';
     final size = text.getSize();
@@ -402,19 +559,13 @@ class EzplBuilder {
     final topLeft = center - Offset(size.width / 2, size.height / 2);
     final left = _x(topLeft.dx);
     final top = _y(topLeft.dy);
-    final width = _w(math.max(text.maxWidth, size.width));
-    final font = _fontCommand(text.style);
-    final align = switch (text.align) {
-      TxtAlign.left => 'L',
-      TxtAlign.center => 'C',
-      TxtAlign.right => 'R',
-    };
     final content = _sanitizeText(text.text);
-
-    return '^FO$left,$top$font^FB$width,1000,0,$align,0^FD$content^FS\r\n';
+    final height = math.max(10, _h(text.style.fontSize ?? 12));
+    final width = math.max(1, (height * 0.6).round());
+    return 'AT,$left,$top,$width,$height,0,0,0,0,$content\r\n';
   }
 
-  String? _encodeText(TextDrawable text) {
+  String? _encodeTextEzpl(TextDrawable text) {
     if (!_isAxisAligned(text.rotationAngle)) return null;
     if (text.text.isEmpty) return '';
     final size = text.getSize();
@@ -422,14 +573,13 @@ class EzplBuilder {
     final topLeft = center - Offset(size.width / 2, size.height / 2);
     final left = _x(topLeft.dx);
     final top = _y(topLeft.dy);
-    final width = _w(size.width);
-    final font = _fontCommand(text.style);
     final content = _sanitizeText(text.text);
-
-    return '^FO$left,$top$font^FB$width,1000,0,C,0^FD$content^FS\r\n';
+    final height = math.max(10, _h(text.style.fontSize ?? 12));
+    final width = math.max(1, (height * 0.6).round());
+    return 'AT,$left,$top,$width,$height,0,0,0,0,$content\r\n';
   }
 
-  String? _encodeBarcode(BarcodeDrawable barcode) {
+  String? _encodeBarcodeEzpl(BarcodeDrawable barcode) {
     if (!_isAxisAligned(barcode.rotationAngle)) return null;
     if (barcode.data.isEmpty) return null;
 
@@ -440,53 +590,146 @@ class EzplBuilder {
     final top = _y(topLeft.dy);
     final width = _w(barcode.size.width);
     final height = _h(barcode.size.height);
-    final module = math.max(1, (width / 16).round());
-    final showValueFlag = barcode.showValue ? 'Y' : 'N';
-
-    final buffer = StringBuffer();
-    if (barcode.background.a > 0) {
-      buffer
-        ..write('^FO$left,$top')
-        ..write(
-          '^GB$width,$height,$width,${_colorCode(barcode.background)},0^FS\r\n',
-        );
-    }
-
+    final String data = _sanitizeBarcodeData(
+      BarcodeDataHelper.normalizeForPrint(barcode.type, barcode.data),
+    );
     switch (barcode.type) {
-      case BarcodeType.Code128:
-        buffer
-          ..write('^BY$module,2,$height\r\n')
-          ..write(
-            '^FO$left,$top^BCN,$height,$showValueFlag,N,N^FD${_sanitizeBarcodeData(barcode.data)}^FS\r\n',
-          );
-        return buffer.toString();
-      case BarcodeType.Code39:
-        buffer
-          ..write('^BY$module,2,$height\r\n')
-          ..write(
-            '^FO$left,$top^B3N,$height,$showValueFlag,N,N^FD${_sanitizeBarcodeData(barcode.data)}^FS\r\n',
-          );
-        return buffer.toString();
-      case BarcodeType.CodeEAN13:
-        buffer
-          ..write('^BY$module,2,$height\r\n')
-          ..write(
-            '^FO$left,$top^BEN,$height,$showValueFlag^FD${_sanitizeBarcodeData(barcode.data)}^FS\r\n',
-          );
-        return buffer.toString();
-      case BarcodeType.CodeEAN8:
-        buffer
-          ..write('^BY$module,2,$height\r\n')
-          ..write(
-            '^FO$left,$top^B8N,$height,$showValueFlag^FD${_sanitizeBarcodeData(barcode.data)}^FS\r\n',
-          );
-        return buffer.toString();
       case BarcodeType.QrCode:
-        final data = _sanitizeBarcodeData(barcode.data);
-        buffer..write('^FO$left,$top^BQN,2,10^FDLA,$data^FS\r\n');
-        return buffer.toString();
+        {
+          // Use W command with type=2 (QR), ec=M, mask=0, mode=1
+          final a = (_normalizeAngle(barcode.rotationAngle)).abs();
+          int rotationIndex = 0;
+          if ((a - (math.pi / 2)).abs() < 0.0001) rotationIndex = 1;
+          if ((a - math.pi).abs() < 0.0001) rotationIndex = 2;
+          if ((a - (3 * math.pi / 2)).abs() < 0.0001) rotationIndex = 3;
+          final int module = math.max(2, math.min(10, (width / 32).round()));
+          final int len = utf8.encode(data).length;
+          return 'W$left,$top,1,2,M,0,$module,$len,$rotationIndex\r\n$data\r\n';
+        }
+      case BarcodeType.MicroQrCode:
+        {
+          final a = (_normalizeAngle(barcode.rotationAngle)).abs();
+          int rotationIndex = 0;
+          if ((a - (math.pi / 2)).abs() < 0.0001) rotationIndex = 1;
+          if ((a - math.pi).abs() < 0.0001) rotationIndex = 2;
+          if ((a - (3 * math.pi / 2)).abs() < 0.0001) rotationIndex = 3;
+          int module = barcode.microModule ?? (width / 32).round();
+          module = math.max(2, math.min(10, module));
+          final int len = utf8.encode(data).length;
+          return 'W$left,$top,1,3,M,0,$module,$len,$rotationIndex\r\n$data\r\n';
+        }
+      case BarcodeType.DataMatrix:
+        {
+          final int enlarge = math.max(1, math.min(20, (math.min(width, height) / 12).round()));
+          // XRBx,y,enlarge,rotation,length<CR>data
+          final a = (_normalizeAngle(barcode.rotationAngle)).abs();
+          int rotationIndex = 0;
+          if ((a - (math.pi / 2)).abs() < 0.0001) rotationIndex = 1;
+          if ((a - math.pi).abs() < 0.0001) rotationIndex = 2;
+          if ((a - (3 * math.pi / 2)).abs() < 0.0001) rotationIndex = 3;
+          final int len = utf8.encode(data).length;
+          return 'XRB$left,$top,$enlarge,$rotationIndex,$len\r\n$data\r\n';
+        }
+      case BarcodeType.Code128:
+        {
+          final a = (_normalizeAngle(barcode.rotationAngle)).abs();
+          int rotationIndex = 0;
+          if ((a - (math.pi / 2)).abs() < 0.0001) rotationIndex = 1;
+          if ((a - math.pi).abs() < 0.0001) rotationIndex = 2;
+          if ((a - (3 * math.pi / 2)).abs() < 0.0001) rotationIndex = 3;
+          final int narrow = math.max(1, (width / 120).round());
+          final int wide = math.max(narrow * 3, 3);
+          final int h = math.max(20, height);
+          final int readable = barcode.showValue ? 1 : 0;
+          // BC,x,y,narrow,wide,height,rotation,readable,data
+          return 'BC,$left,$top,$narrow,$wide,$h,$rotationIndex,$readable,$data\r\n';
+        }
+      case BarcodeType.Code39:
+        {
+          final a = (_normalizeAngle(barcode.rotationAngle)).abs();
+          int rotationIndex = 0;
+          if ((a - (math.pi / 2)).abs() < 0.0001) rotationIndex = 1;
+          if ((a - math.pi).abs() < 0.0001) rotationIndex = 2;
+          if ((a - (3 * math.pi / 2)).abs() < 0.0001) rotationIndex = 3;
+          final int narrow = math.max(1, (width / 120).round());
+          final int wide = math.max(narrow * 3, 3);
+          final int h = math.max(20, height);
+          final int readable = barcode.showValue ? 1 : 0;
+          // B3,x,y,narrow,wide,height,rotation,readable,data
+          return 'B3,$left,$top,$narrow,$wide,$h,$rotationIndex,$readable,$data\r\n';
+        }
+      case BarcodeType.Code93:
+        {
+          final a = (_normalizeAngle(barcode.rotationAngle)).abs();
+          int rotationIndex = 0;
+          if ((a - (math.pi / 2)).abs() < 0.0001) rotationIndex = 1;
+          if ((a - math.pi).abs() < 0.0001) rotationIndex = 2;
+          if ((a - (3 * math.pi / 2)).abs() < 0.0001) rotationIndex = 3;
+          final int narrow = math.max(1, (width / 120).round());
+          final int wide = math.max(narrow * 3, 3);
+          final int h = math.max(20, height);
+          final int readable = barcode.showValue ? 1 : 0;
+          // BA,x,y,narrow,wide,height,rotation,readable,data
+          return 'BA,$left,$top,$narrow,$wide,$h,$rotationIndex,$readable,$data\r\n';
+        }
+      case BarcodeType.CodeEAN13:
+        {
+          final a = (_normalizeAngle(barcode.rotationAngle)).abs();
+          int rotationIndex = 0;
+          if ((a - (math.pi / 2)).abs() < 0.0001) rotationIndex = 1;
+          if ((a - math.pi).abs() < 0.0001) rotationIndex = 2;
+          if ((a - (3 * math.pi / 2)).abs() < 0.0001) rotationIndex = 3;
+          final int narrow = math.max(1, (width / 150).round());
+          final int wide = math.max(narrow * 3, 3);
+          final int h = math.max(30, height);
+          final int readable = barcode.showValue ? 1 : 0;
+          // BE,x,y,narrow,wide,height,rotation,readable,data
+          return 'BE,$left,$top,$narrow,$wide,$h,$rotationIndex,$readable,$data\r\n';
+        }
+      case BarcodeType.CodeEAN8:
+        {
+          final a = (_normalizeAngle(barcode.rotationAngle)).abs();
+          int rotationIndex = 0;
+          if ((a - (math.pi / 2)).abs() < 0.0001) rotationIndex = 1;
+          if ((a - math.pi).abs() < 0.0001) rotationIndex = 2;
+          if ((a - (3 * math.pi / 2)).abs() < 0.0001) rotationIndex = 3;
+          final int narrow = math.max(1, (width / 150).round());
+          final int wide = math.max(narrow * 3, 3);
+          final int h = math.max(30, height);
+          final int readable = barcode.showValue ? 1 : 0;
+          // B8,x,y,narrow,wide,height,rotation,readable,data
+          return 'B8,$left,$top,$narrow,$wide,$h,$rotationIndex,$readable,$data\r\n';
+        }
+      case BarcodeType.UpcA:
+        {
+          final a = (_normalizeAngle(barcode.rotationAngle)).abs();
+          int rotationIndex = 0;
+          if ((a - (math.pi / 2)).abs() < 0.0001) rotationIndex = 1;
+          if ((a - math.pi).abs() < 0.0001) rotationIndex = 2;
+          if ((a - (3 * math.pi / 2)).abs() < 0.0001) rotationIndex = 3;
+          final int narrow = math.max(1, (width / 150).round());
+          final int wide = math.max(narrow * 3, 3);
+          final int h = math.max(30, height);
+          final int readable = barcode.showValue ? 1 : 0;
+          // BU,x,y,narrow,wide,height,rotation,readable,data
+          return 'BU,$left,$top,$narrow,$wide,$h,$rotationIndex,$readable,$data\r\n';
+        }
+      case BarcodeType.Itf:
+        {
+          final a = (_normalizeAngle(barcode.rotationAngle)).abs();
+          int rotationIndex = 0;
+          if ((a - (math.pi / 2)).abs() < 0.0001) rotationIndex = 1;
+          if ((a - math.pi).abs() < 0.0001) rotationIndex = 2;
+          if ((a - (3 * math.pi / 2)).abs() < 0.0001) rotationIndex = 3;
+          final int narrow = math.max(1, (width / 120).round());
+          final int wide = math.max(narrow * 3, 3);
+          final int h = math.max(20, height);
+          final int readable = barcode.showValue ? 1 : 0;
+          // B2,x,y,narrow,wide,height,rotation,readable,data
+          return 'B2,$left,$top,$narrow,$wide,$h,$rotationIndex,$readable,$data\r\n';
+        }
       default:
-        return null;
+        return null; // 1D 바코드(EAN/UPC/ITF/Code39/93/128)는 다음 단계에서 매핑 추가
     }
   }
 
@@ -506,13 +749,6 @@ class EzplBuilder {
     return normalized.abs() < 1e-9 ? 0 : normalized;
   }
 
-  String _colorCode(Color color) => color.computeLuminance() > 0.5 ? 'W' : 'B';
-
-  String _fontCommand(TextStyle style) {
-    final height = math.max(10, _h(style.fontSize ?? 12));
-    final width = math.max(1, (height * 0.6).round());
-    return '^A0N,$height,$width';
-  }
 
   String _sanitizeText(String text) {
     return text

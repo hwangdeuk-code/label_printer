@@ -6,7 +6,7 @@ import 'dart:math' as math;
 import 'dart:ui' as ui;
 import 'dart:typed_data';
 
-import 'package:barcode/barcode.dart';
+import 'package:label_printer/models/barcode.dart';
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -32,6 +32,7 @@ import 'package:label_printer/widgets/inspector_panel.dart';
 import 'package:label_printer/widgets/tool_panel.dart';
 import 'package:label_printer/printing/raw_printer_win32.dart';
 import 'package:label_printer/printing/ezpl_builder.dart' as ezpl;
+import 'package:label_printer/printing/printer_profiles.dart';
 
 part 'painter_page_state.dart';
 part 'painter_inline_editor.dart';

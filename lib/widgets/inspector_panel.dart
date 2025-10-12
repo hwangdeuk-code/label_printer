@@ -3,7 +3,8 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:barcode/barcode.dart';
+import '../models/barcode.dart';
+import '../models/barcode.dart' as barcode_model show BarcodeDataHelper;
 
 import '../drawables/constrained_text_drawable.dart';
 import '../drawables/barcode_drawable.dart';
@@ -1191,17 +1192,25 @@ class InspectorPanel extends StatelessWidget {
   }
 
   static const _barcodeTypes = [
-    BarcodeType.Code128,
-    BarcodeType.Code39,
-    BarcodeType.QrCode,
-    BarcodeType.PDF417,
-    BarcodeType.DataMatrix,
+    BarcodeType.CodeEAN13, // EAN13
+    BarcodeType.Code128,   // CODE128
+    BarcodeType.Itf,       // ISOF5 (ITF)
+    BarcodeType.Code39,    // CODE39
+    BarcodeType.Code93,    // CODE93
+    BarcodeType.UpcA,      // UPC-A
+    BarcodeType.QrCode,    // QRCode
+    BarcodeType.MicroQrCode, // MicroQRCode
+    BarcodeType.DataMatrix,  // DataMatrix
   ];
   static const _barcodeLabels = <BarcodeType, String>{
+    BarcodeType.CodeEAN13: 'EAN-13',
     BarcodeType.Code128: 'Code 128',
+    BarcodeType.Itf: 'ISOF5 (ITF)',
     BarcodeType.Code39: 'Code 39',
+    BarcodeType.Code93: 'Code 93',
+    BarcodeType.UpcA: 'UPC-A',
     BarcodeType.QrCode: 'QR Code',
-    BarcodeType.PDF417: 'PDF417',
+    BarcodeType.MicroQrCode: 'Micro QR Code',
     BarcodeType.DataMatrix: 'Data Matrix',
   };
   static String _barcodeLabel(BarcodeType type) =>
@@ -1211,7 +1220,7 @@ class InspectorPanel extends StatelessWidget {
     final valueController = TextEditingController(text: barcode.data);
     String currentValue = barcode.data;
     BarcodeType currentType = barcode.type;
-    bool showValue = barcode.showValue;
+  bool showValue = barcode.showValue;
     double currentFontSize = barcode.fontSize;
     Color currentForeground = barcode.foreground;
     Color currentBackground = barcode.background;
@@ -1221,6 +1230,9 @@ class InspectorPanel extends StatelessWidget {
     TextAlign? currentAlign = barcode.textAlign;
     bool autoMaxWidth = barcode.maxTextWidth <= 0;
     double currentAngle = barcode.rotationAngle;
+  int? microModule = barcode.microModule;
+    bool strictValidation = barcode.strictValidation;
+    bool humanReadableGrouped = barcode.humanReadableGrouped;
 
     double clampWidth(double value) => math.max(40.0, math.min(2000.0, value));
     double currentMaxWidth = clampWidth(
@@ -1243,6 +1255,9 @@ class InspectorPanel extends StatelessWidget {
           textAlign: currentAlign,
           maxTextWidth: autoMaxWidth ? 0 : currentMaxWidth,
           rotation: currentAngle,
+          microModule: microModule,
+          strictValidation: strictValidation,
+          humanReadableGrouped: humanReadableGrouped,
         );
       });
     }
@@ -1289,6 +1304,11 @@ class InspectorPanel extends StatelessWidget {
           commitAll();
         },
       ),
+      if (strictValidation)
+        Padding(
+          padding: const EdgeInsets.only(top: 6),
+          child: _BarcodeValidationHint(type: currentType, value: currentValue),
+        ),
       const SizedBox(height: 12),
       Row(
         children: [
@@ -1303,11 +1323,46 @@ class InspectorPanel extends StatelessWidget {
             onChanged: (v) {
               if (v != null) {
                 currentType = v;
+                // reset micro module when leaving Micro QR
+                if (currentType != BarcodeType.MicroQrCode) {
+                  microModule = null;
+                }
                 commitAll();
               }
             },
           ),
         ],
+      ),
+      if (currentType == BarcodeType.MicroQrCode) ...[
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            const Text('Micro QR Module'),
+            Expanded(
+              child: Slider(
+                min: 2,
+                max: 10,
+                divisions: 8,
+                value: (microModule ?? 6).toDouble(),
+                onChanged: (v) {
+                  microModule = v.round();
+                  commitAll();
+                },
+              ),
+            ),
+            SizedBox(width: 40, child: Text('${microModule ?? 6}')),
+          ],
+        ),
+      ],
+      SwitchListTile(
+        value: strictValidation,
+        onChanged: (v) {
+          strictValidation = v;
+          commitAll();
+        },
+        dense: true,
+        contentPadding: EdgeInsets.zero,
+        title: const Text('Strict validation (show warnings)'),
       ),
       SwitchListTile(
         value: showValue,
@@ -1319,6 +1374,17 @@ class InspectorPanel extends StatelessWidget {
         contentPadding: EdgeInsets.zero,
         title: const Text('Show human-readable value'),
       ),
+      if (showValue)
+        SwitchListTile(
+          value: humanReadableGrouped,
+          onChanged: (v) {
+            humanReadableGrouped = v;
+            commitAll();
+          },
+          dense: true,
+          contentPadding: EdgeInsets.zero,
+          title: const Text('Group human-readable text'),
+        ),
       Row(
         children: [
           const Text('Font Size'),
@@ -2436,5 +2502,43 @@ class InspectorPanel extends StatelessWidget {
         ],
       ),
     ];
+  }
+}
+
+class _BarcodeValidationHint extends StatelessWidget {
+  const _BarcodeValidationHint({required this.type, required this.value});
+  final BarcodeType type;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    String? message;
+    try {
+      final normalized = barcode_model.BarcodeDataHelper.normalizeForPrint(type, value, strict: true);
+      // For EAN/UPC length changes, give a gentle hint if normalized differs.
+      final digitsOnly = value.replaceAll(RegExp(r'\D'), '');
+      if ((type == BarcodeType.CodeEAN13 && digitsOnly.length == 12) ||
+          (type == BarcodeType.UpcA && digitsOnly.length == 11) ||
+          (type == BarcodeType.CodeEAN8 && digitsOnly.length == 7)) {
+        message = '체크디지트를 자동으로 추가하여 인쇄합니다 → $normalized';
+      }
+    } catch (e) {
+      message = '유효하지 않은 값: ${e is FormatException ? e.message : e.toString()}';
+    }
+    if (message == null) return const SizedBox.shrink();
+    return Row(
+      children: [
+        const Icon(Icons.info_outline, size: 16, color: Colors.orange),
+        const SizedBox(width: 6),
+        Expanded(
+          child: Text(
+            message,
+            style: const TextStyle(fontSize: 12, color: Colors.orange),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+      ],
+    );
   }
 }

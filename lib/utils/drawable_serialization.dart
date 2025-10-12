@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
-import 'package:barcode/barcode.dart' show BarcodeType;
+import '../models/barcode.dart' show BarcodeType;
 import 'package:flutter/material.dart';
 
 import '../drawables/barcode_drawable.dart';
@@ -130,6 +130,9 @@ class DrawableSerializer {
           'fontFamily': barcode.fontFamily,
           'textAlign': barcode.textAlign?.name,
           'maxTextWidth': barcode.maxTextWidth,
+          'microModule': barcode.microModule,
+          'strictValidation': barcode.strictValidation,
+          'humanReadableGrouped': barcode.humanReadableGrouped,
           'size': _sizeToJson(barcode.size),
         });
       case ImageBoxDrawable image:
@@ -328,6 +331,9 @@ class DrawableSerializer {
             fontFamily: json['fontFamily'] as String? ?? 'Roboto',
             textAlign: _jsonToTextAlign(json['textAlign']),
             maxTextWidth: (json['maxTextWidth'] as num?)?.toDouble() ?? 0,
+            microModule: (json['microModule'] as num?)?.toInt(),
+            strictValidation: json['strictValidation'] == true,
+            humanReadableGrouped: json['humanReadableGrouped'] == true,
             size: _jsonToSize(json['size']),
             position: _jsonToOffset(json['position']),
             rotationAngle: (json['rotation'] as num?)?.toDouble() ?? 0,

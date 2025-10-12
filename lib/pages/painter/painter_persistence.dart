@@ -1,3 +1,4 @@
+// ignore_for_file: invalid_use_of_protected_member
 part of 'painter_page.dart';
 
 void clearAll(_PainterPageState state) {
@@ -77,8 +78,7 @@ Future<void> showPrintDialog(
   try {
     printers = await Printing.listPrinters();
     printers.sort(
-      (a, b) =>
-          (a.name ?? '').toLowerCase().compareTo((b.name ?? '').toLowerCase()),
+      (a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()),
     );
   } catch (e, stack) {
     printerQueryFailed = true;
@@ -87,6 +87,9 @@ Future<void> showPrintDialog(
 
   Printer? preferredPrinter = _pickPreferredPrinter(printers);
   double? _knownDpiFor(Printer? printer) {
+    // Prefer structured detection via PrinterProfile; fallback to legacy heuristics
+    final profile = detectPrinterProfile(printer);
+    if (profile.dpi != null) return profile.dpi;
     final String signature =
         ('${printer?.name ?? ''} ${printer?.location ?? ''} ${printer?.url ?? ''}')
             .toUpperCase();
@@ -97,6 +100,10 @@ Future<void> showPrintDialog(
   }
 
   ({double width, double height})? _knownLabelFor(Printer? printer) {
+    final profile = detectPrinterProfile(printer);
+    if (profile.defaultWidthMm != null && profile.defaultHeightMm != null) {
+      return (width: profile.defaultWidthMm!, height: profile.defaultHeightMm!);
+    }
     final String signature =
         ('${printer?.name ?? ''} ${printer?.location ?? ''} ${printer?.url ?? ''}')
             .toUpperCase();
@@ -145,6 +152,7 @@ Future<void> showPrintDialog(
 
       return StatefulBuilder(
         builder: (ctx, setStateDialog) {
+          bool useVectorOverride = doc.rawIsVector;
           String sizeLabel = _formatPhysicalSize(doc.pixelSize, doc.dpi);
           return AlertDialog(
             title: const Text('라벨 출력'),
@@ -183,6 +191,21 @@ Future<void> showPrintDialog(
                       style: Theme.of(ctx).textTheme.bodySmall?.copyWith(
                         color: doc.rawIsVector ? Colors.green : Colors.orange,
                       ),
+                    ),
+                    const SizedBox(height: 12),
+                    SwitchListTile.adaptive(
+                      dense: true,
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text('EZPL 벡터 명령으로 전송'),
+                      subtitle: const Text('속도/선명도 우수. 문제가 있으면 해제하세요.'),
+                      value: useVectorOverride,
+                      onChanged: isPrinting
+                          ? null
+                          : (v) {
+                              setStateDialog(() {
+                                useVectorOverride = v;
+                              });
+                            },
                     ),
                     if (!isWindows) ...[
                       const SizedBox(height: 6),
@@ -283,9 +306,12 @@ Future<void> showPrintDialog(
                           if (selected != null) {
                             if (_canUseRawCommand(selected!)) {
                               try {
+                                final Uint8List rawToSend = useVectorOverride
+                                    ? doc.rawCommands
+                                    : doc.fallbackRaster;
                                 await RawPrinterWin32.sendRaw(
                                   selected!,
-                                  doc.rawCommands,
+                                  rawToSend,
                                 );
                                 debugPrint('Raw print succeeded.');
                                 printed = true;
@@ -522,7 +548,6 @@ Future<_LabelDocument> _buildLabelDocument(_PainterPageState state) async {
     utf8.encode(ezplResult.commands),
   );
   final bool useVector = ezplResult.fullyVector;
-  final Uint8List rawBytes = useVector ? vectorBytes : zplBytes;
 
   final double pageWidth = labelSize.width / dpi * PdfPageFormat.inch;
   final double pageHeight = labelSize.height / dpi * PdfPageFormat.inch;
@@ -566,7 +591,8 @@ Future<_LabelDocument> _buildLabelDocument(_PainterPageState state) async {
     pageFormat: pageFormat,
     pixelSize: Size(pixelWidth.toDouble(), pixelHeight.toDouble()),
     dpi: dpi,
-    rawCommands: rawBytes,
+    rawCommands: vectorBytes,
+    fallbackRaster: zplBytes,
     rawIsVector: useVector,
   );
 }
@@ -609,7 +635,7 @@ Future<void> _showPreviewDialog(BuildContext context, _LabelDocument document) {
 }
 
 String _printerDisplayName(Printer printer) {
-  final String name = (printer.name ?? '').trim();
+  final String name = printer.name.trim();
   final String location = (printer.location ?? '').trim();
 
   if (name.isNotEmpty) {
@@ -619,29 +645,24 @@ String _printerDisplayName(Printer printer) {
     return name;
   }
   if (location.isNotEmpty) return location;
-  final String url = (printer.url ?? '').trim();
+  final String url = printer.url.trim();
   if (url.isNotEmpty) return url;
   return '알 수 없는 프린터';
 }
 
 bool _canUseRawCommand(Printer printer) {
   if (!Platform.isWindows) return false;
-  final String name = (printer.name ?? printer.location ?? '').toUpperCase();
-  return name.contains('GODEX');
+  final profile = detectPrinterProfile(printer);
+  return profile.canSendRaw && profile.language == PrinterLanguage.ezpl;
 }
 
 Printer? _pickPreferredPrinter(List<Printer> printers) {
   if (printers.isEmpty) return null;
-  final upper = printers.where(
-    (printer) => (printer.name ?? '').toUpperCase().contains('GODEX G500'),
+  // Prefer EZPL-capable printers first (e.g., GoDEX). Otherwise, first in list.
+  final ezplPrinters = printers.where(
+    (p) => detectPrinterProfile(p).language == PrinterLanguage.ezpl,
   );
-  if (upper.isNotEmpty) return upper.first;
-
-  final godeX = printers.where(
-    (printer) => (printer.name ?? '').toUpperCase().contains('GODEX'),
-  );
-  if (godeX.isNotEmpty) return godeX.first;
-
+  if (ezplPrinters.isNotEmpty) return ezplPrinters.first;
   return printers.first;
 }
 
@@ -657,8 +678,9 @@ class _LabelDocument {
   final PdfPageFormat pageFormat;
   final Size pixelSize;
   final double dpi;
-  final Uint8List rawCommands;
-  final bool rawIsVector;
+  final Uint8List rawCommands; // EZPL vector commands
+  final Uint8List fallbackRaster; // ZPL raster ^GFA
+  final bool rawIsVector; // recommended default (true if fully vectorizable)
 
   const _LabelDocument({
     required this.previewBytes,
@@ -667,6 +689,7 @@ class _LabelDocument {
     required this.pixelSize,
     required this.dpi,
     required this.rawCommands,
+    required this.fallbackRaster,
     required this.rawIsVector,
   });
 }
