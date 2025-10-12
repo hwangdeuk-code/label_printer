@@ -63,14 +63,18 @@ class EzplBuilder {
       ..write('^PQ1\r\n')
       ..write('^XZ\r\n');
 
-    return EzplBuildResult(commands: buffer.toString(), fullyVector: allSupported);
+    return EzplBuildResult(
+      commands: buffer.toString(),
+      fullyVector: allSupported,
+    );
   }
 
   int _x(double value) => (value * _scaleX).round();
   int _y(double value) => (value * _scaleY).round();
   int _w(double value) => math.max(1, (value * _scaleX).round());
   int _h(double value) => math.max(1, (value * _scaleY).round());
-  int _avgStroke(double value) => math.max(1, (value * (_scaleX + _scaleY) / 2).round());
+  int _avgStroke(double value) =>
+      math.max(1, (value * (_scaleX + _scaleY) / 2).round());
 
   String? _encodeDrawable(Drawable drawable) {
     if (drawable is RectangleDrawable) {
@@ -80,16 +84,28 @@ class EzplBuilder {
       return _encodeOval(drawable);
     }
     if (drawable is LineDrawable) {
-      return _encodeLine(drawable.position, drawable.length, drawable.rotationAngle,
-          drawable.paint.strokeWidth);
+      return _encodeLine(
+        drawable.position,
+        drawable.length,
+        drawable.rotationAngle,
+        drawable.paint.strokeWidth,
+      );
     }
     if (drawable is ArrowDrawable) {
-      return _encodeLine(drawable.position, drawable.length, drawable.rotationAngle,
-          drawable.paint.strokeWidth);
+      return _encodeLine(
+        drawable.position,
+        drawable.length,
+        drawable.rotationAngle,
+        drawable.paint.strokeWidth,
+      );
     }
     if (drawable is DoubleArrowDrawable) {
-      return _encodeLine(drawable.position, drawable.length, drawable.rotationAngle,
-          drawable.paint.strokeWidth);
+      return _encodeLine(
+        drawable.position,
+        drawable.length,
+        drawable.rotationAngle,
+        drawable.paint.strokeWidth,
+      );
     }
     if (drawable is ConstrainedTextDrawable) {
       return _encodeConstrainedText(drawable);
@@ -132,7 +148,9 @@ class EzplBuilder {
     // 누적 분할 경계(정수 도트) 계산 - 합이 정확히 width/height가 되도록 누적 비율 기반으로 산출
     List<int> _buildStops(int start, int totalLen, List<double> fractions) {
       final sum = fractions.fold<double>(0.0, (a, b) => a + b);
-      final norm = sum == 0 ? fractions : fractions.map((f) => f / sum).toList();
+      final norm = sum == 0
+          ? fractions
+          : fractions.map((f) => f / sum).toList();
       final stops = <int>[start];
       double acc = 0;
       for (int i = 0; i < norm.length; i++) {
@@ -231,7 +249,9 @@ class EzplBuilder {
           final sTop = table.borderStyleOf(i - 1, c).bottom;
           final sBot = table.borderStyleOf(i, c).top;
           thick = math.max(tTop, tBot);
-          dashed = (sTop == CellBorderStyle.dashed) || (sBot == CellBorderStyle.dashed);
+          dashed =
+              (sTop == CellBorderStyle.dashed) ||
+              (sBot == CellBorderStyle.dashed);
         }
 
         final stroke = _avgStroke(thick);
@@ -276,7 +296,8 @@ class EzplBuilder {
           final sL = table.borderStyleOf(r, j - 1).right;
           final sR = table.borderStyleOf(r, j).left;
           thick = math.max(tL, tR);
-          dashed = (sL == CellBorderStyle.dashed) || (sR == CellBorderStyle.dashed);
+          dashed =
+              (sL == CellBorderStyle.dashed) || (sR == CellBorderStyle.dashed);
         }
 
         final stroke = _avgStroke(thick);
@@ -413,7 +434,8 @@ class EzplBuilder {
     if (barcode.data.isEmpty) return null;
 
     final center = barcode.position;
-    final topLeft = center - Offset(barcode.size.width / 2, barcode.size.height / 2);
+    final topLeft =
+        center - Offset(barcode.size.width / 2, barcode.size.height / 2);
     final left = _x(topLeft.dx);
     final top = _y(topLeft.dy);
     final width = _w(barcode.size.width);
@@ -422,37 +444,46 @@ class EzplBuilder {
     final showValueFlag = barcode.showValue ? 'Y' : 'N';
 
     final buffer = StringBuffer();
-    if (barcode.background.alpha > 0) {
+    if (barcode.background.a > 0) {
       buffer
         ..write('^FO$left,$top')
-        ..write('^GB$width,$height,$width,${_colorCode(barcode.background)},0^FS\r\n');
+        ..write(
+          '^GB$width,$height,$width,${_colorCode(barcode.background)},0^FS\r\n',
+        );
     }
 
     switch (barcode.type) {
       case BarcodeType.Code128:
         buffer
           ..write('^BY$module,2,$height\r\n')
-          ..write('^FO$left,$top^BCN,$height,$showValueFlag,N,N^FD${_sanitizeBarcodeData(barcode.data)}^FS\r\n');
+          ..write(
+            '^FO$left,$top^BCN,$height,$showValueFlag,N,N^FD${_sanitizeBarcodeData(barcode.data)}^FS\r\n',
+          );
         return buffer.toString();
       case BarcodeType.Code39:
         buffer
           ..write('^BY$module,2,$height\r\n')
-          ..write('^FO$left,$top^B3N,$height,$showValueFlag,N,N^FD${_sanitizeBarcodeData(barcode.data)}^FS\r\n');
+          ..write(
+            '^FO$left,$top^B3N,$height,$showValueFlag,N,N^FD${_sanitizeBarcodeData(barcode.data)}^FS\r\n',
+          );
         return buffer.toString();
       case BarcodeType.CodeEAN13:
         buffer
           ..write('^BY$module,2,$height\r\n')
-          ..write('^FO$left,$top^BEN,$height,$showValueFlag^FD${_sanitizeBarcodeData(barcode.data)}^FS\r\n');
+          ..write(
+            '^FO$left,$top^BEN,$height,$showValueFlag^FD${_sanitizeBarcodeData(barcode.data)}^FS\r\n',
+          );
         return buffer.toString();
       case BarcodeType.CodeEAN8:
         buffer
           ..write('^BY$module,2,$height\r\n')
-          ..write('^FO$left,$top^B8N,$height,$showValueFlag^FD${_sanitizeBarcodeData(barcode.data)}^FS\r\n');
+          ..write(
+            '^FO$left,$top^B8N,$height,$showValueFlag^FD${_sanitizeBarcodeData(barcode.data)}^FS\r\n',
+          );
         return buffer.toString();
       case BarcodeType.QrCode:
         final data = _sanitizeBarcodeData(barcode.data);
-        buffer
-          ..write('^FO$left,$top^BQN,2,10^FDLA,$data^FS\r\n');
+        buffer..write('^FO$left,$top^BQN,2,10^FDLA,$data^FS\r\n');
         return buffer.toString();
       default:
         return null;

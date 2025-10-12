@@ -20,7 +20,8 @@ abstract class ObjectDrawable extends Drawable {
   static const double minScale = 0.001;
 
   @Deprecated(
-      "min_scale is deprecated to conform with flutter_lints, use minScale instead")
+    "min_scale is deprecated to conform with flutter_lints, use minScale instead",
+  )
   // ignore: non_constant_identifier_names
   double get min_scale => minScale;
 
@@ -61,8 +62,8 @@ abstract class ObjectDrawable extends Drawable {
     this.assistPaints = const <ObjectDrawableAssist, Paint>{},
     this.locked = false,
     bool hidden = false,
-  })  : scale = scale < minScale ? minScale : scale,
-        super(hidden: hidden);
+  }) : scale = scale < minScale ? minScale : scale,
+       super(hidden: hidden);
 
   /// Draws any assist lines that the object has on [canvas] with [size].
   void drawAssists(Canvas canvas, Size size) {
@@ -75,8 +76,11 @@ abstract class ObjectDrawable extends Drawable {
       final angleTan = tan(rotationAngle);
       // Calculate the points at which a line passing through the object's center
       // with an angle tangent crosses the borders of the drawing size
-      final intersections =
-          _calculateBoxIntersections(position, angleTan, size);
+      final intersections = _calculateBoxIntersections(
+        position,
+        angleTan,
+        size,
+      );
 
       if (intersections.length == 2) {
         // Should be redundant, added for safety
@@ -95,8 +99,11 @@ abstract class ObjectDrawable extends Drawable {
     // This assist line passes through the center point of the object
     // and extends horizontally (with a constant dy value)
     if (assists.contains(ObjectDrawableAssist.horizontal)) {
-      canvas.drawLine(Offset(0, position.dy), Offset(size.width, position.dy),
-          assistPaints[ObjectDrawableAssist.horizontal] ?? defaultAssistPaint);
+      canvas.drawLine(
+        Offset(0, position.dy),
+        Offset(size.width, position.dy),
+        assistPaints[ObjectDrawableAssist.horizontal] ?? defaultAssistPaint,
+      );
     }
 
     // Draw the vertical assist line
@@ -104,8 +111,11 @@ abstract class ObjectDrawable extends Drawable {
     // This assist line passes through the center point of the object
     // and extends vertically (with a constant dx value)
     if (assists.contains(ObjectDrawableAssist.vertical)) {
-      canvas.drawLine(Offset(position.dx, 0), Offset(position.dx, size.height),
-          assistPaints[ObjectDrawableAssist.horizontal] ?? defaultAssistPaint);
+      canvas.drawLine(
+        Offset(position.dx, 0),
+        Offset(position.dx, size.height),
+        assistPaints[ObjectDrawableAssist.horizontal] ?? defaultAssistPaint,
+      );
     }
   }
 
@@ -173,7 +183,10 @@ abstract class ObjectDrawable extends Drawable {
   /// Calculates the intersection points between a line passing through point [point]
   /// with an angle tangent [angleTan] with the rectangular box of size [size].
   List<Offset> _calculateBoxIntersections(
-      Offset point, double angleTan, Size size) {
+    Offset point,
+    double angleTan,
+    Size size,
+  ) {
     final intersections = <Offset>[];
 
     // Calculate if there is an intersection with the top edge

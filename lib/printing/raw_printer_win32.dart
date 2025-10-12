@@ -9,10 +9,7 @@ import 'package:win32/win32.dart';
 class RawPrinterWin32 {
   const RawPrinterWin32._();
 
-  static Future<void> sendRaw(
-    Printer printer,
-    Uint8List data,
-  ) async {
+  static Future<void> sendRaw(Printer printer, Uint8List data) async {
     if (!Platform.isWindows) {
       throw UnsupportedError('Raw printing is only supported on Windows.');
     }
@@ -41,8 +38,7 @@ class RawPrinterWin32 {
         ..pDatatype = dataType;
 
       try {
-        final int startDoc =
-            StartDocPrinter(phPrinter.value, 1, docInfo);
+        final int startDoc = StartDocPrinter(phPrinter.value, 1, docInfo);
         if (startDoc == 0) {
           throw StateError('StartDocPrinter failed (${GetLastError()})');
         }

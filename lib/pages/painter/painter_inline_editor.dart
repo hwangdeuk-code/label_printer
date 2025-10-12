@@ -1,3 +1,4 @@
+// ignore_for_file: invalid_use_of_protected_member, unnecessary_type_check, dead_code
 part of 'painter_page.dart';
 
 Widget? buildInlineEditor(_PainterPageState state) {
@@ -24,10 +25,12 @@ Widget? buildInlineEditor(_PainterPageState state) {
             color: Colors.black,
           );
           try {
-            final style = state._editingTable!.styleOf(
-              state._editingCellRow!,
-              state._editingCellCol!,
-            );
+            final row = state._editingCellRow!;
+            final col = state._editingCellCol!;
+            final inner = state._editingInnerColIndex;
+            final style = inner != null
+                ? state._editingTable!.internalStyleOf(row, col, inner)
+                : state._editingTable!.styleOf(row, col);
             baseStyle = TextStyle(
               fontSize: (style['fontSize'] as double?) ?? 12.0,
               fontWeight: style['bold'] == true
@@ -79,7 +82,10 @@ void persistInlineDelta(_PainterPageState state) {
   final table = state._editingTable!;
   final row = state._editingCellRow!;
   final col = state._editingCellCol!;
-  final style = table.styleOf(row, col);
+  final inner = state._editingInnerColIndex; // null 또는 내부 인덱스
+  final style = (inner != null)
+      ? table.internalStyleOf(row, col, inner)
+      : table.styleOf(row, col);
   final fallbackFontSize = (style['fontSize'] as double?) ?? 12.0;
   final sanitized = _ensureBaseFontSize(controller.document, fallbackFontSize);
   state._pendingQuillDeltaOps = sanitized.toDelta().toJson();
@@ -106,8 +112,8 @@ void commitInlineEditor(_PainterPageState state) {
   final row = state._editingCellRow!;
   final col = state._editingCellCol!;
   final cellStyle = state._editingTable!.styleOf(row, col);
-  final fallbackFontSize = (cellStyle['fontSize'] as double?) ??
-      state._inspFontSize;
+  final fallbackFontSize =
+      (cellStyle['fontSize'] as double?) ?? state._inspFontSize;
   List<dynamic>? ops = state._pendingQuillDeltaOps;
   if (ops == null) {
     ops = state._quillController!.document.toDelta().toJson();
@@ -124,26 +130,42 @@ void commitInlineEditor(_PainterPageState state) {
   final sanitizedOps = document.toDelta().toJson();
 
   final jsonStr = json.encode({"ops": sanitizedOps});
-  state._editingTable!.setDeltaJson(row, col, jsonStr);
+  if (state._editingInnerColIndex != null) {
+    state._editingTable!.setInternalDeltaJson(
+      row,
+      col,
+      state._editingInnerColIndex!,
+      jsonStr,
+    );
+  } else {
+    state._editingTable!.setDeltaJson(row, col, jsonStr);
+  }
 
-  final updatedFontSize =
-      _lastContentFontSize(document) ?? fallbackFontSize;
-  final nextStyle = Map<String, dynamic>.from(cellStyle)
-    ..['fontSize'] = updatedFontSize;
-  state._editingTable!.setStyle(row, col, nextStyle);
+  final updatedFontSize = _lastContentFontSize(document) ?? fallbackFontSize;
+  if (state._editingInnerColIndex != null) {
+    state._editingTable!.setInternalStyle(
+      row,
+      col,
+      state._editingInnerColIndex!,
+      {'fontSize': updatedFontSize},
+    );
+  } else {
+    final nextStyle = Map<String, dynamic>.from(cellStyle)
+      ..['fontSize'] = updatedFontSize;
+    state._editingTable!.setStyle(row, col, nextStyle);
+  }
   state._inspFontSize = updatedFontSize;
 
   state.setState(() {
     try {
       state._editingTable?.endEdit();
-      // ignore: invalid_use_of_protected_member, invalid_use_of_visible_for_testing_member
-      state.controller.notifyListeners();
     } catch (_) {}
     state._editingTable = null;
     state._editingCellRow = null;
     state._editingCellCol = null;
     state._inlineEditorRectScene = null;
     state._quillController = null;
+    state._editingInnerColIndex = null;
     state._clearCellSelection();
   });
 }
@@ -196,9 +218,31 @@ void handleCanvasDoubleTapDown(
   final root = drawable.resolveRoot(row, column);
   row = root.$1;
   column = root.$2;
-  final editorRect = drawable.mergedWorldRect(row, column, drawable.size);
-  final pad = drawable.paddingOf(row, column);
   final cellStyle = drawable.styleOf(row, column);
+  // 내부 서브셀 판정: 클릭한 위치가 내부 어느 서브셀인지 계산
+  final innerFracs = drawable.internalFractionsOf(row, column);
+  int? innerIndex;
+  final merged = drawable.mergedWorldRect(row, column, drawable.size);
+  Rect editorRect = merged;
+  if (innerFracs != null && innerFracs.length >= 2) {
+    double acc = merged.left;
+    for (int i = 0; i < innerFracs.length; i++) {
+      final w = merged.width * innerFracs[i];
+      final sub = Rect.fromLTWH(acc, merged.top, w, merged.height);
+      if (sub.contains(state._sceneFromGlobal(details.globalPosition))) {
+        innerIndex = i;
+        editorRect = sub;
+        break;
+      }
+      acc += w;
+    }
+  } else {
+    editorRect = merged;
+  }
+  // 패딩: 내부 서브셀 전용 패딩이 있으면 우선 사용
+  final pad = (innerIndex != null)
+      ? drawable.internalPaddingOf(row, column, innerIndex)
+      : drawable.paddingOf(row, column);
   final fallbackFontSize = (cellStyle['fontSize'] as double?) ?? 12.0;
   final paddedEditorRect = Rect.fromLTRB(
     editorRect.left + pad.left,
@@ -212,7 +256,9 @@ void handleCanvasDoubleTapDown(
       : editorRect;
 
   final key = '$row,$column';
-  final jsonStr = drawable.cellDeltaJson[key];
+  final jsonStr = innerIndex != null
+      ? drawable.internalDeltaJsonOf(row, column, innerIndex)
+      : drawable.cellDeltaJson[key];
   var document = _loadDocument(jsonStr);
 
   document = _ensureBaseFontSize(document, fallbackFontSize);
@@ -282,12 +328,11 @@ void handleCanvasDoubleTapDown(
     state._editingTable = drawable;
     state._editingCellRow = row;
     state._editingCellCol = column;
+    state._editingInnerColIndex = innerIndex;
   });
 
   try {
     drawable.beginEdit(row, column);
-    // ignore: invalid_use_of_protected_member, invalid_use_of_visible_for_testing_member
-    state.controller.notifyListeners();
   } catch (_) {}
 
   WidgetsBinding.instance.addPostFrameCallback((_) {

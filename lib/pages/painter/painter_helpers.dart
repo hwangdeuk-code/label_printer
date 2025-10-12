@@ -36,11 +36,17 @@ Paint fillPaint(Color color) => Paint()
 
 Offset lineStart(Drawable drawable) {
   if (drawable is LineDrawable) {
-    final dir = Offset(math.cos(drawable.rotationAngle), math.sin(drawable.rotationAngle));
+    final dir = Offset(
+      math.cos(drawable.rotationAngle),
+      math.sin(drawable.rotationAngle),
+    );
     return drawable.position - dir * (drawable.length / 2);
   }
   if (drawable is ArrowDrawable) {
-    final dir = Offset(math.cos(drawable.rotationAngle), math.sin(drawable.rotationAngle));
+    final dir = Offset(
+      math.cos(drawable.rotationAngle),
+      math.sin(drawable.rotationAngle),
+    );
     return drawable.position - dir * (drawable.length / 2);
   }
   return Offset.zero;
@@ -48,11 +54,17 @@ Offset lineStart(Drawable drawable) {
 
 Offset lineEnd(Drawable drawable) {
   if (drawable is LineDrawable) {
-    final dir = Offset(math.cos(drawable.rotationAngle), math.sin(drawable.rotationAngle));
+    final dir = Offset(
+      math.cos(drawable.rotationAngle),
+      math.sin(drawable.rotationAngle),
+    );
     return drawable.position + dir * (drawable.length / 2);
   }
   if (drawable is ArrowDrawable) {
-    final dir = Offset(math.cos(drawable.rotationAngle), math.sin(drawable.rotationAngle));
+    final dir = Offset(
+      math.cos(drawable.rotationAngle),
+      math.sin(drawable.rotationAngle),
+    );
     return drawable.position + dir * (drawable.length / 2);
   }
   return Offset.zero;
@@ -60,19 +72,39 @@ Offset lineEnd(Drawable drawable) {
 
 Rect boundsOf(_PainterPageState state, Drawable drawable) {
   if (drawable is RectangleDrawable) {
-    return Rect.fromCenter(center: drawable.position, width: drawable.size.width, height: drawable.size.height);
+    return Rect.fromCenter(
+      center: drawable.position,
+      width: drawable.size.width,
+      height: drawable.size.height,
+    );
   }
   if (drawable is OvalDrawable) {
-    return Rect.fromCenter(center: drawable.position, width: drawable.size.width, height: drawable.size.height);
+    return Rect.fromCenter(
+      center: drawable.position,
+      width: drawable.size.width,
+      height: drawable.size.height,
+    );
   }
   if (drawable is BarcodeDrawable) {
-    return Rect.fromCenter(center: drawable.position, width: drawable.size.width, height: drawable.size.height);
+    return Rect.fromCenter(
+      center: drawable.position,
+      width: drawable.size.width,
+      height: drawable.size.height,
+    );
   }
   if (drawable is ImageBoxDrawable) {
-    return Rect.fromCenter(center: drawable.position, width: drawable.size.width, height: drawable.size.height);
+    return Rect.fromCenter(
+      center: drawable.position,
+      width: drawable.size.width,
+      height: drawable.size.height,
+    );
   }
   if (drawable is TableDrawable) {
-    return Rect.fromCenter(center: drawable.position, width: drawable.size.width, height: drawable.size.height);
+    return Rect.fromCenter(
+      center: drawable.position,
+      width: drawable.size.width,
+      height: drawable.size.height,
+    );
   }
   if (drawable is LineDrawable) {
     final a = lineStart(drawable), b = lineEnd(drawable);
@@ -84,11 +116,19 @@ Rect boundsOf(_PainterPageState state, Drawable drawable) {
   }
   if (drawable is ConstrainedTextDrawable) {
     final size = drawable.getSize(maxWidth: drawable.maxWidth);
-    return Rect.fromCenter(center: drawable.position, width: size.width, height: size.height);
+    return Rect.fromCenter(
+      center: drawable.position,
+      width: size.width,
+      height: size.height,
+    );
   }
   if (drawable is TextDrawable) {
     final size = drawable.getSize();
-    return Rect.fromCenter(center: drawable.position, width: size.width, height: size.height);
+    return Rect.fromCenter(
+      center: drawable.position,
+      width: size.width,
+      height: size.height,
+    );
   }
   return Rect.zero;
 }
@@ -130,8 +170,11 @@ Rect rotatedAabbOf(_PainterPageState state, Drawable drawable) {
 }
 
 /// 후보 도형이 라벨(-inset) 허용 영역을 벗어나면 position을 평행이동해 완전히 안쪽으로 들여보낸다.
-Drawable adjustInsideAllowed(_PainterPageState state, Drawable candidate,
-    {double inset = 1.0}) {
+Drawable adjustInsideAllowed(
+  _PainterPageState state,
+  Drawable candidate, {
+  double inset = 1.0,
+}) {
   final Size label = state.labelPixelSize;
   final Rect allowed = Rect.fromLTWH(
     inset,
@@ -210,14 +253,16 @@ void setTool(_PainterPageState state, tool.Tool value) {
   });
 
   if (value == tool.Tool.image) {
-    unawaited(state._pickImageAndAdd().then((_) {
-      if (!state.mounted) return;
-      state.setState(() {
-        state.currentTool = tool.Tool.select;
-        state.controller.freeStyleMode = FreeStyleMode.none;
-        state.controller.scalingEnabled = true;
-      });
-    }));
+    unawaited(
+      state._pickImageAndAdd().then((_) {
+        if (!state.mounted) return;
+        state.setState(() {
+          state.currentTool = tool.Tool.select;
+          state.controller.freeStyleMode = FreeStyleMode.none;
+          state.controller.scalingEnabled = true;
+        });
+      }),
+    );
   }
 }
 
@@ -232,7 +277,8 @@ double snapAngle(_PainterPageState state, double raw) {
   }
 
   final norm = normalize(raw);
-  final target = (normalize(norm / state._snapStep).roundToDouble()) * state._snapStep;
+  final target =
+      (normalize(norm / state._snapStep).roundToDouble()) * state._snapStep;
   if (state._isCreatingLineLike && state._firstAngleLockPending) {
     state._dragSnapAngle = target;
     state._firstAngleLockPending = false;
@@ -244,7 +290,8 @@ double snapAngle(_PainterPageState state, double raw) {
   }
   if (state._dragSnapAngle != null) {
     final exitTol = state._snapTol * 1.5;
-    if ((norm - state._dragSnapAngle!).abs() <= exitTol) return state._dragSnapAngle!;
+    if ((norm - state._dragSnapAngle!).abs() <= exitTol)
+      return state._dragSnapAngle!;
   }
   return norm;
 }
@@ -318,7 +365,8 @@ Drawable? makeShape(
       if (state._isCreatingLineLike &&
           state._firstAngleLockPending &&
           length >= _PainterPageState._firstLockMinLen) {
-        state._dragSnapAngle = (angle / state._snapStep).roundToDouble() * state._snapStep;
+        state._dragSnapAngle =
+            (angle / state._snapStep).roundToDouble() * state._snapStep;
         state._firstAngleLockPending = false;
       }
       angle = snapAngle(state, angle);
@@ -345,7 +393,10 @@ Drawable? makeShape(
 }
 
 bool hitTest(_PainterPageState state, Drawable drawable, Offset point) {
-  final rect = boundsOf(state, drawable).inflate(math.max(8, state.strokeWidth));
+  final rect = boundsOf(
+    state,
+    drawable,
+  ).inflate(math.max(8, state.strokeWidth));
   if (drawable is LineDrawable || drawable is ArrowDrawable) {
     final a = lineStart(drawable);
     final b = lineEnd(drawable);
@@ -389,17 +440,36 @@ bool hitSelectionChromeScene(_PainterPageState state, Offset point) {
   }
 
   final r = boundsOf(state, selected);
+  // 회전 객체에 대한 히트 테스트 정합성: 선택 크롬은 회전된 상태로 그려지므로,
+  // 검사는 포인터를 객체 로컬(비회전) 좌표로 역변환하여 수행한다.
+  Offset adjustedPoint = point;
+  if (selected is ObjectDrawable &&
+      selected is! LineDrawable &&
+      selected is! ArrowDrawable) {
+    final angle = selected.rotationAngle;
+    if (angle != 0) {
+      final center = r.center;
+      final dx = point.dx - center.dx;
+      final dy = point.dy - center.dy;
+      final cosA = math.cos(-angle);
+      final sinA = math.sin(-angle);
+      adjustedPoint = Offset(
+        cosA * dx - sinA * dy + center.dx,
+        sinA * dx + cosA * dy + center.dy,
+      );
+    }
+  }
   final corners = [r.topLeft, r.topRight, r.bottomLeft, r.bottomRight];
   final rotCenter = rotateHandlePos(state, r);
   final topCenter = r.topCenter;
 
   for (final corner in corners) {
-    if ((point - corner).distance <= state.handleTouchRadius) return true;
+    if ((adjustedPoint - corner).distance <= state.handleTouchRadius) return true;
   }
-  if ((point - rotCenter).distance <= state.handleTouchRadius) return true;
-  final distToLine = distanceToSegment(point, topCenter, rotCenter);
+  if ((adjustedPoint - rotCenter).distance <= state.handleTouchRadius) return true;
+  final distToLine = distanceToSegment(adjustedPoint, topCenter, rotCenter);
   if (distToLine <= state.handleTouchRadius * 0.7) return true;
-  if (r.inflate(4).contains(point)) return true;
+  if (r.inflate(4).contains(adjustedPoint)) return true;
   return false;
 }
 
@@ -408,51 +478,70 @@ DragAction hitHandle(_PainterPageState state, Rect bounds, Offset point) {
   if (selected is LineDrawable) {
     final a = lineStart(selected);
     final b = lineEnd(selected);
-    if ((point - a).distance <= state.handleTouchRadius) return DragAction.resizeStart;
-    if ((point - b).distance <= state.handleTouchRadius) return DragAction.resizeEnd;
+    if ((point - a).distance <= state.handleTouchRadius)
+      return DragAction.resizeStart;
+    if ((point - b).distance <= state.handleTouchRadius)
+      return DragAction.resizeEnd;
 
     final rotCenter = rotateHandlePos(state, bounds);
-    if ((point - rotCenter).distance <= state.handleTouchRadius) return DragAction.rotate;
+    if ((point - rotCenter).distance <= state.handleTouchRadius)
+      return DragAction.rotate;
 
     if (bounds.inflate(4).contains(point)) return DragAction.move;
     return DragAction.none;
   } else if (selected is ArrowDrawable) {
     final a = lineStart(selected);
     final b = lineEnd(selected);
-    if ((point - a).distance <= state.handleTouchRadius) return DragAction.resizeStart;
-    if ((point - b).distance <= state.handleTouchRadius) return DragAction.resizeEnd;
+    if ((point - a).distance <= state.handleTouchRadius)
+      return DragAction.resizeStart;
+    if ((point - b).distance <= state.handleTouchRadius)
+      return DragAction.resizeEnd;
 
     final rotCenter = rotateHandlePos(state, bounds);
-    if ((point - rotCenter).distance <= state.handleTouchRadius) return DragAction.rotate;
+    if ((point - rotCenter).distance <= state.handleTouchRadius)
+      return DragAction.rotate;
 
     if (bounds.inflate(4).contains(point)) return DragAction.move;
     return DragAction.none;
   }
 
   Offset adjusted = point;
-  if (selected is BarcodeDrawable ||
-      selected is ConstrainedTextDrawable ||
-      selected is TextDrawable ||
-      selected is ImageBoxDrawable) {
-    final angle = (selected as ObjectDrawable).rotationAngle;
+  // 모든 회전 가능한 사각형 계열(ObjectDrawable, 선/화살표 제외)에 대해 포인터를 역회전
+  if (selected is ObjectDrawable &&
+      selected is! LineDrawable &&
+      selected is! ArrowDrawable) {
+    final angle = selected.rotationAngle;
     if (angle != 0) {
       final center = bounds.center;
       final dx = point.dx - center.dx;
       final dy = point.dy - center.dy;
       final cosA = math.cos(-angle);
       final sinA = math.sin(-angle);
-      adjusted = Offset(cosA * dx - sinA * dy + center.dx, sinA * dx + cosA * dy + center.dy);
+      adjusted = Offset(
+        cosA * dx - sinA * dy + center.dx,
+        sinA * dx + cosA * dy + center.dy,
+      );
     }
   }
 
-  final corners = [bounds.topLeft, bounds.topRight, bounds.bottomLeft, bounds.bottomRight];
+  final corners = [
+    bounds.topLeft,
+    bounds.topRight,
+    bounds.bottomLeft,
+    bounds.bottomRight,
+  ];
   final rotCenter = rotateHandlePos(state, bounds);
 
-  if ((adjusted - corners[0]).distance <= state.handleTouchRadius) return DragAction.resizeNW;
-  if ((adjusted - corners[1]).distance <= state.handleTouchRadius) return DragAction.resizeNE;
-  if ((adjusted - corners[2]).distance <= state.handleTouchRadius) return DragAction.resizeSW;
-  if ((adjusted - corners[3]).distance <= state.handleTouchRadius) return DragAction.resizeSE;
-  if ((adjusted - rotCenter).distance <= state.handleTouchRadius) return DragAction.rotate;
+  if ((adjusted - corners[0]).distance <= state.handleTouchRadius)
+    return DragAction.resizeNW;
+  if ((adjusted - corners[1]).distance <= state.handleTouchRadius)
+    return DragAction.resizeNE;
+  if ((adjusted - corners[2]).distance <= state.handleTouchRadius)
+    return DragAction.resizeSW;
+  if ((adjusted - corners[3]).distance <= state.handleTouchRadius)
+    return DragAction.resizeSE;
+  if ((adjusted - rotCenter).distance <= state.handleTouchRadius)
+    return DragAction.rotate;
 
   final distToLine = distanceToSegment(adjusted, bounds.topCenter, rotCenter);
   if (distToLine <= state.handleTouchRadius * 0.7) return DragAction.rotate;
@@ -477,7 +566,10 @@ Offset toLocalVec(Offset worldPoint, Offset center, double angle) {
 
 Offset fromLocalVec(Offset localVec, Offset center, double angle) {
   final cosA = math.cos(angle), sinA = math.sin(angle);
-  final w = Offset(cosA * localVec.dx - sinA * localVec.dy, sinA * localVec.dx + cosA * localVec.dy);
+  final w = Offset(
+    cosA * localVec.dx - sinA * localVec.dy,
+    sinA * localVec.dx + cosA * localVec.dy,
+  );
   return center + w;
 }
 

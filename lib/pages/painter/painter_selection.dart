@@ -96,12 +96,8 @@ bool _isRectInside(Rect r, Rect allowed) {
 
 /// 점 p 를 사각형 r 안으로 클램프한다.
 Offset _clampPointToRect(Offset p, Rect r) {
-  return Offset(
-    p.dx.clamp(r.left, r.right),
-    p.dy.clamp(r.top, r.bottom),
-  );
+  return Offset(p.dx.clamp(r.left, r.right), p.dy.clamp(r.top, r.bottom));
 }
-
 
 /// 코너 리사이즈 시, 시작 경계(startRect)와 고정 코너(worldFixed), 원하는 이동점(worldDesired)을 바탕으로
 /// 결과 도형의 bounds(AABB)가 허용 사각형(라벨 - inset) 안에만 있도록 vMoveLocal(이동 코너의 로컬 좌표)를 이분 탐색으로 제한한다.
@@ -188,8 +184,9 @@ void handlePointerDownSelect(
   PointerDownEvent event,
 ) async {
   if (state.currentTool == tool.Tool.text) {
-    final scenePoint =
-        state.clampToLabel(state._sceneFromGlobal(event.position));
+    final scenePoint = state.clampToLabel(
+      state._sceneFromGlobal(event.position),
+    );
     await state._createTextAt(scenePoint);
     return;
   }
@@ -206,8 +203,7 @@ void handlePointerDownSelect(
     });
   }
 
-  final scenePoint =
-      state.clampToLabel(state._sceneFromGlobal(event.position));
+  final scenePoint = state.clampToLabel(state._sceneFromGlobal(event.position));
   state._downScene = scenePoint;
   state._movedSinceDown = false;
   state._pressOnSelection = state._hitSelectionChromeScene(scenePoint);
@@ -241,8 +237,9 @@ void handleOverlayPanStart(_PainterPageState state, DragStartDetails details) {
   state._isCreatingLineLike = false;
   state._firstAngleLockPending = false;
 
-  final localScene =
-      state.clampToLabel(state._sceneFromGlobal(details.globalPosition));
+  final localScene = state.clampToLabel(
+    state._sceneFromGlobal(details.globalPosition),
+  );
   final current = state.selectedDrawable;
 
   void clearLineResize() {
@@ -522,9 +519,15 @@ void handleOverlayPanUpdate(
 
         Drawable buildWith(Offset vMoveLocal) {
           final vFixed = state._toLocalVec(worldFixed, center0, angle);
-          final newWidth = (vMoveLocal.dx - vFixed.dx).abs().clamp(40.0, 2000.0);
+          final newWidth = (vMoveLocal.dx - vFixed.dx).abs().clamp(
+            40.0,
+            2000.0,
+          );
           final signX = (vMoveLocal.dx - vFixed.dx) >= 0 ? 1.0 : -1.0;
-          final vMoveAdjusted = Offset(vFixed.dx + signX * newWidth, vMoveLocal.dy);
+          final vMoveAdjusted = Offset(
+            vFixed.dx + signX * newWidth,
+            vMoveLocal.dy,
+          );
           final vCenter = (vFixed + vMoveAdjusted) / 2;
           final newCenterWorld = state._fromLocalVec(vCenter, center0, angle);
           return original.copyWith(
@@ -637,8 +640,14 @@ void handleOverlayPanUpdate(
           final vFixed = state._toLocalVec(worldFixed, center0, angle);
           final minWidth = original.columns * 16.0;
           final minHeight = original.rows * 16.0;
-          final width = (vMoveLocal.dx - vFixed.dx).abs().clamp(minWidth, double.infinity);
-          final height = (vMoveLocal.dy - vFixed.dy).abs().clamp(minHeight, double.infinity);
+          final width = (vMoveLocal.dx - vFixed.dx).abs().clamp(
+            minWidth,
+            double.infinity,
+          );
+          final height = (vMoveLocal.dy - vFixed.dy).abs().clamp(
+            minHeight,
+            double.infinity,
+          );
           final signX = (vMoveLocal.dx - vFixed.dx) >= 0 ? 1.0 : -1.0;
           final signY = (vMoveLocal.dy - vFixed.dy) >= 0 ? 1.0 : -1.0;
           final vMoveAdjusted = Offset(
@@ -1142,7 +1151,10 @@ void createTableDrawable(_PainterPageState state, int rows, int columns) {
 
   const double horizontalMargin = 1.0;
   const double topMargin = 1.0;
-  final double availableWidth = math.max(1.0, painterSize.width - horizontalMargin * 2);
+  final double availableWidth = math.max(
+    1.0,
+    painterSize.width - horizontalMargin * 2,
+  );
   final double desiredHeight = math.max(32.0, rows * 32.0);
   final double maxHeight = math.max(1.0, painterSize.height - topMargin);
   final double tableHeight = math.min(desiredHeight, maxHeight);
@@ -1154,8 +1166,10 @@ void createTableDrawable(_PainterPageState state, int rows, int columns) {
     rows: rows,
     columns: columns,
     columnFractions: fractions,
-    position: Offset(horizontalMargin + tableSize.width / 2,
-        topMargin + tableSize.height / 2),
+    position: Offset(
+      horizontalMargin + tableSize.width / 2,
+      topMargin + tableSize.height / 2,
+    ),
     size: tableSize,
   );
 
@@ -1167,4 +1181,3 @@ void createTableDrawable(_PainterPageState state, int rows, int columns) {
   });
   state._setTool(tool.Tool.select);
 }
-

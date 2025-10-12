@@ -1,6 +1,5 @@
 import 'dart:ui';
 
-
 import '../controllers/helpers/renderer_check/renderer_check.dart';
 
 /// Extension to add a copy method for [Paint].

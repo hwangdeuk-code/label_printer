@@ -27,13 +27,13 @@ class ImageBoxDrawable extends ObjectDrawable {
     bool hidden = false,
     bool locked = false,
   }) : super(
-          rotationAngle: rotationAngle,
-          scale: scale,
-          assists: assists,
-          assistPaints: assistPaints,
-          hidden: hidden,
-          locked: locked,
-        );
+         rotationAngle: rotationAngle,
+         scale: scale,
+         assists: assists,
+         assistPaints: assistPaints,
+         hidden: hidden,
+         locked: locked,
+       );
 
   @override
   void drawObject(Canvas canvas, Size canvasSize) {
@@ -67,7 +67,8 @@ class ImageBoxDrawable extends ObjectDrawable {
   }
 
   @override
-  Size getSize({double minWidth = 0.0, double maxWidth = double.infinity}) => size;
+  Size getSize({double minWidth = 0.0, double maxWidth = double.infinity}) =>
+      size;
 
   @override
   ObjectDrawable copyWith({

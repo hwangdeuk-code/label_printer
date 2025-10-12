@@ -16,10 +16,11 @@ class BorderBoxShadow extends BoxShadow {
     double spreadRadius = 0.0,
     this.blurStyle = BlurStyle.outer,
   }) : super(
-            color: color,
-            offset: offset,
-            blurRadius: blurRadius,
-            spreadRadius: spreadRadius);
+         color: color,
+         offset: offset,
+         blurRadius: blurRadius,
+         spreadRadius: spreadRadius,
+       );
 
   /// Create the [Paint] object that corresponds to this shadow description.
   ///

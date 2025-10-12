@@ -8,5 +8,5 @@ class ObjectDrawableReselectedNotification
     extends DrawableNotification<ObjectDrawable?> {
   /// Creates a [ObjectDrawableReselectedNotification] with the given [drawable].
   ObjectDrawableReselectedNotification(ObjectDrawable? drawable)
-      : super(drawable);
+    : super(drawable);
 }

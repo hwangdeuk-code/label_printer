@@ -10,7 +10,8 @@ class CustomColorStore {
   static const String _prefsKey = 'custom_colors_v1';
   static const int maxColors = 36;
 
-  static String _toHex(Color c) => '#${c.value.toRadixString(16).padLeft(8, '0').toUpperCase()}';
+  static String _toHex(Color c) =>
+      '#${c.toARGB32().toRadixString(16).padLeft(8, '0').toUpperCase()}';
   static Color? _fromHex(String input) {
     var s = input.trim();
     if (s.startsWith('#')) s = s.substring(1);
@@ -30,7 +31,7 @@ class CustomColorStore {
       if (c != null) colors.add(c);
     }
     return colors;
-    }
+  }
 
   static Future<void> save(List<Color> colors) async {
     final prefs = await SharedPreferences.getInstance();
@@ -41,7 +42,7 @@ class CustomColorStore {
   static Future<List<Color>> add(Color color) async {
     final colors = await load();
     // 중복은 제거하고 맨 앞으로
-    colors.removeWhere((c) => c.value == color.value);
+    colors.removeWhere((c) => c.toARGB32() == color.toARGB32());
     colors.insert(0, color);
     while (colors.length > maxColors) {
       colors.removeLast();
@@ -94,7 +95,8 @@ class _WindowsLikeColorDialog extends StatefulWidget {
   });
 
   @override
-  State<_WindowsLikeColorDialog> createState() => _WindowsLikeColorDialogState();
+  State<_WindowsLikeColorDialog> createState() =>
+      _WindowsLikeColorDialogState();
 }
 
 class _WindowsLikeColorDialogState extends State<_WindowsLikeColorDialog> {
@@ -120,12 +122,20 @@ class _WindowsLikeColorDialogState extends State<_WindowsLikeColorDialog> {
     if (mounted) setState(() => _customColors = list);
   }
 
-  Color get _currentColor =>
-      HSVColor.fromAHSV(1.0, _h, _s.clamp(0.0, 1.0), _v.clamp(0.0, 1.0))
-          .toColor();
+  Color get _currentColor => HSVColor.fromAHSV(
+    1.0,
+    _h,
+    _s.clamp(0.0, 1.0),
+    _v.clamp(0.0, 1.0),
+  ).toColor();
 
   void _setFromRgb(int r, int g, int b) {
-    final c = Color.fromARGB(255, r.clamp(0, 255), g.clamp(0, 255), b.clamp(0, 255));
+    final c = Color.fromARGB(
+      255,
+      r.clamp(0, 255),
+      g.clamp(0, 255),
+      b.clamp(0, 255),
+    );
     final hsv = HSVColor.fromColor(c);
     setState(() {
       _h = hsv.hue;
@@ -160,10 +170,12 @@ class _WindowsLikeColorDialogState extends State<_WindowsLikeColorDialog> {
     final updated = await CustomColorStore.add(_currentColor);
     if (mounted) {
       setState(() => _customColors = updated);
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('사용자 정의 색상에 저장되었습니다.'),
-        duration: Duration(milliseconds: 900),
-      ));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('사용자 정의 색상에 저장되었습니다.'),
+          duration: Duration(milliseconds: 900),
+        ),
+      );
     }
   }
 
@@ -216,14 +228,23 @@ class _WindowsLikeColorDialogState extends State<_WindowsLikeColorDialog> {
                               title: const Text('삭제 확인'),
                               content: const Text('해당 사용자 정의 색상을 삭제할까요?'),
                               actions: [
-                                TextButton(onPressed: ()=>Navigator.pop(ctx, false), child: const Text('취소')),
-                                ElevatedButton(onPressed: ()=>Navigator.pop(ctx, true), child: const Text('삭제')),
+                                TextButton(
+                                  onPressed: () => Navigator.pop(ctx, false),
+                                  child: const Text('취소'),
+                                ),
+                                ElevatedButton(
+                                  onPressed: () => Navigator.pop(ctx, true),
+                                  child: const Text('삭제'),
+                                ),
                               ],
                             ),
                           );
                           if (ok == true) {
-                            final updated = await CustomColorStore.removeAt(index);
-                            if (mounted) setState(() => _customColors = updated);
+                            final updated = await CustomColorStore.removeAt(
+                              index,
+                            );
+                            if (mounted)
+                              setState(() => _customColors = updated);
                           }
                         },
                         onClearAll: _clearCustom,
@@ -278,12 +299,14 @@ class _WindowsLikeColorDialogState extends State<_WindowsLikeColorDialog> {
                             mainAxisAlignment: MainAxisAlignment.end,
                             children: [
                               TextButton(
-                                onPressed: () => Navigator.of(context).pop(null),
+                                onPressed: () =>
+                                    Navigator.of(context).pop(null),
                                 child: const Text('취소'),
                               ),
                               const SizedBox(width: 8),
                               ElevatedButton(
-                                onPressed: () => Navigator.of(context).pop(_currentColor),
+                                onPressed: () =>
+                                    Navigator.of(context).pop(_currentColor),
                                 child: const Text('확인'),
                               ),
                             ],
@@ -354,7 +377,7 @@ class _LeftPalettes extends StatelessWidget {
             itemCount: _preset.length,
             itemBuilder: (context, i) {
               final c = _preset[i];
-              final sel = c.value == presetSelected.value;
+              final sel = c.toARGB32() == presetSelected.toARGB32();
               return InkWell(
                 onTap: () => onPick(c),
                 child: Container(
@@ -365,9 +388,7 @@ class _LeftPalettes extends StatelessWidget {
                     ),
                     borderRadius: BorderRadius.circular(4),
                   ),
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(color: c),
-                  ),
+                  child: DecoratedBox(decoration: BoxDecoration(color: c)),
                 ),
               );
             },
@@ -401,17 +422,21 @@ class _LeftPalettes extends StatelessWidget {
                       child: Text(
                         "저장된 색상이 없습니다.\n우측의 ‘현재 색 저장’ 버튼을 사용해 추가하세요.",
                         textAlign: TextAlign.center,
-                        style: const TextStyle(fontSize: 12, color: Colors.black54),
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: Colors.black54,
+                        ),
                       ),
                     ),
                   )
                 : GridView.builder(
-                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: cols,
-                      mainAxisSpacing: 6,
-                      crossAxisSpacing: 6,
-                      childAspectRatio: 1.6,
-                    ),
+                    gridDelegate:
+                        const SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: cols,
+                          mainAxisSpacing: 6,
+                          crossAxisSpacing: 6,
+                          childAspectRatio: 1.6,
+                        ),
                     itemCount: customColors.length,
                     itemBuilder: (context, i) {
                       final c = customColors[i];
@@ -437,6 +462,7 @@ class _LeftPalettes extends StatelessWidget {
     );
   }
 }
+
 class _HueSatPainter extends CustomPainter {
   final double hue;
   final double val;
@@ -473,7 +499,7 @@ class _HueSatPainter extends CustomPainter {
         final hh = 360.0 - i * 60.0;
         return HSVColor.fromAHSV(1.0, hh, 1.0, v).toColor();
       }),
-      stops: const [0, 1/6, 2/6, 3/6, 4/6, 5/6, 1],
+      stops: const [0, 1 / 6, 2 / 6, 3 / 6, 4 / 6, 5 / 6, 1],
     ).createShader(Rect.fromLTWH(0, 0, w, h));
     paint.shader = hueGrad;
     paint.blendMode = BlendMode.modulate;
@@ -582,13 +608,14 @@ class _RgbHexInputs extends StatelessWidget {
   });
 
   @override
-    @override
+  @override
   Widget build(BuildContext context) {
     final r = color.red;
     final g = color.green;
     final b = color.blue;
 
-    final hex = '#${color.value.toRadixString(16).padLeft(8, '0').toUpperCase()}';
+    final hex =
+        '#${color.toARGB32().toRadixString(16).padLeft(8, '0').toUpperCase()}';
 
     return Row(
       children: [
@@ -648,7 +675,11 @@ class _PreviewRow extends StatelessWidget {
   final Color original;
   final Color current;
   final VoidCallback onSave;
-  const _PreviewRow({required this.original, required this.current, required this.onSave});
+  const _PreviewRow({
+    required this.original,
+    required this.current,
+    required this.onSave,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -683,7 +714,7 @@ class _PreviewRow extends StatelessWidget {
           onPressed: onSave,
           icon: const Icon(Icons.bookmark_add_outlined),
           label: const Text('현재 색 저장'),
-        )
+        ),
       ],
     );
   }
@@ -697,7 +728,8 @@ class _NumField extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ctrl = TextEditingController(text: initial);
-    return SizedBox(width: 72,
+    return SizedBox(
+      width: 72,
       child: TextField(
         controller: ctrl,
         decoration: const InputDecoration(
@@ -705,9 +737,7 @@ class _NumField extends StatelessWidget {
           border: OutlineInputBorder(),
         ),
         keyboardType: TextInputType.number,
-        inputFormatters: [
-          FilteringTextInputFormatter.allow(RegExp(r'[0-9]')),
-        ],
+        inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9]'))],
         onChanged: (s) {
           final v = int.tryParse(s);
           onChanged(v != null ? v.clamp(0, 255) : null);

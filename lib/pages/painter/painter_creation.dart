@@ -8,21 +8,25 @@ void handlePanStartCreate(_PainterPageState state, DragStartDetails details) {
   }
   state._dragSnapAngle = null;
   state._isCreatingLineLike =
-      (state.currentTool == tool.Tool.line || state.currentTool == tool.Tool.arrow);
+      (state.currentTool == tool.Tool.line ||
+      state.currentTool == tool.Tool.arrow);
   state._firstAngleLockPending = state._isCreatingLineLike;
 
   state._pressSnapTimer?.cancel();
   if (state._isCreatingLineLike) {
     state._pressSnapTimer = Timer(const Duration(milliseconds: 250), () {
       if (state._isCreatingLineLike && state._firstAngleLockPending) {
-        state._dragSnapAngle = (state._lastRawAngle / state._snapStep).roundToDouble() * state._snapStep;
+        state._dragSnapAngle =
+            (state._lastRawAngle / state._snapStep).roundToDouble() *
+            state._snapStep;
         state._firstAngleLockPending = false;
       }
     });
   }
 
-  state.dragStart =
-      state.clampToLabel(state._sceneFromGlobal(details.globalPosition));
+  state.dragStart = state.clampToLabel(
+    state._sceneFromGlobal(details.globalPosition),
+  );
   state.previewShape = state._makeShape(state.dragStart!, state.dragStart!);
   if (state.previewShape != null) {
     state.controller.addDrawables([state.previewShape!]);
@@ -36,8 +40,9 @@ void handlePanUpdateCreate(_PainterPageState state, DragUpdateDetails details) {
     return;
   }
   if (state.dragStart == null || state.previewShape == null) return;
-  final current =
-      state.clampToLabel(state._sceneFromGlobal(details.globalPosition));
+  final current = state.clampToLabel(
+    state._sceneFromGlobal(details.globalPosition),
+  );
 
   if (state._isCreatingLineLike) {
     final delta = current - state.dragStart!;
@@ -46,7 +51,11 @@ void handlePanUpdateCreate(_PainterPageState state, DragUpdateDetails details) {
     }
   }
 
-  final updated = state._makeShape(state.dragStart!, current, previewOf: state.previewShape);
+  final updated = state._makeShape(
+    state.dragStart!,
+    current,
+    previewOf: state.previewShape,
+  );
   if (updated != null) {
     state.controller.replaceDrawable(state.previewShape!, updated);
     state.previewShape = updated;
@@ -67,7 +76,8 @@ void handlePanEndCreate(_PainterPageState state) {
   state.dragStart = null;
   state.previewShape = null;
 
-  final shouldSwitchToSelect = state.currentTool == tool.Tool.rect ||
+  final shouldSwitchToSelect =
+      state.currentTool == tool.Tool.rect ||
       state.currentTool == tool.Tool.oval ||
       state.currentTool == tool.Tool.line ||
       state.currentTool == tool.Tool.arrow ||

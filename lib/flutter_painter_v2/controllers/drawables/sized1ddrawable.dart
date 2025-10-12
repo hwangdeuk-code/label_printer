@@ -1,4 +1,3 @@
-
 import 'package:flutter/foundation.dart';
 import 'package:flutter/rendering.dart';
 
@@ -24,13 +23,14 @@ abstract class Sized1DDrawable extends ObjectDrawable {
     bool locked = false,
     bool hidden = false,
   }) : super(
-            position: position,
-            rotationAngle: rotationAngle,
-            scale: scale,
-            assists: assists,
-            assistPaints: assistPaints,
-            locked: locked,
-            hidden: hidden);
+         position: position,
+         rotationAngle: rotationAngle,
+         scale: scale,
+         assists: assists,
+         assistPaints: assistPaints,
+         locked: locked,
+         hidden: hidden,
+       );
 
   /// Getter for padding of drawable.
   ///

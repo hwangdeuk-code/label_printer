@@ -83,8 +83,7 @@ class TableQuillOverlayLayer extends StatelessWidget {
           final delta = table.cellDeltaJson[key];
           final style = table.styleOf(r, c);
           final alignStr = (style['align'] as String?) ?? 'left';
-          final double fontSize =
-              (style['fontSize'] as double?) ?? 12.0;
+          final double fontSize = (style['fontSize'] as double?) ?? 12.0;
           final bool isBold = style['bold'] == true;
           final bool isItalic = style['italic'] == true;
           final TextAlign ta = alignStr == 'center'

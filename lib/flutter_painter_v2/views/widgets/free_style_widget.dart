@@ -6,10 +6,7 @@ class _FreeStyleWidget extends StatefulWidget {
   final Widget child;
 
   /// Creates a [_FreeStyleWidget] with the given [controller], [child] widget.
-  const _FreeStyleWidget({
-    Key? key,
-    required this.child,
-  }) : super(key: key);
+  const _FreeStyleWidget({Key? key, required this.child}) : super(key: key);
 
   @override
   _FreeStyleWidgetState createState() => _FreeStyleWidgetState();
@@ -31,13 +28,13 @@ class _FreeStyleWidgetState extends State<_FreeStyleWidget> {
       gestures: {
         _DragGestureDetector:
             GestureRecognizerFactoryWithHandlers<_DragGestureDetector>(
-          () => _DragGestureDetector(
-            onHorizontalDragDown: _handleHorizontalDragDown,
-            onHorizontalDragUpdate: _handleHorizontalDragUpdate,
-            onHorizontalDragUp: _handleHorizontalDragUp,
-          ),
-          (_) {},
-        ),
+              () => _DragGestureDetector(
+                onHorizontalDragDown: _handleHorizontalDragDown,
+                onHorizontalDragUpdate: _handleHorizontalDragUpdate,
+                onHorizontalDragUp: _handleHorizontalDragUp,
+              ),
+              (_) {},
+            ),
       },
       child: widget.child,
     );
@@ -96,8 +93,9 @@ class _FreeStyleWidgetState extends State<_FreeStyleWidget> {
         ..add(_globalToLocal(globalPosition)),
     );
     // Replace the current drawable with the copy with the added point
-    PainterController.of(context)
-        .replaceDrawable(drawable, newDrawable, newAction: false);
+    PainterController.of(
+      context,
+    ).replaceDrawable(drawable, newDrawable, newAction: false);
     // Update the current drawable to be the new copy
     this.drawable = newDrawable;
   }

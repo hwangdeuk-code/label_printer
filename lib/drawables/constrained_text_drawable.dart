@@ -30,10 +30,10 @@ class ConstrainedTextDrawable extends ObjectDrawable {
   });
 
   TextAlign get _textAlign => switch (align) {
-        TxtAlign.left => TextAlign.left,
-        TxtAlign.center => TextAlign.center,
-        TxtAlign.right => TextAlign.right,
-      };
+    TxtAlign.left => TextAlign.left,
+    TxtAlign.center => TextAlign.center,
+    TxtAlign.right => TextAlign.right,
+  };
 
   @override
   ConstrainedTextDrawable copyWith({

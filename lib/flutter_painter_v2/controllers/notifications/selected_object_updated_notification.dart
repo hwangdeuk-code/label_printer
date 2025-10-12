@@ -12,5 +12,5 @@ class SelectedObjectDrawableUpdatedNotification
     extends DrawableNotification<ObjectDrawable?> {
   /// Creates a [SelectedObjectDrawableUpdatedNotification] with the given [drawable].
   SelectedObjectDrawableUpdatedNotification(ObjectDrawable? drawable)
-      : super(drawable);
+    : super(drawable);
 }

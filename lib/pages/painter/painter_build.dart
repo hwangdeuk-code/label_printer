@@ -1,3 +1,4 @@
+// ignore_for_file: invalid_use_of_protected_member
 part of 'painter_page.dart';
 
 Widget buildPainterScaffold(_PainterPageState state, BuildContext context) {
@@ -15,9 +16,9 @@ Widget buildPainterScaffold(_PainterPageState state, BuildContext context) {
         ),
         IconButton(
           onPressed: () {
-            Navigator.of(context).push(MaterialPageRoute(
-              builder: (_) => const LoginHistoryPage(),
-            ));
+            Navigator.of(
+              context,
+            ).push(MaterialPageRoute(builder: (_) => const LoginHistoryPage()));
           },
           icon: const Icon(Icons.history),
           tooltip: '로그인 이력',
@@ -61,15 +62,37 @@ Widget buildPainterBody(_PainterPageState state, BuildContext context) {
   final range = tableDrawable != null
       ? state._currentCellSelectionRange()
       : null;
-  return RawKeyboardListener(
+  return KeyboardListener(
     focusNode: state._keyboardFocus,
     autofocus: true,
-    onKey: (event) {
-      final isShift = event.isShiftPressed;
+    onKeyEvent: (event) {
+      final isShift = HardwareKeyboard.instance.isShiftPressed;
       if (isShift != state._isShiftPressed) {
         state.setState(() {
           state._isShiftPressed = isShift;
         });
+      }
+      // 내부 서브셀 좌/우 화살표 이동 (단일 셀 + 내부 분할 시)
+      if (event is KeyDownEvent &&
+          (event.logicalKey == LogicalKeyboardKey.arrowLeft ||
+              event.logicalKey == LogicalKeyboardKey.arrowRight)) {
+        final td = tableDrawable;
+        final focus = state._selectionFocusCell;
+        if (td != null && focus != null) {
+          final count = td.internalColsCount(focus.$1, focus.$2);
+          if (count >= 2) {
+            final dir = event.logicalKey == LogicalKeyboardKey.arrowLeft
+                ? -1
+                : 1;
+            final cur = state._editingInnerColIndex ?? 0;
+            final next = (cur + dir) % count < 0
+                ? (cur + dir + count) % count
+                : (cur + dir) % count;
+            state.setState(() {
+              state._editingInnerColIndex = next;
+            });
+          }
+        }
       }
     },
     child: Row(
@@ -145,8 +168,7 @@ Widget buildPainterBody(_PainterPageState state, BuildContext context) {
               state.setState(() => state.scalePercent = value),
           labelWidthMm: state.labelWidthMm,
           labelHeightMm: state.labelHeightMm,
-          onLabelWidthChanged: (value) =>
-              state.updateLabelSpec(widthMm: value),
+          onLabelWidthChanged: (value) => state.updateLabelSpec(widthMm: value),
           onLabelHeightChanged: (value) =>
               state.updateLabelSpec(heightMm: value),
         ),
@@ -210,10 +232,34 @@ Widget buildPainterBody(_PainterPageState state, BuildContext context) {
                   bottomRow: range.bottomRow,
                   rightCol: range.rightCol,
                 ),
+          // 내부 서브셀 선택기 연결
+          currentInnerSubcellIndex: (() {
+            final td = tableDrawable;
+            final focus = state._selectionFocusCell;
+            if (td == null || focus == null) return null;
+            // 편집 중 인덱스가 있으면 그대로, 없으면 null(셀 전체)
+            return state._editingInnerColIndex;
+          })(),
+          innerSubcellCount: (() {
+            final td = tableDrawable;
+            final focus = state._selectionFocusCell;
+            if (td == null || focus == null) return null;
+            return td.internalColsCount(focus.$1, focus.$2);
+          })(),
+          onChangeInnerSubcellIndex: (idx) {
+            // 인덱스 상태만 반영(인라인 에디터 진입 없이 스타일 패널이 이 인덱스를 대상으로 동작)
+            state.setState(() {
+              state._editingInnerColIndex = idx;
+            });
+          },
           strokeWidth: state.strokeWidth,
           onApplyStroke: state._applyInspector,
           onReplaceDrawable: (original, replacement) {
-            final adjusted = adjustInsideAllowed(state, replacement, inset: 1.0);
+            final adjusted = adjustInsideAllowed(
+              state,
+              replacement,
+              inset: 1.0,
+            );
             state.controller.replaceDrawable(original, adjusted);
             state.setState(() => state.selectedDrawable = adjusted);
           },
@@ -232,7 +278,11 @@ Widget buildPainterBody(_PainterPageState state, BuildContext context) {
             if (current == null) return;
             final replacement = rewriter(current);
             if (identical(replacement, current)) return;
-            final adjusted = adjustInsideAllowed(state, replacement, inset: 1.0);
+            final adjusted = adjustInsideAllowed(
+              state,
+              replacement,
+              inset: 1.0,
+            );
             state.controller.replaceDrawable(current, adjusted);
             state.setState(() => state.selectedDrawable = adjusted);
           },
@@ -258,20 +308,22 @@ Widget buildPainterBody(_PainterPageState state, BuildContext context) {
                 final table = state._editingTable;
                 final row = state._editingCellRow;
                 final col = state._editingCellCol;
+                // 편집 중이면 그 인덱스, 아니면 인스펙터 선택자 값 사용
+                final inner = state._editingInnerColIndex;
                 if (table == null || row == null || col == null) return;
 
                 state._guardSelectionDuringInspector = true;
                 state._suppressCommitOnce = true;
                 state._inspectorGuardTimer?.cancel();
                 try {
-                  state.setState(() {
-                    if (bold != null) state._inspBold = bold;
-                    if (italic != null) state._inspItalic = italic;
-                    if (fontSize != null) state._inspFontSize = fontSize;
-                    if (align != null) state._inspAlign = align;
-                  });
+                  if (bold != null) state._inspBold = bold;
+                  if (italic != null) state._inspItalic = italic;
+                  if (fontSize != null) state._inspFontSize = fontSize;
+                  if (align != null) state._inspAlign = align;
 
-                  final current = table.styleOf(row, col);
+                  final current = inner != null
+                      ? table.internalStyleOf(row, col, inner)
+                      : table.styleOf(row, col);
                   final updated = <String, dynamic>{
                     'bold': current['bold'],
                     'italic': current['italic'],
@@ -300,7 +352,11 @@ Widget buildPainterBody(_PainterPageState state, BuildContext context) {
                       : (effectiveAlign == tool.TxtAlign.right
                             ? 'right'
                             : 'left');
-                  table.setStyle(row, col, updated);
+                  if (inner != null) {
+                    table.setInternalStyle(row, col, inner, updated);
+                  } else {
+                    table.setStyle(row, col, updated);
+                  }
 
                   if (controller != null) {
                     if (bold != null) {

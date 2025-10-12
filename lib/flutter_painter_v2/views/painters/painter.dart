@@ -18,11 +18,7 @@ class Painter extends CustomPainter {
   final Size? scale;
 
   /// Creates a [Painter] that paints the [drawables] onto a background [background].
-  const Painter({
-    required this.drawables,
-    this.background,
-    this.scale,
-  });
+  const Painter({required this.drawables, this.background, this.scale});
 
   /// Paints the drawables onto the [canvas] of size [size].
   @override
@@ -39,16 +35,19 @@ class Painter extends CustomPainter {
     // and then proceed to drawing the drawables
     if (_scale != null) {
       canvas.save();
-      canvas.transform(Matrix4.identity()
-          .scaled(size.width / _scale.width, size.height / _scale.height)
-          .storage);
+      canvas.transform(
+        Matrix4.identity()
+            .scaled(size.width / _scale.width, size.height / _scale.height)
+            .storage,
+      );
     }
 
     canvas.saveLayer(Rect.largest, Paint());
 
     // Draw all the drawables
-    for (final drawable
-        in drawables.where((drawable) => drawable.isNotHidden)) {
+    for (final drawable in drawables.where(
+      (drawable) => drawable.isNotHidden,
+    )) {
       drawable.draw(canvas, _scale ?? size);
     }
 

@@ -197,7 +197,10 @@ class ToolPanel extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 16),
-          const Text('Draw Settings', style: TextStyle(fontWeight: FontWeight.bold)),
+          const Text(
+            'Draw Settings',
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
           const SizedBox(height: 8),
           Row(
             children: [
@@ -244,7 +247,10 @@ class ToolPanel extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 16),
-          const Text('Snap / Behavior', style: TextStyle(fontWeight: FontWeight.bold)),
+          const Text(
+            'Snap / Behavior',
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
           SwitchListTile(
             value: lockRatio,
             onChanged: onLockRatioChanged,
@@ -264,7 +270,10 @@ class ToolPanel extends StatelessWidget {
             dense: true,
           ),
           const SizedBox(height: 16),
-          const Text('Barcode Defaults', style: TextStyle(fontWeight: FontWeight.bold)),
+          const Text(
+            'Barcode Defaults',
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
           const SizedBox(height: 8),
           TextFormField(
             initialValue: barcodeData,
@@ -313,7 +322,10 @@ class ToolPanel extends StatelessWidget {
                   onChanged: onBarcodeFontSizeChanged,
                 ),
               ),
-              SizedBox(width: 40, child: Text(barcodeFontSize.toStringAsFixed(0))),
+              SizedBox(
+                width: 40,
+                child: Text(barcodeFontSize.toStringAsFixed(0)),
+              ),
             ],
           ),
           const SizedBox(height: 8),
@@ -341,14 +353,17 @@ class ToolPanel extends StatelessWidget {
               for (final c in _barcodeBgChoices)
                 ColorDot(
                   color: c,
-                  selected: barcodeBackground.value == c.value,
-                  showChecker: c.alpha < 0xFF,
+                  selected: barcodeBackground.toARGB32() == c.toARGB32(),
+                  showChecker: c.a < 1.0,
                   onTap: () => onBarcodeBackgroundChanged(c),
                 ),
             ],
           ),
           const SizedBox(height: 16),
-          const Text('Text Defaults', style: TextStyle(fontWeight: FontWeight.bold)),
+          const Text(
+            'Text Defaults',
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
           Row(
             children: [
               const Text('Size'),
@@ -388,7 +403,10 @@ class ToolPanel extends StatelessWidget {
                 items: const [
                   DropdownMenuItem(value: 'Roboto', child: Text('Roboto')),
                   DropdownMenuItem(value: 'NotoSans', child: Text('NotoSans')),
-                  DropdownMenuItem(value: 'Monospace', child: Text('Monospace')),
+                  DropdownMenuItem(
+                    value: 'Monospace',
+                    child: Text('Monospace'),
+                  ),
                 ],
                 onChanged: (v) {
                   if (v != null) onTextFontFamilyChanged(v);
@@ -404,7 +422,10 @@ class ToolPanel extends StatelessWidget {
                 value: defaultTextAlign,
                 items: const [
                   DropdownMenuItem(value: TxtAlign.left, child: Text('Left')),
-                  DropdownMenuItem(value: TxtAlign.center, child: Text('Center')),
+                  DropdownMenuItem(
+                    value: TxtAlign.center,
+                    child: Text('Center'),
+                  ),
                   DropdownMenuItem(value: TxtAlign.right, child: Text('Right')),
                 ],
                 onChanged: (v) {
@@ -424,7 +445,10 @@ class ToolPanel extends StatelessWidget {
                   onChanged: onDefaultTextMaxWidthChanged,
                 ),
               ),
-              SizedBox(width: 56, child: Text(defaultTextMaxWidth.toStringAsFixed(0))),
+              SizedBox(
+                width: 56,
+                child: Text(defaultTextMaxWidth.toStringAsFixed(0)),
+              ),
             ],
           ),
         ],
@@ -433,12 +457,12 @@ class ToolPanel extends StatelessWidget {
   }
 
   Widget _toolChip(Tool tool, String label, IconData icon) => _ToolChip(
-        currentTool: currentTool,
-        tool: tool,
-        label: label,
-        icon: icon,
-        onSelected: onToolSelected,
-      );
+    currentTool: currentTool,
+    tool: tool,
+    label: label,
+    icon: icon,
+    onSelected: onToolSelected,
+  );
 
   static const _strokeChoices = [
     Colors.black,
@@ -450,10 +474,10 @@ class ToolPanel extends StatelessWidget {
 
   static final _fillChoices = [
     Colors.black12,
-    Colors.redAccent.withOpacity(0.2),
-    Colors.blueAccent.withOpacity(0.2),
-    Colors.greenAccent.withOpacity(0.2),
-    Colors.orangeAccent.withOpacity(0.2),
+    Colors.redAccent.withValues(alpha: 0.2),
+    Colors.blueAccent.withValues(alpha: 0.2),
+    Colors.greenAccent.withValues(alpha: 0.2),
+    Colors.orangeAccent.withValues(alpha: 0.2),
   ];
 
   static const _barcodeTypes = [
@@ -481,9 +505,9 @@ class ToolPanel extends StatelessWidget {
     Color(0xFFE8F5E9),
   ];
 
-  static String _barcodeLabel(BarcodeType type) => _barcodeLabels[type] ?? type.name;
+  static String _barcodeLabel(BarcodeType type) =>
+      _barcodeLabels[type] ?? type.name;
 }
-
 
 class _TableToolButton extends StatefulWidget {
   const _TableToolButton({required this.onCreate});
@@ -502,15 +526,20 @@ class _TableToolButtonState extends State<_TableToolButton> {
     if (_overlay != null) return;
     final overlayState = Overlay.of(context);
     final renderBox = context.findRenderObject() as RenderBox?;
-    if (overlayState == null || renderBox == null || !renderBox.attached) return;
+    if (overlayState == null || renderBox == null || !renderBox.attached)
+      return;
 
     final origin = renderBox.localToGlobal(Offset.zero);
     final buttonSize = renderBox.size;
     final screenSize = MediaQuery.of(context).size;
 
     const padding = 8.0;
-    final popupWidth = _TablePickerOverlay.popupWidth(_TablePickerOverlay.defaultGridColumns);
-    final popupHeight = _TablePickerOverlay.popupHeight(_TablePickerOverlay.defaultGridRows);
+    final popupWidth = _TablePickerOverlay.popupWidth(
+      _TablePickerOverlay.defaultGridColumns,
+    );
+    final popupHeight = _TablePickerOverlay.popupHeight(
+      _TablePickerOverlay.defaultGridRows,
+    );
 
     var left = origin.dx;
     var top = origin.dy + buttonSize.height + padding;
@@ -524,7 +553,9 @@ class _TableToolButtonState extends State<_TableToolButton> {
 
     if (top + popupHeight + padding > screenSize.height) {
       final above = origin.dy - popupHeight - padding;
-      top = above >= padding ? above : screenSize.height - popupHeight - padding;
+      top = above >= padding
+          ? above
+          : screenSize.height - popupHeight - padding;
     }
     if (top < padding) {
       top = padding;
@@ -577,8 +608,12 @@ class _TableToolButtonState extends State<_TableToolButton> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final bg = _active ? theme.colorScheme.primary.withOpacity(0.12) : Colors.transparent;
-    final fg = _active ? theme.colorScheme.primary : theme.colorScheme.onSurface;
+    final bg = _active
+        ? theme.colorScheme.primary.withOpacity(0.12)
+        : Colors.transparent;
+    final fg = _active
+        ? theme.colorScheme.primary
+        : theme.colorScheme.onSurface;
     final borderColor = _active ? theme.colorScheme.primary : Colors.black26;
 
     return Material(
@@ -725,15 +760,21 @@ class _TablePickerOverlayState extends State<_TablePickerOverlay> {
               for (var c = 0; c < widget.maxColumns; c++)
                 Padding(
                   padding: EdgeInsets.only(
-                    right: c == widget.maxColumns - 1 ? 0 : _TablePickerOverlay.cellGap,
+                    right: c == widget.maxColumns - 1
+                        ? 0
+                        : _TablePickerOverlay.cellGap,
                   ),
                   child: Container(
                     width: _TablePickerOverlay.cellSize,
                     height: _TablePickerOverlay.cellSize,
                     decoration: BoxDecoration(
-                      color: r < _rows && c < _columns ? fillColor : theme.colorScheme.surface,
+                      color: r < _rows && c < _columns
+                          ? fillColor
+                          : theme.colorScheme.surface,
                       border: Border.all(
-                        color: r < _rows && c < _columns ? borderActive : borderInactive,
+                        color: r < _rows && c < _columns
+                            ? borderActive
+                            : borderInactive,
                       ),
                       borderRadius: BorderRadius.circular(2),
                     ),
@@ -769,7 +810,9 @@ class _TablePickerOverlayState extends State<_TablePickerOverlay> {
               const SizedBox(height: 8),
               Text(
                 '${_rows} x ${_columns}',
-                style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.primary),
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.primary,
+                ),
               ),
             ],
           ),
@@ -778,6 +821,7 @@ class _TablePickerOverlayState extends State<_TablePickerOverlay> {
     );
   }
 }
+
 class _ToolChip extends StatelessWidget {
   const _ToolChip({
     required this.currentTool,
@@ -796,12 +840,22 @@ class _ToolChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final selected = currentTool == tool;
-    final bg = selected ? Theme.of(context).colorScheme.primary.withOpacity(0.12) : Colors.transparent;
-    final fg = selected ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.onSurface;
+    final bg = selected
+        ? Theme.of(context).colorScheme.primary.withOpacity(0.12)
+        : Colors.transparent;
+    final fg = selected
+        ? Theme.of(context).colorScheme.primary
+        : Theme.of(context).colorScheme.onSurface;
 
     return Material(
       color: bg,
-      shape: StadiumBorder(side: BorderSide(color: selected ? Theme.of(context).colorScheme.primary : Colors.black26)),
+      shape: StadiumBorder(
+        side: BorderSide(
+          color: selected
+              ? Theme.of(context).colorScheme.primary
+              : Colors.black26,
+        ),
+      ),
       child: InkWell(
         mouseCursor: SystemMouseCursors.click,
         customBorder: const StadiumBorder(),

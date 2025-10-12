@@ -33,7 +33,9 @@ void clearAll(_PainterPageState state) {
 }
 
 Future<void> saveAsPng(_PainterPageState state, BuildContext context) async {
-  final ui.Image image = await state.controller.renderImage(const Size(1200, 1200));
+  final ui.Image image = await state.controller.renderImage(
+    const Size(1200, 1200),
+  );
   final bytes = await image.pngBytes;
   if (bytes == null) return;
   if (!context.mounted) return;
@@ -63,11 +65,7 @@ Future<void> showPrintDialog(
   } catch (e, stack) {
     debugPrint('build label document failed: $e\n$stack');
     if (state.mounted) {
-      state._showSnackBar(
-        context,
-        '라벨 미리보기를 준비하지 못했습니다: $e',
-        isError: true,
-      );
+      state._showSnackBar(context, '라벨 미리보기를 준비하지 못했습니다: $e', isError: true);
     }
     return;
   }
@@ -79,7 +77,8 @@ Future<void> showPrintDialog(
   try {
     printers = await Printing.listPrinters();
     printers.sort(
-      (a, b) => (a.name ?? '').toLowerCase().compareTo((b.name ?? '').toLowerCase()),
+      (a, b) =>
+          (a.name ?? '').toLowerCase().compareTo((b.name ?? '').toLowerCase()),
     );
   } catch (e, stack) {
     printerQueryFailed = true;
@@ -88,9 +87,9 @@ Future<void> showPrintDialog(
 
   Printer? preferredPrinter = _pickPreferredPrinter(printers);
   double? _knownDpiFor(Printer? printer) {
-    final String signature = (
-      '${printer?.name ?? ''} ${printer?.location ?? ''} ${printer?.url ?? ''}'
-    ).toUpperCase();
+    final String signature =
+        ('${printer?.name ?? ''} ${printer?.location ?? ''} ${printer?.url ?? ''}')
+            .toUpperCase();
     if (signature.contains('GODEX G500') || signature.contains('G500')) {
       return 203.0;
     }
@@ -98,9 +97,9 @@ Future<void> showPrintDialog(
   }
 
   ({double width, double height})? _knownLabelFor(Printer? printer) {
-    final String signature = (
-      '${printer?.name ?? ''} ${printer?.location ?? ''} ${printer?.url ?? ''}'
-    ).toUpperCase();
+    final String signature =
+        ('${printer?.name ?? ''} ${printer?.location ?? ''} ${printer?.url ?? ''}')
+            .toUpperCase();
     if (signature.contains('GODEX G500') || signature.contains('G500')) {
       return (width: 80.0, height: 60.0);
     }
@@ -146,10 +145,7 @@ Future<void> showPrintDialog(
 
       return StatefulBuilder(
         builder: (ctx, setStateDialog) {
-          String sizeLabel = _formatPhysicalSize(
-            doc.pixelSize,
-            doc.dpi,
-          );
+          String sizeLabel = _formatPhysicalSize(doc.pixelSize, doc.dpi);
           return AlertDialog(
             title: const Text('라벨 출력'),
             content: SingleChildScrollView(
@@ -160,8 +156,7 @@ Future<void> showPrintDialog(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     AspectRatio(
-                      aspectRatio:
-                          doc.pixelSize.width / doc.pixelSize.height,
+                      aspectRatio: doc.pixelSize.width / doc.pixelSize.height,
                       child: DecoratedBox(
                         decoration: BoxDecoration(
                           color: Colors.white,
@@ -185,26 +180,21 @@ Future<void> showPrintDialog(
                     ),
                     Text(
                       doc.rawIsVector ? 'EZPL 벡터 명령 사용' : '래스터 이미지 출력',
-                      style: Theme.of(ctx)
-                          .textTheme
-                          .bodySmall
-                          ?.copyWith(color: doc.rawIsVector ? Colors.green : Colors.orange),
+                      style: Theme.of(ctx).textTheme.bodySmall?.copyWith(
+                        color: doc.rawIsVector ? Colors.green : Colors.orange,
+                      ),
                     ),
                     if (!isWindows) ...[
                       const SizedBox(height: 6),
                       Text(
                         'Windows 이외의 환경에서는 직접 출력이 제한될 수 있습니다. 필요하면 "시스템 인쇄 대화상자"를 선택하세요.',
-                        style: Theme.of(ctx)
-                            .textTheme
-                            .bodySmall
-                            ?.copyWith(color: Theme.of(ctx).colorScheme.error),
+                        style: Theme.of(ctx).textTheme.bodySmall?.copyWith(
+                          color: Theme.of(ctx).colorScheme.error,
+                        ),
                       ),
                     ],
                     const SizedBox(height: 16),
-                    Text(
-                      '프린터 선택',
-                      style: Theme.of(ctx).textTheme.titleSmall,
-                    ),
+                    Text('프린터 선택', style: Theme.of(ctx).textTheme.titleSmall),
                     const SizedBox(height: 8),
                     DropdownButtonFormField<Printer?>(
                       value: selected,
@@ -243,10 +233,9 @@ Future<void> showPrintDialog(
                         printerQueryFailed
                             ? '프린터 목록을 불러오지 못했습니다. 시스템 인쇄 대화상자를 이용해 주세요.'
                             : '사용 가능한 프린터를 찾지 못했습니다. 시스템 인쇄 대화상자를 이용해 주세요.',
-                        style: Theme.of(ctx)
-                            .textTheme
-                            .bodySmall
-                            ?.copyWith(color: Theme.of(ctx).colorScheme.error),
+                        style: Theme.of(ctx).textTheme.bodySmall?.copyWith(
+                          color: Theme.of(ctx).colorScheme.error,
+                        ),
                       ),
                     ],
                     if (statusMessage != null) ...[
@@ -254,10 +243,10 @@ Future<void> showPrintDialog(
                       Text(
                         statusMessage!,
                         style: Theme.of(ctx).textTheme.bodySmall?.copyWith(
-                              color: statusIsError
-                                  ? Theme.of(ctx).colorScheme.error
-                                  : Theme.of(ctx).colorScheme.primary,
-                            ),
+                          color: statusIsError
+                              ? Theme.of(ctx).colorScheme.error
+                              : Theme.of(ctx).colorScheme.primary,
+                        ),
                       ),
                     ],
                   ],
@@ -420,8 +409,8 @@ Future<void> pickImageAndAdd(_PainterPageState state) async {
 }
 
 Size _resolvePainterSize(_PainterPageState state) {
-  final renderObject =
-      state.controller.painterKey.currentContext?.findRenderObject();
+  final renderObject = state.controller.painterKey.currentContext
+      ?.findRenderObject();
   if (renderObject is RenderBox && renderObject.hasSize) {
     return renderObject.size;
   }
@@ -447,8 +436,9 @@ Future<_LabelDocument> _buildLabelDocument(_PainterPageState state) async {
   }
 
   final ui.Image image = await state.controller.renderImage(labelSize);
-  final ByteData? rawData =
-      await image.toByteData(format: ui.ImageByteFormat.rawRgba);
+  final ByteData? rawData = await image.toByteData(
+    format: ui.ImageByteFormat.rawRgba,
+  );
   final Uint8List? pngBytes = await image.pngBytes;
   if (rawData == null || pngBytes == null || pngBytes.isEmpty) {
     image.dispose();
@@ -470,8 +460,10 @@ Future<_LabelDocument> _buildLabelDocument(_PainterPageState state) async {
   }
 
   final int averageLum = luminanceSum ~/ pixelCount;
-  final int adaptiveThreshold =
-      math.max(90, math.min(210, averageLum + 20)); // keep backgrounds light
+  final int adaptiveThreshold = math.max(
+    90,
+    math.min(210, averageLum + 20),
+  ); // keep backgrounds light
 
   for (int rgbaIndex = 0, p = 0; p < pixelCount; rgbaIndex += 4, p++) {
     final int bw = luminances[p] <= adaptiveThreshold ? 0 : 255;
@@ -514,7 +506,9 @@ Future<_LabelDocument> _buildLabelDocument(_PainterPageState state) async {
     ..write('^PW$pixelWidth\r\n')
     ..write('^LL$pixelHeight\r\n')
     ..write('^FO0,0\r\n')
-    ..write('^GFA,$totalBytes,$totalBytes,$bytesPerRow,${hexBuffer.toString()}\r\n')
+    ..write(
+      '^GFA,$totalBytes,$totalBytes,$bytesPerRow,${hexBuffer.toString()}\r\n',
+    )
     ..write('^PQ1\r\n')
     ..write('^XZ\r\n');
   final Uint8List zplBytes = Uint8List.fromList(utf8.encode(zpl.toString()));
@@ -524,8 +518,9 @@ Future<_LabelDocument> _buildLabelDocument(_PainterPageState state) async {
     sourceSize: labelSize,
     dpi: dpi,
   ).build(state.controller.value.drawables);
-  final Uint8List vectorBytes =
-      Uint8List.fromList(utf8.encode(ezplResult.commands));
+  final Uint8List vectorBytes = Uint8List.fromList(
+    utf8.encode(ezplResult.commands),
+  );
   final bool useVector = ezplResult.fullyVector;
   final Uint8List rawBytes = useVector ? vectorBytes : zplBytes;
 
@@ -576,12 +571,8 @@ Future<_LabelDocument> _buildLabelDocument(_PainterPageState state) async {
   );
 }
 
-Future<void> _showPreviewDialog(
-  BuildContext context,
-  _LabelDocument document,
-) {
-  final double aspect =
-      document.pixelSize.width / document.pixelSize.height;
+Future<void> _showPreviewDialog(BuildContext context, _LabelDocument document) {
+  final double aspect = document.pixelSize.width / document.pixelSize.height;
   final double width = aspect >= 1 ? 640 : 480;
   final double rawHeight = width / aspect;
   double height = rawHeight;

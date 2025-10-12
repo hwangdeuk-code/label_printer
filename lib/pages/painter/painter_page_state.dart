@@ -42,11 +42,7 @@ class _PainterPageState extends State<PainterPage> {
     );
   }
 
-  void updateLabelSpec({
-    double? widthMm,
-    double? heightMm,
-    double? dpi,
-  }) {
+  void updateLabelSpec({double? widthMm, double? heightMm, double? dpi}) {
     final double newWidth = widthMm ?? labelWidthMm;
     final double newHeight = heightMm ?? labelHeightMm;
     final double newDpi = dpi ?? printerDpi;
@@ -100,6 +96,7 @@ class _PainterPageState extends State<PainterPage> {
   TableDrawable? _editingTable;
   int? _editingCellRow;
   int? _editingCellCol;
+  int? _editingInnerColIndex; // 내부 서브셀 편집 시 대상 내부 열 인덱스
   quill.QuillController? _quillController;
   List<dynamic>? _pendingQuillDeltaOps;
 
@@ -115,7 +112,7 @@ class _PainterPageState extends State<PainterPage> {
 
   final FocusNode _quillFocus = FocusNode();
   bool _guardSelectionDuringInspector = false;
-  TextSelection? _pendingSelectionRestore;
+  // removed unused: _pendingSelectionRestore
 
   Timer? _quillBlurCommitTimer;
   bool _suppressCommitOnce = false;
@@ -212,7 +209,7 @@ class _PainterPageState extends State<PainterPage> {
   Paint _strokePaint(Color color, double width) =>
       strokePaint(this, color, width);
 
-  Paint _fillPaint(Color color) => fillPaint(color);
+  // removed unused: _fillPaint
 
   Offset _lineStart(Drawable drawable) => lineStart(drawable);
 
@@ -232,8 +229,7 @@ class _PainterPageState extends State<PainterPage> {
   bool _hitTest(Drawable drawable, Offset point) =>
       hitTest(this, drawable, point);
 
-  double _distanceToSegment(Offset p, Offset a, Offset b) =>
-      distanceToSegment(p, a, b);
+  // removed unused: _distanceToSegment
 
   bool _hitSelectionChromeScene(Offset point) =>
       hitSelectionChromeScene(this, point);
@@ -305,10 +301,7 @@ class _PainterPageState extends State<PainterPage> {
     return drawable.runtimeType.toString().toLowerCase();
   }
 
-  void _prepareOverrideId(Drawable drawable, String id) {
-    _pendingIdOverrides[drawable] = id;
-    _drawableIds[drawable] = id;
-  }
+  // removed unused: _prepareOverrideId
 
   Future<void> _saveProject(BuildContext context) async {
     try {
@@ -363,8 +356,10 @@ class _PainterPageState extends State<PainterPage> {
       }
 
       final double? savedDpi = (decoded['printerDpi'] as num?)?.toDouble();
-      final double? savedWidthMm = (decoded['labelWidthMm'] as num?)?.toDouble();
-      final double? savedHeightMm = (decoded['labelHeightMm'] as num?)?.toDouble();
+      final double? savedWidthMm = (decoded['labelWidthMm'] as num?)
+          ?.toDouble();
+      final double? savedHeightMm = (decoded['labelHeightMm'] as num?)
+          ?.toDouble();
 
       setState(() {
         if (savedDpi != null && savedDpi > 0) {
@@ -381,7 +376,7 @@ class _PainterPageState extends State<PainterPage> {
       int added = 0;
       for (final entry in objects) {
         if (entry is! Map) continue;
-        final map = Map<String, dynamic>.from(entry as Map);
+        final map = Map<String, dynamic>.from(entry);
         final result = await DrawableSerializer.fromJson(map);
         if (result == null) continue;
         final drawable = result.drawable;
@@ -413,7 +408,7 @@ class _PainterPageState extends State<PainterPage> {
     );
   }
 
-  Offset _rotateHandlePos(Rect rect) => rotateHandlePos(this, rect);
+  // removed unused: _rotateHandlePos
 
   Offset _rotPoint(Offset point, Offset center, double angle) =>
       rotPoint(point, center, angle);

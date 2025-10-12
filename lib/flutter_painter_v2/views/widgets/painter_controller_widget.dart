@@ -11,8 +11,8 @@ class PainterControllerWidget extends InheritedWidget {
   final PainterController controller;
 
   static PainterControllerWidget of(BuildContext context) {
-    final PainterControllerWidget? result =
-        context.dependOnInheritedWidgetOfExactType<PainterControllerWidget>();
+    final PainterControllerWidget? result = context
+        .dependOnInheritedWidgetOfExactType<PainterControllerWidget>();
     assert(result != null, 'No PainterControllerWidget found in context');
     return result!;
   }

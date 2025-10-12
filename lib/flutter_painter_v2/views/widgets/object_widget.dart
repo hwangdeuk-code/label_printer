@@ -31,7 +31,7 @@ class _ObjectWidgetState extends State<_ObjectWidget> {
     5 * pi / 4,
     3 * pi / 2,
     7 * pi / 4,
-    2 * pi
+    2 * pi,
   };
 
   /// The last controller value in the widget tree.
@@ -73,14 +73,14 @@ class _ObjectWidgetState extends State<_ObjectWidget> {
   ///
   /// This is used to provide haptic feedback when the assist line appears.
   Map<ObjectDrawableAssist, Set<int>> assistDrawables = {
-    for (var e in ObjectDrawableAssist.values) e: <int>{}
+    for (var e in ObjectDrawableAssist.values) e: <int>{},
   };
 
   /// Keeps track of which controls are being used.
   ///
   /// Used to highlight the controls when they are in use.
   Map<int, bool> controlsAreActive = {
-    for (var e in List.generate(8, (index) => index)) e: false
+    for (var e in List.generate(8, (index) => index)) e: false,
   };
 
   /// Subscription to the events coming from the controller.
@@ -88,11 +88,9 @@ class _ObjectWidgetState extends State<_ObjectWidget> {
 
   /// Getter for the list of [ObjectDrawable]s in the controller
   /// to make code more readable.
-  List<ObjectDrawable> get drawables => PainterController.of(context)
-      .value
-      .drawables
-      .whereType<ObjectDrawable>()
-      .toList();
+  List<ObjectDrawable> get drawables => PainterController.of(
+    context,
+  ).value.drawables.whereType<ObjectDrawable>().toList();
 
   /// A flag on whether to cancel controls animation or not.
   /// This is used to cancel the animation after the selected object
@@ -105,8 +103,9 @@ class _ObjectWidgetState extends State<_ObjectWidget> {
 
     // Listen to the stream of events from the paint controller
     WidgetsBinding.instance.addPostFrameCallback((timestamp) {
-      controllerEventSubscription =
-          PainterController.of(context).events.listen((event) {
+      controllerEventSubscription = PainterController.of(context).events.listen((
+        event,
+      ) {
         // When an [RemoveDrawableEvent] event is received and removed drawable is the selected object
         // cancel the animation.
         if (event is SelectedObjectDrawableRemovedEvent) {
@@ -117,9 +116,9 @@ class _ObjectWidgetState extends State<_ObjectWidget> {
       });
 
       // Listen to transformation changes of [InteractiveViewer].
-      PainterController.of(context)
-          .transformationController
-          .addListener(onTransformUpdated);
+      PainterController.of(
+        context,
+      ).transformationController.addListener(onTransformUpdated);
     });
   }
 
@@ -142,428 +141,518 @@ class _ObjectWidgetState extends State<_ObjectWidget> {
     final drawables = this.drawables;
     final drawableAirTransformable =
         controller?.selectedObjectDrawable != null &&
-            controller?.shapeSettings.factory == null;
+        controller?.shapeSettings.factory == null;
     final selectedDrawableEntry = drawableAirTransformable
         ? MapEntry<int, ObjectDrawable>(
             drawables.indexOf(controller!.selectedObjectDrawable!),
-            controller!.selectedObjectDrawable!)
+            controller!.selectedObjectDrawable!,
+          )
         : MapEntry<int, ObjectDrawable>(
             0,
-            TextDrawable(
-              position: Offset(0, 0),
-              text: '',
-            ));
-    return LayoutBuilder(builder: (context, constraints) {
-      return Stack(
-        children: [
-          Positioned.fill(
+            TextDrawable(position: Offset(0, 0), text: ''),
+          );
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return Stack(
+          children: [
+            Positioned.fill(
               child: GestureDetector(
-                  onTap: onBackgroundTapped,
-                  onScaleStart: drawableAirTransformable
-                      ? (details) =>
+                onTap: onBackgroundTapped,
+                onScaleStart: drawableAirTransformable
+                    ? (details) =>
                           onDrawableScaleStart(selectedDrawableEntry, details)
-                      : null,
-                  onScaleUpdate: drawableAirTransformable
-                      ? (details) =>
+                    : null,
+                onScaleUpdate: drawableAirTransformable
+                    ? (details) =>
                           onDrawableScaleUpdate(selectedDrawableEntry, details)
-                      : null,
-                  onScaleEnd: drawableAirTransformable
-                      ? (_) => onDrawableScaleEnd(selectedDrawableEntry)
-                      : null,
-                  child: widget.child)),
-          ...drawables.asMap().entries.map((entry) {
-            final drawable = entry.value;
-            final selected = drawable == controller?.selectedObjectDrawable;
-            final size = drawable.getSize(maxWidth: constraints.maxWidth);
-            final widget = Padding(
-              padding: EdgeInsets.all(objectPadding),
-              child: SizedBox(
-                width: size.width,
-                height: size.height,
+                    : null,
+                onScaleEnd: drawableAirTransformable
+                    ? (_) => onDrawableScaleEnd(selectedDrawableEntry)
+                    : null,
+                child: widget.child,
               ),
-            );
-            return Positioned(
-              // Offset the position by half the size of the drawable so that
-              // the object is in the center point
-              top: drawable.position.dy - objectPadding - size.height / 2,
-              left: drawable.position.dx - objectPadding - size.width / 2,
-              child: Transform.rotate(
-                angle: drawable.rotationAngle,
-                transformHitTests: true,
-                child: Container(
-                  child: freeStyleSettings.mode != FreeStyleMode.none
-                      ? widget
-                      : MouseRegion(
-                          cursor: drawable.locked
-                              ? MouseCursor.defer
-                              : SystemMouseCursors.allScroll,
-                          child: GestureDetector(
-                            behavior: HitTestBehavior.opaque,
-                            onTap: () => tapDrawable(drawable),
-                            onScaleStart: (details) =>
-                                onDrawableScaleStart(entry, details),
-                            onScaleUpdate: (details) =>
-                                onDrawableScaleUpdate(entry, details),
-                            onScaleEnd: (_) => onDrawableScaleEnd(entry),
-                            child: AnimatedSwitcher(
-                              duration: controlsTransitionDuration,
-                              child: selected
-                                  ? Stack(
-                                      children: [
-                                        widget,
-                                        Positioned(
-                                          top: objectPadding -
-                                              (controlsSize / 2),
-                                          bottom: objectPadding -
-                                              (controlsSize / 2),
-                                          left: objectPadding -
-                                              (controlsSize / 2),
-                                          right: objectPadding -
-                                              (controlsSize / 2),
-                                          child: Builder(
-                                            builder: (context) {
-                                              if (usingHtmlRenderer) {
+            ),
+            ...drawables.asMap().entries.map((entry) {
+              final drawable = entry.value;
+              final selected = drawable == controller?.selectedObjectDrawable;
+              final size = drawable.getSize(maxWidth: constraints.maxWidth);
+              final widget = Padding(
+                padding: EdgeInsets.all(objectPadding),
+                child: SizedBox(width: size.width, height: size.height),
+              );
+              return Positioned(
+                // Offset the position by half the size of the drawable so that
+                // the object is in the center point
+                top: drawable.position.dy - objectPadding - size.height / 2,
+                left: drawable.position.dx - objectPadding - size.width / 2,
+                child: Transform.rotate(
+                  angle: drawable.rotationAngle,
+                  transformHitTests: true,
+                  child: Container(
+                    child: freeStyleSettings.mode != FreeStyleMode.none
+                        ? widget
+                        : MouseRegion(
+                            cursor: drawable.locked
+                                ? MouseCursor.defer
+                                : SystemMouseCursors.allScroll,
+                            child: GestureDetector(
+                              behavior: HitTestBehavior.opaque,
+                              onTap: () => tapDrawable(drawable),
+                              onScaleStart: (details) =>
+                                  onDrawableScaleStart(entry, details),
+                              onScaleUpdate: (details) =>
+                                  onDrawableScaleUpdate(entry, details),
+                              onScaleEnd: (_) => onDrawableScaleEnd(entry),
+                              child: AnimatedSwitcher(
+                                duration: controlsTransitionDuration,
+                                child: selected
+                                    ? Stack(
+                                        children: [
+                                          widget,
+                                          Positioned(
+                                            top:
+                                                objectPadding -
+                                                (controlsSize / 2),
+                                            bottom:
+                                                objectPadding -
+                                                (controlsSize / 2),
+                                            left:
+                                                objectPadding -
+                                                (controlsSize / 2),
+                                            right:
+                                                objectPadding -
+                                                (controlsSize / 2),
+                                            child: Builder(
+                                              builder: (context) {
+                                                if (usingHtmlRenderer) {
+                                                  return Container(
+                                                    decoration: BoxDecoration(
+                                                      border: Border.all(
+                                                        color: Colors.black,
+                                                        width:
+                                                            selectedBorderWidth,
+                                                      ),
+                                                    ),
+                                                    child: Container(
+                                                      decoration: BoxDecoration(
+                                                        border: Border.all(
+                                                          color: Colors.white,
+                                                          width:
+                                                              selectedBorderWidth,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                  );
+                                                }
                                                 return Container(
                                                   decoration: BoxDecoration(
                                                     border: Border.all(
-                                                        color: Colors.black,
-                                                        width:
-                                                            selectedBorderWidth),
-                                                  ),
-                                                  child: Container(
-                                                    decoration: BoxDecoration(
-                                                      border: Border.all(
-                                                          color: Colors.white,
-                                                          width:
-                                                              selectedBorderWidth),
+                                                      color: Colors.white,
+                                                      width:
+                                                          selectedBorderWidth,
                                                     ),
-                                                  ),
-                                                );
-                                              }
-                                              return Container(
-                                                decoration: BoxDecoration(
-                                                    border: Border.all(
-                                                        color: Colors.white,
-                                                        width:
-                                                            selectedBorderWidth),
                                                     boxShadow: [
                                                       BorderBoxShadow(
                                                         color: Colors.black,
                                                         blurRadius:
                                                             selectedBlurRadius,
-                                                      )
-                                                    ]),
-                                              );
-                                            },
+                                                      ),
+                                                    ],
+                                                  ),
+                                                );
+                                              },
+                                            ),
                                           ),
-                                        ),
-                                        if (settings
-                                            .showScaleRotationControlsResolver()) ...[
-                                          Positioned(
-                                            top: objectPadding - (controlsSize),
-                                            left:
-                                                objectPadding - (controlsSize),
-                                            width: controlsSize,
-                                            height: controlsSize,
-                                            child: MouseRegion(
-                                              cursor: SystemMouseCursors
-                                                  .resizeUpLeft,
-                                              child: GestureDetector(
-                                                onPanStart: (details) =>
-                                                    onScaleControlPanStart(
-                                                        0, entry, details),
-                                                onPanUpdate: (details) =>
-                                                    onScaleControlPanUpdate(
+                                          if (settings
+                                              .showScaleRotationControlsResolver()) ...[
+                                            Positioned(
+                                              top:
+                                                  objectPadding -
+                                                  (controlsSize),
+                                              left:
+                                                  objectPadding -
+                                                  (controlsSize),
+                                              width: controlsSize,
+                                              height: controlsSize,
+                                              child: MouseRegion(
+                                                cursor: SystemMouseCursors
+                                                    .resizeUpLeft,
+                                                child: GestureDetector(
+                                                  onPanStart: (details) =>
+                                                      onScaleControlPanStart(
+                                                        0,
+                                                        entry,
+                                                        details,
+                                                      ),
+                                                  onPanUpdate: (details) =>
+                                                      onScaleControlPanUpdate(
                                                         entry,
                                                         details,
                                                         constraints,
-                                                        true),
-                                                onPanEnd: (details) =>
-                                                    onScaleControlPanEnd(
-                                                        0, entry, details),
-                                                child: _ObjectControlBox(
-                                                  active:
-                                                      controlsAreActive[0] ??
-                                                          false,
+                                                        true,
+                                                      ),
+                                                  onPanEnd: (details) =>
+                                                      onScaleControlPanEnd(
+                                                        0,
+                                                        entry,
+                                                        details,
+                                                      ),
+                                                  child: _ObjectControlBox(
+                                                    active:
+                                                        controlsAreActive[0] ??
+                                                        false,
+                                                  ),
                                                 ),
                                               ),
                                             ),
-                                          ),
-                                          Positioned(
-                                            bottom:
-                                                objectPadding - (controlsSize),
-                                            left:
-                                                objectPadding - (controlsSize),
-                                            width: controlsSize,
-                                            height: controlsSize,
-                                            child: MouseRegion(
-                                              cursor: SystemMouseCursors
-                                                  .resizeDownLeft,
-                                              child: GestureDetector(
-                                                onPanStart: (details) =>
-                                                    onScaleControlPanStart(
-                                                        1, entry, details),
-                                                onPanUpdate: (details) =>
-                                                    onScaleControlPanUpdate(
+                                            Positioned(
+                                              bottom:
+                                                  objectPadding -
+                                                  (controlsSize),
+                                              left:
+                                                  objectPadding -
+                                                  (controlsSize),
+                                              width: controlsSize,
+                                              height: controlsSize,
+                                              child: MouseRegion(
+                                                cursor: SystemMouseCursors
+                                                    .resizeDownLeft,
+                                                child: GestureDetector(
+                                                  onPanStart: (details) =>
+                                                      onScaleControlPanStart(
+                                                        1,
+                                                        entry,
+                                                        details,
+                                                      ),
+                                                  onPanUpdate: (details) =>
+                                                      onScaleControlPanUpdate(
                                                         entry,
                                                         details,
                                                         constraints,
-                                                        true),
-                                                onPanEnd: (details) =>
-                                                    onScaleControlPanEnd(
-                                                        1, entry, details),
-                                                child: _ObjectControlBox(
-                                                  active:
-                                                      controlsAreActive[1] ??
-                                                          false,
+                                                        true,
+                                                      ),
+                                                  onPanEnd: (details) =>
+                                                      onScaleControlPanEnd(
+                                                        1,
+                                                        entry,
+                                                        details,
+                                                      ),
+                                                  child: _ObjectControlBox(
+                                                    active:
+                                                        controlsAreActive[1] ??
+                                                        false,
+                                                  ),
                                                 ),
                                               ),
                                             ),
-                                          ),
-                                          Positioned(
-                                            top: objectPadding - (controlsSize),
-                                            right:
-                                                objectPadding - (controlsSize),
-                                            width: controlsSize,
-                                            height: controlsSize,
-                                            child: MouseRegion(
-                                              cursor: initialScaleDrawables
-                                                      .containsKey(entry.key)
-                                                  ? SystemMouseCursors.grabbing
-                                                  : SystemMouseCursors.grab,
-                                              child: GestureDetector(
-                                                onPanStart: (details) =>
-                                                    onRotationControlPanStart(
-                                                        2, entry, details),
-                                                onPanUpdate: (details) =>
-                                                    onRotationControlPanUpdate(
-                                                        entry, details, size),
-                                                onPanEnd: (details) =>
-                                                    onRotationControlPanEnd(
-                                                        2, entry, details),
-                                                child: _ObjectControlBox(
-                                                  shape: BoxShape.circle,
-                                                  active:
-                                                      controlsAreActive[2] ??
-                                                          false,
+                                            Positioned(
+                                              top:
+                                                  objectPadding -
+                                                  (controlsSize),
+                                              right:
+                                                  objectPadding -
+                                                  (controlsSize),
+                                              width: controlsSize,
+                                              height: controlsSize,
+                                              child: MouseRegion(
+                                                cursor:
+                                                    initialScaleDrawables
+                                                        .containsKey(entry.key)
+                                                    ? SystemMouseCursors
+                                                          .grabbing
+                                                    : SystemMouseCursors.grab,
+                                                child: GestureDetector(
+                                                  onPanStart: (details) =>
+                                                      onRotationControlPanStart(
+                                                        2,
+                                                        entry,
+                                                        details,
+                                                      ),
+                                                  onPanUpdate: (details) =>
+                                                      onRotationControlPanUpdate(
+                                                        entry,
+                                                        details,
+                                                        size,
+                                                      ),
+                                                  onPanEnd: (details) =>
+                                                      onRotationControlPanEnd(
+                                                        2,
+                                                        entry,
+                                                        details,
+                                                      ),
+                                                  child: _ObjectControlBox(
+                                                    shape: BoxShape.circle,
+                                                    active:
+                                                        controlsAreActive[2] ??
+                                                        false,
+                                                  ),
                                                 ),
                                               ),
                                             ),
-                                          ),
-                                          Positioned(
-                                            bottom:
-                                                objectPadding - (controlsSize),
-                                            right:
-                                                objectPadding - (controlsSize),
-                                            width: controlsSize,
-                                            height: controlsSize,
-                                            child: MouseRegion(
-                                              cursor: SystemMouseCursors
-                                                  .resizeDownRight,
-                                              child: GestureDetector(
-                                                onPanStart: (details) =>
-                                                    onScaleControlPanStart(
-                                                        3, entry, details),
-                                                onPanUpdate: (details) =>
-                                                    onScaleControlPanUpdate(
+                                            Positioned(
+                                              bottom:
+                                                  objectPadding -
+                                                  (controlsSize),
+                                              right:
+                                                  objectPadding -
+                                                  (controlsSize),
+                                              width: controlsSize,
+                                              height: controlsSize,
+                                              child: MouseRegion(
+                                                cursor: SystemMouseCursors
+                                                    .resizeDownRight,
+                                                child: GestureDetector(
+                                                  onPanStart: (details) =>
+                                                      onScaleControlPanStart(
+                                                        3,
+                                                        entry,
+                                                        details,
+                                                      ),
+                                                  onPanUpdate: (details) =>
+                                                      onScaleControlPanUpdate(
                                                         entry,
                                                         details,
                                                         constraints,
-                                                        false),
-                                                onPanEnd: (details) =>
-                                                    onScaleControlPanEnd(
-                                                        3, entry, details),
-                                                child: _ObjectControlBox(
-                                                  active:
-                                                      controlsAreActive[3] ??
-                                                          false,
+                                                        false,
+                                                      ),
+                                                  onPanEnd: (details) =>
+                                                      onScaleControlPanEnd(
+                                                        3,
+                                                        entry,
+                                                        details,
+                                                      ),
+                                                  child: _ObjectControlBox(
+                                                    active:
+                                                        controlsAreActive[3] ??
+                                                        false,
+                                                  ),
                                                 ),
                                               ),
                                             ),
-                                          ),
+                                          ],
+                                          if (entry.value
+                                              is Sized2DDrawable) ...[
+                                            Positioned(
+                                              top:
+                                                  objectPadding -
+                                                  (controlsSize),
+                                              left:
+                                                  (size.width / 2) +
+                                                  objectPadding -
+                                                  (controlsSize / 2),
+                                              width: controlsSize,
+                                              height: controlsSize,
+                                              child: MouseRegion(
+                                                cursor:
+                                                    SystemMouseCursors.resizeUp,
+                                                child: GestureDetector(
+                                                  onPanStart: (details) =>
+                                                      onResizeControlPanStart(
+                                                        4,
+                                                        entry,
+                                                        details,
+                                                      ),
+                                                  onPanUpdate: (details) =>
+                                                      onResizeControlPanUpdate(
+                                                        entry,
+                                                        details,
+                                                        constraints,
+                                                        Axis.vertical,
+                                                        true,
+                                                      ),
+                                                  onPanEnd: (details) =>
+                                                      onResizeControlPanEnd(
+                                                        4,
+                                                        entry,
+                                                        details,
+                                                      ),
+                                                  child: _ObjectControlBox(
+                                                    active:
+                                                        controlsAreActive[4] ??
+                                                        false,
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+                                            Positioned(
+                                              bottom:
+                                                  objectPadding -
+                                                  (controlsSize),
+                                              left:
+                                                  (size.width / 2) +
+                                                  objectPadding -
+                                                  (controlsSize / 2),
+                                              width: controlsSize,
+                                              height: controlsSize,
+                                              child: MouseRegion(
+                                                cursor: SystemMouseCursors
+                                                    .resizeDown,
+                                                child: GestureDetector(
+                                                  onPanStart: (details) =>
+                                                      onResizeControlPanStart(
+                                                        5,
+                                                        entry,
+                                                        details,
+                                                      ),
+                                                  onPanUpdate: (details) =>
+                                                      onResizeControlPanUpdate(
+                                                        entry,
+                                                        details,
+                                                        constraints,
+                                                        Axis.vertical,
+                                                        false,
+                                                      ),
+                                                  onPanEnd: (details) =>
+                                                      onResizeControlPanEnd(
+                                                        5,
+                                                        entry,
+                                                        details,
+                                                      ),
+                                                  child: _ObjectControlBox(
+                                                    active:
+                                                        controlsAreActive[5] ??
+                                                        false,
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+                                            Positioned(
+                                              left:
+                                                  objectPadding -
+                                                  (controlsSize),
+                                              top:
+                                                  (size.height / 2) +
+                                                  objectPadding -
+                                                  (controlsSize / 2),
+                                              width: controlsSize,
+                                              height: controlsSize,
+                                              child: MouseRegion(
+                                                cursor: SystemMouseCursors
+                                                    .resizeLeft,
+                                                child: GestureDetector(
+                                                  onPanStart: (details) =>
+                                                      onResizeControlPanStart(
+                                                        6,
+                                                        entry,
+                                                        details,
+                                                      ),
+                                                  onPanUpdate: (details) =>
+                                                      onResizeControlPanUpdate(
+                                                        entry,
+                                                        details,
+                                                        constraints,
+                                                        Axis.horizontal,
+                                                        true,
+                                                      ),
+                                                  onPanEnd: (details) =>
+                                                      onResizeControlPanEnd(
+                                                        6,
+                                                        entry,
+                                                        details,
+                                                      ),
+                                                  child: _ObjectControlBox(
+                                                    active:
+                                                        controlsAreActive[6] ??
+                                                        false,
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+                                            Positioned(
+                                              right:
+                                                  objectPadding -
+                                                  (controlsSize),
+                                              top:
+                                                  (size.height / 2) +
+                                                  objectPadding -
+                                                  (controlsSize / 2),
+                                              width: controlsSize,
+                                              height: controlsSize,
+                                              child: MouseRegion(
+                                                cursor: SystemMouseCursors
+                                                    .resizeRight,
+                                                child: GestureDetector(
+                                                  onPanStart: (details) =>
+                                                      onResizeControlPanStart(
+                                                        7,
+                                                        entry,
+                                                        details,
+                                                      ),
+                                                  onPanUpdate: (details) =>
+                                                      onResizeControlPanUpdate(
+                                                        entry,
+                                                        details,
+                                                        constraints,
+                                                        Axis.horizontal,
+                                                        false,
+                                                      ),
+                                                  onPanEnd: (details) =>
+                                                      onResizeControlPanEnd(
+                                                        7,
+                                                        entry,
+                                                        details,
+                                                      ),
+                                                  child: _ObjectControlBox(
+                                                    active:
+                                                        controlsAreActive[7] ??
+                                                        false,
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+                                          ],
                                         ],
-                                        if (entry.value is Sized2DDrawable) ...[
-                                          Positioned(
-                                            top: objectPadding - (controlsSize),
-                                            left: (size.width / 2) +
-                                                objectPadding -
-                                                (controlsSize / 2),
-                                            width: controlsSize,
-                                            height: controlsSize,
-                                            child: MouseRegion(
-                                              cursor:
-                                                  SystemMouseCursors.resizeUp,
-                                              child: GestureDetector(
-                                                onPanStart: (details) =>
-                                                    onResizeControlPanStart(
-                                                        4, entry, details),
-                                                onPanUpdate: (details) =>
-                                                    onResizeControlPanUpdate(
-                                                        entry,
-                                                        details,
-                                                        constraints,
-                                                        Axis.vertical,
-                                                        true),
-                                                onPanEnd: (details) =>
-                                                    onResizeControlPanEnd(
-                                                        4, entry, details),
-                                                child: _ObjectControlBox(
-                                                  active:
-                                                      controlsAreActive[4] ??
-                                                          false,
-                                                ),
-                                              ),
-                                            ),
-                                          ),
-                                          Positioned(
-                                            bottom:
-                                                objectPadding - (controlsSize),
-                                            left: (size.width / 2) +
-                                                objectPadding -
-                                                (controlsSize / 2),
-                                            width: controlsSize,
-                                            height: controlsSize,
-                                            child: MouseRegion(
-                                              cursor:
-                                                  SystemMouseCursors.resizeDown,
-                                              child: GestureDetector(
-                                                onPanStart: (details) =>
-                                                    onResizeControlPanStart(
-                                                        5, entry, details),
-                                                onPanUpdate: (details) =>
-                                                    onResizeControlPanUpdate(
-                                                        entry,
-                                                        details,
-                                                        constraints,
-                                                        Axis.vertical,
-                                                        false),
-                                                onPanEnd: (details) =>
-                                                    onResizeControlPanEnd(
-                                                        5, entry, details),
-                                                child: _ObjectControlBox(
-                                                  active:
-                                                      controlsAreActive[5] ??
-                                                          false,
-                                                ),
-                                              ),
-                                            ),
-                                          ),
-                                          Positioned(
-                                            left:
-                                                objectPadding - (controlsSize),
-                                            top: (size.height / 2) +
-                                                objectPadding -
-                                                (controlsSize / 2),
-                                            width: controlsSize,
-                                            height: controlsSize,
-                                            child: MouseRegion(
-                                              cursor:
-                                                  SystemMouseCursors.resizeLeft,
-                                              child: GestureDetector(
-                                                onPanStart: (details) =>
-                                                    onResizeControlPanStart(
-                                                        6, entry, details),
-                                                onPanUpdate: (details) =>
-                                                    onResizeControlPanUpdate(
-                                                        entry,
-                                                        details,
-                                                        constraints,
-                                                        Axis.horizontal,
-                                                        true),
-                                                onPanEnd: (details) =>
-                                                    onResizeControlPanEnd(
-                                                        6, entry, details),
-                                                child: _ObjectControlBox(
-                                                  active:
-                                                      controlsAreActive[6] ??
-                                                          false,
-                                                ),
-                                              ),
-                                            ),
-                                          ),
-                                          Positioned(
-                                            right:
-                                                objectPadding - (controlsSize),
-                                            top: (size.height / 2) +
-                                                objectPadding -
-                                                (controlsSize / 2),
-                                            width: controlsSize,
-                                            height: controlsSize,
-                                            child: MouseRegion(
-                                              cursor: SystemMouseCursors
-                                                  .resizeRight,
-                                              child: GestureDetector(
-                                                onPanStart: (details) =>
-                                                    onResizeControlPanStart(
-                                                        7, entry, details),
-                                                onPanUpdate: (details) =>
-                                                    onResizeControlPanUpdate(
-                                                        entry,
-                                                        details,
-                                                        constraints,
-                                                        Axis.horizontal,
-                                                        false),
-                                                onPanEnd: (details) =>
-                                                    onResizeControlPanEnd(
-                                                        7, entry, details),
-                                                child: _ObjectControlBox(
-                                                  active:
-                                                      controlsAreActive[7] ??
-                                                          false,
-                                                ),
-                                              ),
-                                            ),
-                                          ),
-                                        ]
-                                      ],
-                                    )
-                                  : widget,
-                              transitionBuilder: (child, animation) {
-                                return FadeTransition(
-                                  opacity: animation,
-                                  child: child,
-                                );
-                              },
-                              layoutBuilder: (child, previousChildren) {
-                                if (cancelControlsAnimation) {
-                                  cancelControlsAnimation = false;
-                                  return child ?? const SizedBox();
-                                }
-                                return AnimatedSwitcher.defaultLayoutBuilder(
-                                    child, previousChildren);
-                              },
+                                      )
+                                    : widget,
+                                transitionBuilder: (child, animation) {
+                                  return FadeTransition(
+                                    opacity: animation,
+                                    child: child,
+                                  );
+                                },
+                                layoutBuilder: (child, previousChildren) {
+                                  if (cancelControlsAnimation) {
+                                    cancelControlsAnimation = false;
+                                    return child ?? const SizedBox();
+                                  }
+                                  return AnimatedSwitcher.defaultLayoutBuilder(
+                                    child,
+                                    previousChildren,
+                                  );
+                                },
+                              ),
                             ),
                           ),
-                        ),
+                  ),
                 ),
-              ),
-            );
-          }),
-          // if(selectedDrawableIndex != null)
-          //   ...[
-          //     Positioned(
-          //
-          //       child: Container(
-          //         decoration: BoxDecoration(
-          //             border:  Border.all(
-          //               color: Colors.white,
-          //               width: 2,
-          //             ),
-          //             boxShadow: [
-          //               BorderBoxShadow(
-          //                 color: Colors.black,
-          //                 blurRadius: 1,
-          //               )
-          //             ]
-          //         ),
-          //         width: size.width,
-          //         height: size.height,
-          //       ),
-          //     )
-          //   ]
-        ],
-      );
-    });
+              );
+            }),
+            // if(selectedDrawableIndex != null)
+            //   ...[
+            //     Positioned(
+            //
+            //       child: Container(
+            //         decoration: BoxDecoration(
+            //             border:  Border.all(
+            //               color: Colors.white,
+            //               width: 2,
+            //             ),
+            //             boxShadow: [
+            //               BorderBoxShadow(
+            //                 color: Colors.black,
+            //                 blurRadius: 1,
+            //               )
+            //             ]
+            //         ),
+            //         width: size.width,
+            //         height: size.height,
+            //       ),
+            //     )
+            //   ]
+          ],
+        );
+      },
+    );
   }
 
   /// Getter for the [ObjectSettings] from the controller to make code more readable.
@@ -611,7 +700,9 @@ class _ObjectWidgetState extends State<_ObjectWidget> {
   ///
   /// Saves the initial point of interaction and drawable to be used on update events.
   void onDrawableScaleStart(
-      MapEntry<int, ObjectDrawable> entry, ScaleStartDetails details) {
+    MapEntry<int, ObjectDrawable> entry,
+    ScaleStartDetails details,
+  ) {
     if (!widget.interactionEnabled) return;
 
     final index = entry.key;
@@ -633,8 +724,10 @@ class _ObjectWidgetState extends State<_ObjectWidget> {
     final rotateOffset = Matrix4.rotationZ(drawable.rotationAngle)
       ..translate(details.localFocalPoint.dx, details.localFocalPoint.dy)
       ..rotateZ(-drawable.rotationAngle);
-    drawableInitialLocalFocalPoints[index] =
-        Offset(rotateOffset[12], rotateOffset[13]);
+    drawableInitialLocalFocalPoints[index] = Offset(
+      rotateOffset[12],
+      rotateOffset[13],
+    );
 
     updateDrawable(drawable, drawable, newAction: true);
   }
@@ -672,7 +765,9 @@ class _ObjectWidgetState extends State<_ObjectWidget> {
   ///
   /// Calculates the next position, scale and rotation of the object depending on the event details.
   void onDrawableScaleUpdate(
-      MapEntry<int, ObjectDrawable> entry, ScaleUpdateDetails details) {
+    MapEntry<int, ObjectDrawable> entry,
+    ScaleUpdateDetails details,
+  ) {
     if (!widget.interactionEnabled) return;
 
     final index = entry.key;
@@ -738,9 +833,9 @@ class _ObjectWidgetState extends State<_ObjectWidget> {
     // If layout assist is disabled, it is empty
     final assists = settings.layoutAssist.enabled
         ? assistDrawables.entries
-            .where((element) => element.value.contains(index))
-            .map((e) => e.key)
-            .toSet()
+              .where((element) => element.value.contains(index))
+              .map((e) => e.key)
+              .toSet()
         : <ObjectDrawableAssist>{};
 
     // Do not display the rotational assist if the user is using less that 2 pointers
@@ -758,7 +853,8 @@ class _ObjectWidgetState extends State<_ObjectWidget> {
 
     // Snap the object rotation to the nearest angle from [assistAngles] if its near it
     // and layout assist is enabled
-    final assistedRotation = assists.contains(ObjectDrawableAssist.rotation) &&
+    final assistedRotation =
+        assists.contains(ObjectDrawableAssist.rotation) &&
             closestAssistAngle != null
         ? closestAssistAngle.remainder(pi * 2)
         : rotation;
@@ -772,15 +868,22 @@ class _ObjectWidgetState extends State<_ObjectWidget> {
     // 경계 내로 위치 클램프 (컨트롤 패딩 포함)
     final objSizeForClamp = newDrawable.getSize(maxWidth: double.infinity);
     final clampedPos = _clampPositionToCanvas(
-        newDrawable.position, objSizeForClamp, newDrawable.rotationAngle);
+      newDrawable.position,
+      objSizeForClamp,
+      newDrawable.rotationAngle,
+    );
     final clampedDrawable = newDrawable.copyWith(position: clampedPos);
 
     updateDrawable(drawable, clampedDrawable);
   }
 
   /// Calculates whether the object entered or exited the horizontal and vertical assist areas.
-  void calculatePositionalAssists(ObjectLayoutAssistSettings settings,
-      int index, Offset position, Offset center) {
+  void calculatePositionalAssists(
+    ObjectLayoutAssistSettings settings,
+    int index,
+    Offset position,
+    Offset center,
+  ) {
     // Horizontal
     //
     // If the object is within the enter distance from the center dy and isn't marked
@@ -824,19 +927,24 @@ class _ObjectWidgetState extends State<_ObjectWidget> {
   ///
   /// Returns the angle the object is closest to if it is inside the assist range.
   double? calculateRotationalAssist(
-      ObjectLayoutAssistSettings settings, int index, double rotation) {
+    ObjectLayoutAssistSettings settings,
+    int index,
+    double rotation,
+  ) {
     // Calculates all angles from [assistAngles] in the exit range of rotational assist
     final closeAngles = assistAngles
         .where(
-            (angle) => (rotation - angle).abs() < settings.rotationalExitAngle)
+          (angle) => (rotation - angle).abs() < settings.rotationalExitAngle,
+        )
         .toList();
 
     // If the object is close to at least one assist angle
     if (closeAngles.isNotEmpty) {
       // If the object is also in the enter range of rotational assist and isn't marked
       // as a drawable with a rotational assist, mark it
-      if (closeAngles.any((angle) =>
-              (rotation - angle).abs() < settings.rotationalEnterAngle) &&
+      if (closeAngles.any(
+            (angle) => (rotation - angle).abs() < settings.rotationalEnterAngle,
+          ) &&
           !(assistDrawables[ObjectDrawableAssist.rotation]?.contains(index) ??
               false)) {
         assistDrawables[ObjectDrawableAssist.rotation]?.add(index);
@@ -861,36 +969,39 @@ class _ObjectWidgetState extends State<_ObjectWidget> {
   ///
   /// Uses the [GlobalKey] for the painter from [controller].
   Offset get center {
-    final renderBox = PainterController.of(context)
-        .painterKey
-        .currentContext
-        ?.findRenderObject() as RenderBox?;
+    final renderBox =
+        PainterController.of(
+              context,
+            ).painterKey.currentContext?.findRenderObject()
+            as RenderBox?;
     final center = renderBox == null
         ? Offset.zero
-        : Offset(
-            renderBox.size.width / 2,
-            renderBox.size.height / 2,
-          );
+        : Offset(renderBox.size.width / 2, renderBox.size.height / 2);
     return center;
   }
 
   /// Returns the size of the painter canvas, or Size.zero if not available.
   Size get canvasSize {
-    final renderBox = PainterController.of(context)
-        .painterKey
-        .currentContext
-        ?.findRenderObject() as RenderBox?;
+    final renderBox =
+        PainterController.of(
+              context,
+            ).painterKey.currentContext?.findRenderObject()
+            as RenderBox?;
     return renderBox?.size ?? Size.zero;
   }
 
   /// Clamp an object center position so that its axis-aligned bounding box
   /// (taking rotation into account) remains fully inside the painter canvas.
-  Offset _clampPositionToCanvas(Offset position, Size objectSize, double angle) {
+  Offset _clampPositionToCanvas(
+    Offset position,
+    Size objectSize,
+    double angle,
+  ) {
     final Size cs = canvasSize;
     if (cs == Size.zero) return position;
     // 콘텐츠 기준 크기만 사용 (핸들/오버레이는 클립하지 않으므로 경계 계산에서 제외)
     final Size padded = objectSize;
-    
+
     // Account for rotation: compute axis-aligned bounding box of rotated rect
     final double cosA = math.cos(angle).abs();
     final double sinA = math.sin(angle).abs();
@@ -913,71 +1024,89 @@ class _ObjectWidgetState extends State<_ObjectWidget> {
   }
 
   /// Replaces a drawable with a new one.
-  void updateDrawable(ObjectDrawable oldDrawable, ObjectDrawable newDrawable,
-      {bool newAction = false}) {
+  void updateDrawable(
+    ObjectDrawable oldDrawable,
+    ObjectDrawable newDrawable, {
+    bool newAction = false,
+  }) {
     setState(() {
-      PainterController.of(context)
-          .replaceDrawable(oldDrawable, newDrawable, newAction: newAction);
+      PainterController.of(
+        context,
+      ).replaceDrawable(oldDrawable, newDrawable, newAction: newAction);
     });
   }
 
-  void onRotationControlPanStart(int controlIndex,
-      MapEntry<int, ObjectDrawable> entry, DragStartDetails details) {
+  void onRotationControlPanStart(
+    int controlIndex,
+    MapEntry<int, ObjectDrawable> entry,
+    DragStartDetails details,
+  ) {
     setState(() {
       controlsAreActive[controlIndex] = true;
     });
     onDrawableScaleStart(
-        entry,
-        ScaleStartDetails(
-          pointerCount: 2,
-          localFocalPoint: entry.value.position,
-        ));
+      entry,
+      ScaleStartDetails(pointerCount: 2, localFocalPoint: entry.value.position),
+    );
   }
 
-  void onRotationControlPanUpdate(MapEntry<int, ObjectDrawable> entry,
-      DragUpdateDetails details, Size size) {
+  void onRotationControlPanUpdate(
+    MapEntry<int, ObjectDrawable> entry,
+    DragUpdateDetails details,
+    Size size,
+  ) {
     final index = entry.key;
     final initial = initialScaleDrawables[index];
     if (initial == null) return;
     final initialOffset = Offset((size.width / 2), (-size.height / 2));
     final initialAngle = atan2(initialOffset.dx, initialOffset.dy);
-    final angle = atan2((details.localPosition.dx + initialOffset.dx),
-        (details.localPosition.dy + initialOffset.dy));
+    final angle = atan2(
+      (details.localPosition.dx + initialOffset.dx),
+      (details.localPosition.dy + initialOffset.dy),
+    );
     final rotation = initialAngle - angle;
     onDrawableScaleUpdate(
-        entry,
-        ScaleUpdateDetails(
-          pointerCount: 2,
-          rotation: rotation,
-          scale: 1,
-          localFocalPoint: entry.value.position,
-        ));
+      entry,
+      ScaleUpdateDetails(
+        pointerCount: 2,
+        rotation: rotation,
+        scale: 1,
+        localFocalPoint: entry.value.position,
+      ),
+    );
   }
 
-  void onRotationControlPanEnd(int controlIndex,
-      MapEntry<int, ObjectDrawable> entry, DragEndDetails details) {
+  void onRotationControlPanEnd(
+    int controlIndex,
+    MapEntry<int, ObjectDrawable> entry,
+    DragEndDetails details,
+  ) {
     setState(() {
       controlsAreActive[controlIndex] = false;
     });
     onDrawableScaleEnd(entry);
   }
 
-  void onScaleControlPanStart(int controlIndex,
-      MapEntry<int, ObjectDrawable> entry, DragStartDetails details) {
+  void onScaleControlPanStart(
+    int controlIndex,
+    MapEntry<int, ObjectDrawable> entry,
+    DragStartDetails details,
+  ) {
     setState(() {
       controlsAreActive[controlIndex] = true;
     });
     onDrawableScaleStart(
-        entry,
-        ScaleStartDetails(
-          pointerCount: 1,
-          localFocalPoint: entry.value.position,
-        ));
+      entry,
+      ScaleStartDetails(pointerCount: 1, localFocalPoint: entry.value.position),
+    );
   }
 
-  void onScaleControlPanUpdate(MapEntry<int, ObjectDrawable> entry,
-      DragUpdateDetails details, BoxConstraints constraints,
-      [bool isReversed = true]) {
+  void onScaleControlPanUpdate(
+    MapEntry<int, ObjectDrawable> entry,
+    DragUpdateDetails details,
+    BoxConstraints constraints, [
+    bool isReversed = true,
+  ]) {
     final index = entry.key;
     final initial = initialScaleDrawables[index];
     if (initial == null) return;
@@ -988,39 +1117,48 @@ class _ObjectWidgetState extends State<_ObjectWidget> {
         ? (length * 2)
         : ((length + initialLength) / initialLength);
     onDrawableScaleUpdate(
-        entry,
-        ScaleUpdateDetails(
-          pointerCount: 1,
-          rotation: 0,
-          scale: scale.clamp(ObjectDrawable.minScale, double.infinity),
-          localFocalPoint: entry.value.position,
-        ));
+      entry,
+      ScaleUpdateDetails(
+        pointerCount: 1,
+        rotation: 0,
+        scale: scale.clamp(ObjectDrawable.minScale, double.infinity),
+        localFocalPoint: entry.value.position,
+      ),
+    );
   }
 
-  void onScaleControlPanEnd(int controlIndex,
-      MapEntry<int, ObjectDrawable> entry, DragEndDetails details) {
+  void onScaleControlPanEnd(
+    int controlIndex,
+    MapEntry<int, ObjectDrawable> entry,
+    DragEndDetails details,
+  ) {
     setState(() {
       controlsAreActive[controlIndex] = false;
     });
     onDrawableScaleEnd(entry);
   }
 
-  void onResizeControlPanStart(int controlIndex,
-      MapEntry<int, ObjectDrawable> entry, DragStartDetails details) {
+  void onResizeControlPanStart(
+    int controlIndex,
+    MapEntry<int, ObjectDrawable> entry,
+    DragStartDetails details,
+  ) {
     setState(() {
       controlsAreActive[controlIndex] = true;
     });
     onDrawableScaleStart(
-        entry,
-        ScaleStartDetails(
-          pointerCount: 1,
-          localFocalPoint: entry.value.position,
-        ));
+      entry,
+      ScaleStartDetails(pointerCount: 1, localFocalPoint: entry.value.position),
+    );
   }
 
-  void onResizeControlPanUpdate(MapEntry<int, ObjectDrawable> entry,
-      DragUpdateDetails details, BoxConstraints constraints, Axis axis,
-      [bool isReversed = true]) {
+  void onResizeControlPanUpdate(
+    MapEntry<int, ObjectDrawable> entry,
+    DragUpdateDetails details,
+    BoxConstraints constraints,
+    Axis axis, [
+    bool isReversed = true,
+  ]) {
     final index = entry.key;
 
     final drawable = entry.value;
@@ -1034,11 +1172,12 @@ class _ObjectWidgetState extends State<_ObjectWidget> {
     final vertical = axis == Axis.vertical;
     final length =
         ((vertical ? details.localPosition.dy : details.localPosition.dx) *
-            (isReversed ? -1 : 1));
+        (isReversed ? -1 : 1));
     final initialLength = vertical ? initial.size.height : initial.size.width;
 
-  final totalLengthDesired = (length / initial.scale + initialLength)
-    .clamp(0, double.infinity) as double;
+    final totalLengthDesired =
+        (length / initial.scale + initialLength).clamp(0, double.infinity)
+            as double;
 
     // final double scale = initialLength == 0 ?
     //   (length*2).clamp(0.001, double.infinity) :
@@ -1054,7 +1193,8 @@ class _ObjectWidgetState extends State<_ObjectWidget> {
     final double paddingX =
         (initialRendered.width - initial.size.width * initial.scale).toDouble();
     final double paddingY =
-        (initialRendered.height - initial.size.height * initial.scale).toDouble();
+        (initialRendered.height - initial.size.height * initial.scale)
+            .toDouble();
     final Size cs = canvasSize;
     final double cosA = math.cos(initial.rotationAngle).abs();
     final double sinA = math.sin(initial.rotationAngle).abs();
@@ -1070,20 +1210,32 @@ class _ObjectWidgetState extends State<_ObjectWidget> {
         final double scaledH =
             initial.size.height * initial.scale + paddingY + objectPadding * 2;
         if (cosA > 1e-6) {
-          maxScaledVar = math.min(maxScaledVar, (cs.width - scaledH * sinA) / cosA);
+          maxScaledVar = math.min(
+            maxScaledVar,
+            (cs.width - scaledH * sinA) / cosA,
+          );
         }
         if (sinA > 1e-6) {
-          maxScaledVar = math.min(maxScaledVar, (cs.height - scaledH * cosA) / sinA);
+          maxScaledVar = math.min(
+            maxScaledVar,
+            (cs.height - scaledH * cosA) / sinA,
+          );
         }
       } else {
         // 세로 리사이즈: 변수는 scaledH
         final double scaledW =
             initial.size.width * initial.scale + paddingX + objectPadding * 2;
         if (sinA > 1e-6) {
-          maxScaledVar = math.min(maxScaledVar, (cs.width - scaledW * cosA) / sinA);
+          maxScaledVar = math.min(
+            maxScaledVar,
+            (cs.width - scaledW * cosA) / sinA,
+          );
         }
         if (cosA > 1e-6) {
-          maxScaledVar = math.min(maxScaledVar, (cs.height - scaledW * sinA) / cosA);
+          maxScaledVar = math.min(
+            maxScaledVar,
+            (cs.height - scaledW * sinA) / cosA,
+          );
         }
       }
 
@@ -1121,12 +1273,18 @@ class _ObjectWidgetState extends State<_ObjectWidget> {
     // 위치를 한 번 더 캔버스 안으로 클램프 (회전/컨트롤 패딩 포함)
     final objSizeForClamp = newDrawable.getSize(maxWidth: double.infinity);
     final clampedPos = _clampPositionToCanvas(
-        newDrawable.position, objSizeForClamp, newDrawable.rotationAngle);
+      newDrawable.position,
+      objSizeForClamp,
+      newDrawable.rotationAngle,
+    );
     updateDrawable(drawable, newDrawable.copyWith(position: clampedPos));
   }
 
-  void onResizeControlPanEnd(int controlIndex,
-      MapEntry<int, ObjectDrawable> entry, DragEndDetails details) {
+  void onResizeControlPanEnd(
+    int controlIndex,
+    MapEntry<int, ObjectDrawable> entry,
+    DragEndDetails details,
+  ) {
     setState(() {
       controlsAreActive[controlIndex] = false;
     });
@@ -1136,11 +1294,14 @@ class _ObjectWidgetState extends State<_ObjectWidget> {
   /// A callback that is called when a transformation occurs in the [InteractiveViewer] in the widget tree.
   void onTransformUpdated() {
     setState(() {
-      final _m4storage =
-          PainterController.of(context).transformationController.value;
-      transformationScale = math.sqrt(_m4storage[8] * _m4storage[8] +
-          _m4storage[9] * _m4storage[9] +
-          _m4storage[10] * _m4storage[10]);
+      final _m4storage = PainterController.of(
+        context,
+      ).transformationController.value;
+      transformationScale = math.sqrt(
+        _m4storage[8] * _m4storage[8] +
+            _m4storage[9] * _m4storage[9] +
+            _m4storage[10] * _m4storage[10],
+      );
     });
   }
 }
@@ -1188,12 +1349,7 @@ class _ObjectControlBox extends StatelessWidget {
       decoration: BoxDecoration(
         color: active ? activeColor : inactiveColor,
         shape: shape,
-        boxShadow: [
-          BoxShadow(
-            color: shadowColor,
-            blurRadius: 2,
-          )
-        ],
+        boxShadow: [BoxShadow(color: shadowColor, blurRadius: 2)],
       ),
     );
   }

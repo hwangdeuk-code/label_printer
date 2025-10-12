@@ -25,15 +25,16 @@ abstract class ShapeDrawable extends ObjectDrawable {
         const <ObjectDrawableAssist, Paint>{},
     bool locked = false,
     bool hidden = false,
-  })  : paint = paint ?? defaultPaint,
-        super(
-            position: position,
-            rotationAngle: rotationAngle,
-            scale: scale,
-            assists: assists,
-            assistPaints: assistPaints,
-            locked: locked,
-            hidden: hidden);
+  }) : paint = paint ?? defaultPaint,
+       super(
+         position: position,
+         rotationAngle: rotationAngle,
+         scale: scale,
+         assists: assists,
+         assistPaints: assistPaints,
+         locked: locked,
+         hidden: hidden,
+       );
 
   /// Creates a copy of this but with the given fields replaced with the new values.
   @override

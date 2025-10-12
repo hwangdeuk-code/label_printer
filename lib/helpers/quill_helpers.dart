@@ -28,7 +28,9 @@ void applyBold(quill.QuillController c, {bool? value}) {
   final on = isBoldOn(c);
   final next = value ?? !on;
   c.formatSelection(
-    next ? quill.Attribute.bold : quill.Attribute.clone(quill.Attribute.bold, null),
+    next
+        ? quill.Attribute.bold
+        : quill.Attribute.clone(quill.Attribute.bold, null),
   );
 }
 
@@ -37,7 +39,9 @@ void applyItalic(quill.QuillController c, {bool? value}) {
   final on = isItalicOn(c);
   final next = value ?? !on;
   c.formatSelection(
-    next ? quill.Attribute.italic : quill.Attribute.clone(quill.Attribute.italic, null),
+    next
+        ? quill.Attribute.italic
+        : quill.Attribute.clone(quill.Attribute.italic, null),
   );
 }
 
@@ -81,9 +85,7 @@ quill.DefaultStyles defaultStylesWithBaseFontSize(
         null,
       );
     }
-    return block.copyWith(
-      style: block.style.copyWith(fontSize: fontSize),
-    );
+    return block.copyWith(style: block.style.copyWith(fontSize: fontSize));
   }
 
   return base.merge(
@@ -101,8 +103,9 @@ quill.DefaultStyles defaultStylesWithBaseFontSize(
       lineHeightDouble: base.lineHeightDouble == null
           ? null
           : overrideBlock(base.lineHeightDouble),
-      placeHolder:
-          base.placeHolder == null ? null : overrideBlock(base.placeHolder),
+      placeHolder: base.placeHolder == null
+          ? null
+          : overrideBlock(base.placeHolder),
     ),
   );
 }

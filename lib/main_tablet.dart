@@ -12,8 +12,10 @@ Future<void> main(List<String> args) async {
   appVersion = info.version;
 
   // StartupHomePage 실행
-  runApp(const MaterialApp(
-    debugShowCheckedModeBanner:false,
-    home: StartupHomePage()
-  ));
+  runApp(
+    const MaterialApp(
+      debugShowCheckedModeBanner: false,
+      home: StartupHomePage(),
+    ),
+  );
 }

@@ -16,22 +16,19 @@ class TextDrawable extends ObjectDrawable {
     required Offset position,
     double rotation = 0,
     double scale = 1,
-    this.style = const TextStyle(
-      fontSize: 14,
-      color: Colors.black,
-    ),
+    this.style = const TextStyle(fontSize: 14, color: Colors.black),
     this.direction = TextDirection.ltr,
     bool locked = false,
     bool hidden = false,
     Set<ObjectDrawableAssist> assists = const <ObjectDrawableAssist>{},
   }) : super(
-          position: position,
-          rotationAngle: rotation,
-          scale: scale,
-          assists: assists,
-          locked: locked,
-          hidden: hidden,
-        );
+         position: position,
+         rotationAngle: rotation,
+         scale: scale,
+         assists: assists,
+         locked: locked,
+         hidden: hidden,
+       );
 
   /// 선택 박스용 크기(스케일 미적용).
   @override

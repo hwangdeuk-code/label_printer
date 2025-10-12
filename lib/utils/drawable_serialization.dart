@@ -96,7 +96,7 @@ class DrawableSerializer {
         base.addAll({
           'path': stroke.path.map(_offsetToJson).toList(),
           'strokeWidth': stroke.strokeWidth,
-          'color': stroke.color.value,
+          'color': stroke.color.toARGB32(),
         });
       case EraseDrawable eraser:
         base.addAll({
@@ -123,8 +123,8 @@ class DrawableSerializer {
           'barcodeType': barcode.type.name,
           'showValue': barcode.showValue,
           'fontSize': barcode.fontSize,
-          'foreground': barcode.foreground.value,
-          'background': barcode.background.value,
+          'foreground': barcode.foreground.toARGB32(),
+          'background': barcode.background.toARGB32(),
           'bold': barcode.bold,
           'italic': barcode.italic,
           'fontFamily': barcode.fontFamily,
@@ -136,7 +136,7 @@ class DrawableSerializer {
         base.addAll({
           'size': _sizeToJson(image.size),
           'borderRadius': _borderRadiusToJson(image.borderRadius),
-          'strokeColor': image.strokeColor.value,
+          'strokeColor': image.strokeColor.toARGB32(),
           'strokeWidth': image.strokeWidth,
           'image': await _encodeImage(image.image),
         });
@@ -151,6 +151,27 @@ class DrawableSerializer {
           'columnFractions': table.columnFractions,
           'cellStyles': table.cellStyles,
           'cellDeltaJson': table.cellDeltaJson,
+          // 내부 분할 및 내부 서브셀 데이터 직렬화(선택적)
+          'internalColFractions': table.internalColFractions,
+          'internalCellDeltaJson': table.internalCellDeltaJson,
+          'internalCellStyles': table.internalCellStyles,
+          'internalCellPaddings': table.internalCellPaddings.map(
+            (key, list) => MapEntry(
+              key,
+              list
+                  .map(
+                    (p) => p == null
+                        ? null
+                        : {
+                            'top': p.top,
+                            'right': p.right,
+                            'bottom': p.bottom,
+                            'left': p.left,
+                          },
+                  )
+                  .toList(),
+            ),
+          ),
           'mergedSpans': table.mergedSpans.map(
             (key, span) => MapEntry(key, {
               'rowSpan': span.rowSpan,
@@ -296,8 +317,12 @@ class DrawableSerializer {
             type: _jsonToBarcodeType(json['barcodeType'] ?? json['type']),
             showValue: json['showValue'] == true,
             fontSize: (json['fontSize'] as num?)?.toDouble() ?? 16,
-            foreground: Color(json['foreground'] as int? ?? Colors.black.value),
-            background: Color(json['background'] as int? ?? Colors.white.value),
+            foreground: Color(
+              json['foreground'] as int? ?? Colors.black.toARGB32(),
+            ),
+            background: Color(
+              json['background'] as int? ?? Colors.white.toARGB32(),
+            ),
             bold: json['bold'] == true,
             italic: json['italic'] == true,
             fontFamily: json['fontFamily'] as String? ?? 'Roboto',
@@ -318,7 +343,7 @@ class DrawableSerializer {
             size: _jsonToSize(json['size']),
             borderRadius: _jsonToBorderRadius(json['borderRadius']),
             strokeColor: Color(
-              json['strokeColor'] as int? ?? Colors.black.value,
+              json['strokeColor'] as int? ?? Colors.black.toARGB32(),
             ),
             strokeWidth: (json['strokeWidth'] as num?)?.toDouble() ?? 0,
             position: _jsonToOffset(json['position']),
@@ -341,15 +366,24 @@ class DrawableSerializer {
         case 'table':
           final rows = json['rows'] as int;
           final columns = json['columns'] as int;
+          // fractions가 누락되었거나 길이가 맞지 않는 이전 저장본 대비 안전 처리
+          final List<double> rawColFracs =
+              (json['columnFractions'] as List<dynamic>?)
+                  ?.map((e) => (e as num).toDouble())
+                  .toList() ??
+              const <double>[];
+          final List<double> rawRowFracs =
+              (json['rowFractions'] as List<dynamic>?)
+                  ?.map((e) => (e as num).toDouble())
+                  .toList() ??
+              const <double>[];
+          final columnFractions = _coerceFractions(rawColFracs, columns);
+          final rowFractions = _coerceFractions(rawRowFracs, rows);
           final table = TableDrawable(
             rows: rows,
             columns: columns,
-            columnFractions: (json['columnFractions'] as List<dynamic>)
-                .map((e) => (e as num).toDouble())
-                .toList(),
-            rowFractions: (json['rowFractions'] as List<dynamic>)
-                .map((e) => (e as num).toDouble())
-                .toList(),
+            columnFractions: columnFractions,
+            rowFractions: rowFractions,
             size: _jsonToSize(json['size']),
             position: _jsonToOffset(json['position']),
             rotationAngle: (json['rotation'] as num?)?.toDouble() ?? 0,
@@ -390,6 +424,65 @@ class DrawableSerializer {
               (key, value) => MapEntry(key as String, value as String),
             ),
           );
+          // Sanity: drop parents pointing to non-existent roots
+          table.mergedParents.removeWhere(
+            (child, parent) => !table.mergedSpans.containsKey(parent),
+          );
+
+          // 내부 분할/서브셀 데이터 복원(있을 때만)
+          final icf = json['internalColFractions'];
+          if (icf is Map) {
+            icf.forEach((key, value) {
+              final list = (value as List?)
+                  ?.map((e) => (e as num).toDouble())
+                  .toList();
+              if (list != null)
+                table.internalColFractions[key as String] = list;
+            });
+          }
+          final iDelta = json['internalCellDeltaJson'];
+          if (iDelta is Map) {
+            iDelta.forEach((key, value) {
+              final list = (value as List?)?.map((e) => e as String?).toList();
+              if (list != null)
+                table.internalCellDeltaJson[key as String] = list;
+            });
+          }
+          final iStyles = json['internalCellStyles'];
+          if (iStyles is Map) {
+            iStyles.forEach((key, value) {
+              final list =
+                  (value as List?)
+                      ?.map(
+                        (e) => e == null
+                            ? null
+                            : Map<String, dynamic>.from(e as Map),
+                      )
+                      .toList() ??
+                  const <Map<String, dynamic>?>[];
+              table.internalCellStyles[key as String] = list;
+            });
+          }
+          final iPads = json['internalCellPaddings'];
+          if (iPads is Map) {
+            iPads.forEach((key, value) {
+              final list =
+                  (value as List?)
+                      ?.map(
+                        (e) => e == null
+                            ? null
+                            : CellPadding(
+                                top: (e['top'] as num?)?.toDouble() ?? 0,
+                                right: (e['right'] as num?)?.toDouble() ?? 0,
+                                bottom: (e['bottom'] as num?)?.toDouble() ?? 0,
+                                left: (e['left'] as num?)?.toDouble() ?? 0,
+                              ),
+                      )
+                      .toList() ??
+                  const <CellPadding?>[];
+              table.internalCellPaddings[key as String] = list;
+            });
+          }
           drawable = table;
         default:
           return null;
@@ -448,7 +541,7 @@ class DrawableSerializer {
 
   static Map<String, dynamic> _paintToJson(Paint paint) {
     return {
-      'color': paint.color.value,
+      'color': paint.color.toARGB32(),
       'strokeWidth': paint.strokeWidth,
       'style': paint.style.name,
       'strokeCap': paint.strokeCap.name,
@@ -459,7 +552,7 @@ class DrawableSerializer {
   static Paint _jsonToPaint(dynamic value) {
     if (value is! Map) throw const FormatException('Invalid paint');
     final paint = Paint()
-      ..color = Color(value['color'] as int? ?? Colors.black.value)
+      ..color = Color(value['color'] as int? ?? Colors.black.toARGB32())
       ..strokeWidth = (value['strokeWidth'] as num?)?.toDouble() ?? 1
       ..style = PaintingStyle.values.firstWhere(
         (e) => e.name == value['style'],
@@ -511,7 +604,7 @@ class DrawableSerializer {
 
   static Map<String, dynamic> _textStyleToJson(TextStyle style) {
     return {
-      'color': style.color?.value,
+      'color': style.color?.toARGB32(),
       'fontSize': style.fontSize,
       'fontWeight': style.fontWeight?.index,
       'fontStyle': style.fontStyle?.index,
@@ -654,5 +747,35 @@ class DrawableSerializer {
         ),
       );
     });
+  }
+
+  // rows/columns 수에 맞춰 fractions를 보정한다.
+  // - 길이가 다르면 자르거나(pad) 균등 분배해 맞춘 후 합이 1.0이 되도록 정규화.
+  static List<double> _coerceFractions(List<double> source, int count) {
+    if (count <= 0) return const <double>[];
+    if (source.isEmpty) {
+      return List<double>.filled(count, 1.0 / count);
+    }
+    List<double> list;
+    if (source.length == count) {
+      list = List<double>.from(source);
+    } else if (source.length > count) {
+      list = List<double>.from(source.take(count));
+    } else {
+      // pad with equal remainder
+      list = List<double>.from(source);
+      final int deficit = count - source.length;
+      final double pad = 1.0 / count; // temporary pad, will renormalize below
+      list.addAll(List<double>.filled(deficit, pad));
+    }
+    // normalize to sum 1.0 (avoid zeros/negatives)
+    double sum = 0.0;
+    for (final v in list) {
+      if (v.isFinite && v > 0) sum += v;
+    }
+    if (sum <= 0) {
+      return List<double>.filled(count, 1.0 / count);
+    }
+    return list.map((v) => (v.isFinite && v > 0) ? (v / sum) : 0.0).toList();
   }
 }

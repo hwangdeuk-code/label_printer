@@ -75,7 +75,9 @@ class BarcodeDrawable extends Sized2DDrawable {
       bold: bold ?? this.bold,
       italic: italic ?? this.italic,
       fontFamily: fontFamily ?? this.fontFamily,
-      textAlign: identical(textAlign, _noTextAlign) ? this.textAlign : textAlign as TextAlign?,
+      textAlign: identical(textAlign, _noTextAlign)
+          ? this.textAlign
+          : textAlign as TextAlign?,
       maxTextWidth: maxTextWidth ?? this.maxTextWidth,
       size: size ?? this.size,
       position: position ?? this.position,
@@ -90,9 +92,13 @@ class BarcodeDrawable extends Sized2DDrawable {
 
   @override
   void drawObject(Canvas canvas, Size _) {
-    final rect = Rect.fromCenter(center: position, width: size.width, height: size.height);
+    final rect = Rect.fromCenter(
+      center: position,
+      width: size.width,
+      height: size.height,
+    );
 
-    if (background.alpha > 0) {
+    if (background.a > 0) {
       canvas.drawRect(rect, Paint()..color = background);
     }
 
@@ -125,10 +131,18 @@ class BarcodeDrawable extends Sized2DDrawable {
     for (final e in elements) {
       if (e is BarcodeBar) {
         if (!e.black) continue;
-        final r = Rect.fromLTWH(origin.dx + e.left, origin.dy + e.top, e.width, e.height);
+        final r = Rect.fromLTWH(
+          origin.dx + e.left,
+          origin.dy + e.top,
+          e.width,
+          e.height,
+        );
         canvas.drawRect(r, barPaint);
       } else if (e is BarcodeText && showValue) {
-        final w = math.max(1.0, maxTextWidth > 0 ? math.min(maxTextWidth, e.width) : e.width);
+        final w = math.max(
+          1.0,
+          maxTextWidth > 0 ? math.min(maxTextWidth, e.width) : e.width,
+        );
         final align = textAlign ?? _toTextAlign(e.align);
         final tp = TextPainter(
           text: TextSpan(
@@ -165,19 +179,21 @@ class BarcodeDrawable extends Sized2DDrawable {
 
   void _drawPlaceholder(Canvas canvas, Rect rect, String msg) {
     final stroke = Paint()
-      ..color = foreground.withOpacity(0.4)
+      ..color = foreground.withValues(alpha: 0.4)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.5;
     canvas.drawRect(rect, stroke);
 
-    final maxW = maxTextWidth > 0 ? math.min(maxTextWidth, rect.width - 8) : rect.width - 8;
+    final maxW = maxTextWidth > 0
+        ? math.min(maxTextWidth, rect.width - 8)
+        : rect.width - 8;
     final layoutW = math.max(8.0, maxW);
 
     final tp = TextPainter(
       text: TextSpan(
         text: msg,
         style: TextStyle(
-          color: foreground.withOpacity(0.6),
+          color: foreground.withValues(alpha: 0.6),
           fontSize: fontSize,
           fontWeight: bold ? FontWeight.bold : FontWeight.normal,
           fontStyle: italic ? FontStyle.italic : FontStyle.normal,

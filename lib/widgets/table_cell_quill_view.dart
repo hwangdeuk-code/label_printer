@@ -38,8 +38,10 @@ class TableCellQuillView extends StatelessWidget {
       document: _doc(),
       selection: const TextSelection.collapsed(offset: 0),
     );
-    final customStyles =
-        quill_helper.defaultStylesWithBaseFontSize(context, fontSize);
+    final customStyles = quill_helper.defaultStylesWithBaseFontSize(
+      context,
+      fontSize,
+    );
     final baseStyle = TextStyle(
       fontSize: fontSize,
       height: 1.2,

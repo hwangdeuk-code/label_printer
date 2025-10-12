@@ -1,4 +1,3 @@
-
 import 'package:flutter/rendering.dart';
 
 import '../drawables/shape/rectangle_drawable.dart';
@@ -18,10 +17,11 @@ class RectangleFactory extends ShapeFactory<RectangleDrawable> {
     final borderRadius = this.borderRadius;
     if (borderRadius != null) {
       return RectangleDrawable(
-          size: Size.zero,
-          position: position,
-          borderRadius: borderRadius,
-          paint: paint);
+        size: Size.zero,
+        position: position,
+        borderRadius: borderRadius,
+        paint: paint,
+      );
     }
     return RectangleDrawable(size: Size.zero, position: position, paint: paint);
   }

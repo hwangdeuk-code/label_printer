@@ -10,20 +10,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:label_printer/main.dart';
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(const StartupHomePage());
-
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
-
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
-    await tester.pump();
-
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+  testWidgets('App smoke test', (WidgetTester tester) async {
+    // 앱이 최소한 오류 없이 빌드되는지만 확인
+    await tester.pumpWidget(const MaterialApp(home: StartupHomePage()));
+    expect(find.byType(StartupHomePage), findsOneWidget);
   });
 }

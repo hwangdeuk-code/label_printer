@@ -40,15 +40,15 @@ extension TableDrawableBgExt on TableDrawable {
     }
   }
 
-  void setBackgroundForCells(Iterable<(int,int)> cells, Color? color) {
-    final roots = <String, (int,int)>{};
+  void setBackgroundForCells(Iterable<(int, int)> cells, Color? color) {
+    final roots = <String, (int, int)>{};
     for (final cell in cells) {
       final root = resolveRoot(cell.$1, cell.$2);
       roots["${root.$1},${root.$2}"] = root;
     }
-    final String? hex = (color == null || color.alpha == 0)
+    final String? hex = (color == null || color.a == 0)
         ? null
-        : "#${color.value.toRadixString(16).padLeft(8, '0').toUpperCase()}";
+        : "#${color.toARGB32().toRadixString(16).padLeft(8, '0').toUpperCase()}";
     for (final root in roots.values) {
       final key = "${root.$1},${root.$2}";
       final style = Map<String, dynamic>.from(cellStyles[key] ?? const {});
@@ -65,7 +65,6 @@ extension TableDrawableBgExt on TableDrawable {
     }
   }
 }
-
 
 class ArrowKeySlider extends StatefulWidget {
   final double min;
@@ -130,20 +129,16 @@ class _ArrowKeySliderState extends State<ArrowKeySlider> {
   }
 
   Widget build(BuildContext context) {
-    return RawKeyboardListener(
+    return KeyboardListener(
       focusNode: _arrowKeySliderFocusNode,
-      onKey: (event) {
+      onKeyEvent: (event) {
         if (event is KeyDownEvent) {
           if (event.logicalKey == LogicalKeyboardKey.arrowLeft) {
             _nudge(-1);
-            return;
-          }
-          if (event.logicalKey == LogicalKeyboardKey.arrowRight) {
+          } else if (event.logicalKey == LogicalKeyboardKey.arrowRight) {
             _nudge(1);
-            return;
           }
         }
-        return;
       },
       child: Slider(
         min: widget.min,
@@ -200,6 +195,10 @@ class InspectorPanel extends StatelessWidget {
   final bool canUnmergeCells;
   final VoidCallback? onMergeCells;
   final VoidCallback? onUnmergeCells;
+  // 내부 서브셀 선택/스타일 편집 지원
+  final int? currentInnerSubcellIndex; // null이면 루트(셀 전체)
+  final int? innerSubcellCount; // 2 이상일 때만 노출
+  final ValueChanged<int?>? onChangeInnerSubcellIndex;
 
   const InspectorPanel({
     super.key,
@@ -224,6 +223,9 @@ class InspectorPanel extends StatelessWidget {
     this.canUnmergeCells = false,
     this.onMergeCells,
     this.onUnmergeCells,
+    this.currentInnerSubcellIndex,
+    this.innerSubcellCount,
+    this.onChangeInnerSubcellIndex,
   });
 
   final Drawable? selected;
@@ -251,6 +253,8 @@ class InspectorPanel extends StatelessWidget {
     Colors.green,
     Colors.orange,
   ];
+
+  final small = const TextStyle(fontSize: 12.0);
 
   // 연속 회전 지원을 위한 넓은 슬라이더 범위
   static const double _angleMin = -8 * math.pi;
@@ -286,6 +290,148 @@ class InspectorPanel extends StatelessWidget {
           if (showCellQuillSection) ...[
             const SizedBox(height: 12),
             const Divider(),
+            // 내부 서브셀 배경색 빠른 선택
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Text('서브셀 배경', style: small),
+                const SizedBox(width: 8),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: [
+                    for (final c in _swatchColors)
+                      ColorDot(
+                        color: c,
+                        onTap: () {
+                          if (selectionFocusCell == null) return;
+                          final (r, c0) = (
+                            selectionFocusCell!.$1,
+                            selectionFocusCell!.$2,
+                          );
+                          mutateSelected((d) {
+                            if (d is! TableDrawable) return d;
+                            final td = d.copyWith();
+                            final idx = currentInnerSubcellIndex;
+                            if (idx != null) {
+                              td.setInternalStyle(r, c0, idx, {
+                                'bgColor': c.toARGB32(),
+                              });
+                            } else {
+                              td.setBackgroundColor(r, c0, c);
+                            }
+                            return td;
+                          });
+                        },
+                      ),
+                    OutlinedButton(
+                      onPressed: () {
+                        if (selectionFocusCell == null) return;
+                        final (r, c0) = (
+                          selectionFocusCell!.$1,
+                          selectionFocusCell!.$2,
+                        );
+                        mutateSelected((d) {
+                          if (d is! TableDrawable) return d;
+                          final td = d.copyWith();
+                          final idx = currentInnerSubcellIndex;
+                          if (idx != null) {
+                            td.setInternalStyle(r, c0, idx, {'bgColor': null});
+                          } else {
+                            td.setBackgroundColor(r, c0, null);
+                          }
+                          return td;
+                        });
+                      },
+                      child: Text('지우기', style: small),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            // 내부 서브셀 패딩 입력 (상우하좌)
+            (() {
+              final topCtrl = TextEditingController();
+              final rightCtrl = TextEditingController();
+              final bottomCtrl = TextEditingController();
+              final leftCtrl = TextEditingController();
+              InputDecoration _padDec(String hint) => const InputDecoration(
+                isDense: true,
+                border: OutlineInputBorder(),
+              );
+              Widget box(TextEditingController c) => SizedBox(
+                width: 38,
+                child: TextField(
+                  controller: c,
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
+                  inputFormatters: [
+                    FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
+                  ],
+                  decoration: _padDec(''),
+                ),
+              );
+              return SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: [
+                    Text('서브셀 패딩', style: small),
+                    const SizedBox(width: 8),
+                    box(topCtrl),
+                    const SizedBox(width: 4),
+                    box(rightCtrl),
+                    const SizedBox(width: 4),
+                    box(bottomCtrl),
+                    const SizedBox(width: 4),
+                    box(leftCtrl),
+                    const SizedBox(width: 4),
+                    OutlinedButton(
+                      onPressed: () {
+                        if (selectionFocusCell == null) return;
+                        final (r, c0) = (
+                          selectionFocusCell!.$1,
+                          selectionFocusCell!.$2,
+                        );
+                        final t = double.tryParse(topCtrl.text.trim()) ?? 0;
+                        final rt = double.tryParse(rightCtrl.text.trim()) ?? 0;
+                        final b = double.tryParse(bottomCtrl.text.trim()) ?? 0;
+                        final l = double.tryParse(leftCtrl.text.trim()) ?? 0;
+                        mutateSelected((d) {
+                          if (d is! TableDrawable) return d;
+                          final td = d.copyWith();
+                          final idx = currentInnerSubcellIndex;
+                          if (idx != null) {
+                            td.setInternalPadding(
+                              r,
+                              c0,
+                              idx,
+                              CellPadding(top: t, right: rt, bottom: b, left: l),
+                            );
+                          } else {
+                            td.updatePadding(
+                              r,
+                              c0,
+                              top: t,
+                              right: rt,
+                              bottom: b,
+                              left: l,
+                            );
+                          }
+                          return td;
+                        });
+                        topCtrl.clear();
+                        rightCtrl.clear();
+                        bottomCtrl.clear();
+                        leftCtrl.clear();
+                      },
+                      child: Text('적용', style: small),
+                    ),
+                  ],
+                ),
+              );
+            })(),
             const Text(
               'Table Cell (Quill)',
               style: TextStyle(fontWeight: FontWeight.bold),
@@ -356,28 +502,85 @@ class InspectorPanel extends StatelessWidget {
               ],
             ),
           ],
-          if (canMergeCells || canUnmergeCells) ...[
-            const SizedBox(height: 12),
-            if (!showCellQuillSection) const Divider(),
-            const Text(
-              'Table Cells',
-              style: TextStyle(fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                FilledButton(
-                  onPressed: canMergeCells ? onMergeCells : null,
-                  child: const Text('Merge'),
-                ),
-                FilledButton.tonal(
-                  onPressed: canUnmergeCells ? onUnmergeCells : null,
-                  child: const Text('Unmerge'),
-                ),
-              ],
-            ),
+          // Table Cells 섹션 표시 조건과 내용 구성 (싱글/다중 셀 선택에 따라 분기)
+          if (selected is TableDrawable) ...[
+            // 선택 상태 판별
+            (() {
+              final range = cellSelectionRange;
+              final focus = selectionFocusCell;
+              final bool isSingle =
+                  focus != null &&
+                  (range == null ||
+                      (range.topRow == range.bottomRow &&
+                          range.leftCol == range.rightCol));
+              final bool isMulti =
+                  range != null &&
+                  (range.topRow != range.bottomRow ||
+                      range.leftCol != range.rightCol);
+              if (!(isSingle || isMulti)) return const SizedBox.shrink();
+
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const SizedBox(height: 12),
+                  if (!showCellQuillSection) const Divider(),
+                  const Text(
+                    'Table Cells',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 8),
+
+                  // 내부 서브셀 선택기: 단일 셀 선택 + 내부 분할(>=2)일 때 표시
+                  if (isSingle && (innerSubcellCount ?? 1) >= 2) ...[
+                    Row(
+                      children: [
+                        const Text('서브셀'),
+                        const SizedBox(width: 8),
+                        DropdownButton<int?>(
+                          value: currentInnerSubcellIndex,
+                          items: [
+                            const DropdownMenuItem<int?>(
+                              value: null,
+                              child: Text('셀 전체'),
+                            ),
+                            for (int i = 0; i < (innerSubcellCount ?? 0); i++)
+                              DropdownMenuItem<int?>(
+                                value: i,
+                                child: Text('내부 ${i + 1}'),
+                              ),
+                          ],
+                          onChanged: onChangeInnerSubcellIndex,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                  ],
+
+                  // 다중 셀 선택: Merge/Unmerge + 분할 패널 모두 표시
+                  if (isMulti) ...[
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        FilledButton(
+                          onPressed: canMergeCells ? onMergeCells : null,
+                          child: const Text('Merge'),
+                        ),
+                        FilledButton.tonal(
+                          onPressed: canUnmergeCells ? onUnmergeCells : null,
+                          child: const Text('Unmerge'),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    _buildSplitControls(context),
+                  ],
+
+                  // 싱글 셀 선택: 분할 패널만 표시
+                  if (isSingle) ...[_buildSplitControls(context)],
+                ],
+              );
+            })(),
           ],
 
           const SizedBox(height: 8),
@@ -401,7 +604,10 @@ class InspectorPanel extends StatelessWidget {
             if (selected is TableDrawable && selectionFocusCell != null)
               ..._buildTableSizeControls(selected as TableDrawable),
             if (selected is TableDrawable && cellSelectionRange != null)
-              ..._buildTableBackgroundControls(context, selected as TableDrawable),
+              ..._buildTableBackgroundControls(
+                context,
+                selected as TableDrawable,
+              ),
             if (selected is ImageBoxDrawable)
               ..._buildImageControls(selected as ImageBoxDrawable),
             if (selected is LineDrawable || selected is ArrowDrawable)
@@ -444,6 +650,156 @@ class InspectorPanel extends StatelessWidget {
         onChanged: (v) => onApplyStroke(newCornerRadius: v),
       ),
     ];
+  }
+
+  // "Table Cells" 아래에 표시될 행/열 분할 UI
+  Widget _buildSplitControls(BuildContext context) {
+    if (selected is! TableDrawable) return const SizedBox.shrink();
+    final rowCtrl = TextEditingController();
+    final colCtrl = TextEditingController();
+
+    bool _allowsColumnSplitForCurrentSelection(TableDrawable t) {
+      final focus = selectionFocusCell;
+      final range = cellSelectionRange;
+      if (focus == null) return false;
+      // 1x1 선택은 언제나 허용
+      if (range == null ||
+          (range.topRow == range.bottomRow &&
+              range.leftCol == range.rightCol)) {
+        return true;
+      }
+      // 병합된 단일 논리 셀(포커스 루트의 병합 영역)과 선택 범위가 정확히 일치하면 허용
+      final rt = t.resolveRoot(focus.$1, focus.$2);
+      final sp = t.spanForRoot(rt.$1, rt.$2);
+      final r0 = rt.$1;
+      final c0 = rt.$2;
+      final r1 = r0 + ((sp?.rowSpan ?? 1) - 1);
+      final c1 = c0 + ((sp?.colSpan ?? 1) - 1);
+      return range.topRow == r0 &&
+          range.leftCol == c0 &&
+          range.bottomRow == r1 &&
+          range.rightCol == c1;
+    }
+
+    void splitRows() {
+      final v = int.tryParse(rowCtrl.text.trim());
+      if (v == null || v <= 0) return;
+      final range = cellSelectionRange;
+      final focus = selectionFocusCell;
+      final bool hasMultiRange =
+          range != null &&
+          (range.topRow != range.bottomRow || range.leftCol != range.rightCol);
+      mutateSelected((d) {
+        if (d is! TableDrawable) return d;
+        if (hasMultiRange) {
+          // 멀티 선택만 배치 분할 사용(1x1 범위는 단일 처리)
+          final targets = <(int, int)>[];
+          for (int r = range.topRow; r <= range.bottomRow; r++) {
+            for (int c = range.leftCol; c <= range.rightCol; c++) {
+              targets.add((r, c));
+            }
+          }
+          return d.splitRowsAtBatch(targets, v);
+        }
+        if (focus != null) {
+          return d.splitRowsAt(focus.$1, focus.$2, v);
+        }
+        return d;
+      });
+      rowCtrl.clear();
+    }
+
+    void splitCols() {
+      final v = int.tryParse(colCtrl.text.trim());
+      if (v == null || v <= 1) return;
+      final focus = selectionFocusCell;
+      final canSplit = (selected is TableDrawable)
+          ? _allowsColumnSplitForCurrentSelection(selected as TableDrawable)
+          : false;
+      mutateSelected((d) {
+        if (d is! TableDrawable) return d;
+        // 열 분할은 단일 셀 또는 병합된 단일 논리 셀 선택에서만 허용
+        if (!canSplit) return d;
+        if (focus != null) {
+          // 전역 컬럼을 바꾸지 않고, 선택 셀 내부만 균등 분할
+          return d.splitColumnsInsideCell(focus.$1, focus.$2, v);
+        }
+        return d;
+      });
+      colCtrl.clear();
+    }
+
+    InputDecoration _dec(String suffix) =>
+        const InputDecoration(isDense: true, border: OutlineInputBorder());
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: 4),
+        Row(
+          children: [
+            SizedBox(width: 64, child: Text('행 삽입', style: small)),
+            const SizedBox(width: 8),
+            SizedBox(
+              width: 80,
+              child: TextField(
+                controller: rowCtrl,
+                keyboardType: const TextInputType.numberWithOptions(),
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                decoration: _dec(''),
+                onSubmitted: (_) => splitRows(),
+              ),
+            ),
+            const SizedBox(width: 8),
+            OutlinedButton(onPressed: splitRows, child: const Text('적용')),
+          ],
+        ),
+        const SizedBox(height: 6),
+        Text(
+          '행 삽입: 선택한 셀의 행 위치에 N개의 새 행을 삽입합니다. 기존 행은 아래로 밀립니다. 표 전체 높이는 삽입된 N개 행 만큼 늘어납니다.',
+          style: small.copyWith(color: Colors.black54),
+        ),
+        const SizedBox(height: 8),
+        // 열 분할은 단일 셀 선택에서만 입력 활성화
+        Row(
+          children: [
+            SizedBox(width: 64, child: Text('열 분할', style: small)),
+            const SizedBox(width: 8),
+            SizedBox(
+              width: 80,
+              child: TextField(
+                controller: colCtrl,
+                keyboardType: const TextInputType.numberWithOptions(),
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                decoration: _dec(''),
+                onSubmitted: (_) => splitCols(),
+                enabled: (selected is TableDrawable)
+                    ? _allowsColumnSplitForCurrentSelection(
+                        selected as TableDrawable,
+                      )
+                    : false,
+              ),
+            ),
+            const SizedBox(width: 8),
+            OutlinedButton(
+              onPressed:
+                  (selected is TableDrawable &&
+                      _allowsColumnSplitForCurrentSelection(
+                        selected as TableDrawable,
+                      ))
+                  ? splitCols
+                  : null,
+              child: const Text('적용'),
+            ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        Text(
+          '열 분할(내부): 단일 셀(병합 셀 포함) 내부만 N개로 정확히 균등 분할합니다. 전역 열 너비는 바뀌지 않아 위/아래 행에 영향이 없습니다. 내용은 첫 번째 내부 열에 유지됩니다.',
+          style: small.copyWith(color: Colors.black54),
+        ),
+      ],
+    );
   }
 
   List<Widget> _buildOvalControls(OvalDrawable o) {
@@ -1496,8 +1852,10 @@ class InspectorPanel extends StatelessWidget {
               neighborB = table.borderOf(neigh.$1, neigh.$2).bottom;
             }
             final eff = math.max(selfT, neighborB);
-            if (value == null) value = eff;
-            else if ((value - eff).abs() > 1e-3) return null;
+            if (value == null)
+              value = eff;
+            else if ((value - eff).abs() > 1e-3)
+              return null;
           }
         } else if (side == 'bottom') {
           // boundaryRow = rowEnd + 1
@@ -1510,8 +1868,10 @@ class InspectorPanel extends StatelessWidget {
               neighborT = table.borderOf(neigh.$1, neigh.$2).top;
             }
             final eff = math.max(selfB, neighborT);
-            if (value == null) value = eff;
-            else if ((value - eff).abs() > 1e-3) return null;
+            if (value == null)
+              value = eff;
+            else if ((value - eff).abs() > 1e-3)
+              return null;
           }
         } else if (side == 'left') {
           // boundaryColumn = colStart
@@ -1524,8 +1884,10 @@ class InspectorPanel extends StatelessWidget {
               neighborR = table.borderOf(neigh.$1, neigh.$2).right;
             }
             final eff = math.max(selfL, neighborR);
-            if (value == null) value = eff;
-            else if ((value - eff).abs() > 1e-3) return null;
+            if (value == null)
+              value = eff;
+            else if ((value - eff).abs() > 1e-3)
+              return null;
           }
         } else if (side == 'right') {
           // boundaryColumn = colEnd + 1
@@ -1538,8 +1900,10 @@ class InspectorPanel extends StatelessWidget {
               neighborL = table.borderOf(neigh.$1, neigh.$2).left;
             }
             final eff = math.max(selfR, neighborL);
-            if (value == null) value = eff;
-            else if ((value - eff).abs() > 1e-3) return null;
+            if (value == null)
+              value = eff;
+            else if ((value - eff).abs() > 1e-3)
+              return null;
           }
         }
       }
@@ -1578,10 +1942,22 @@ class InspectorPanel extends StatelessWidget {
       });
     }
 
-  final double? uniformTop = uniformEffectiveThicknessForSide('top', touchesTop);
-  final double? uniformBottom = uniformEffectiveThicknessForSide('bottom', touchesBottom);
-  final double? uniformLeft = uniformEffectiveThicknessForSide('left', touchesLeft);
-  final double? uniformRight = uniformEffectiveThicknessForSide('right', touchesRight);
+    final double? uniformTop = uniformEffectiveThicknessForSide(
+      'top',
+      touchesTop,
+    );
+    final double? uniformBottom = uniformEffectiveThicknessForSide(
+      'bottom',
+      touchesBottom,
+    );
+    final double? uniformLeft = uniformEffectiveThicknessForSide(
+      'left',
+      touchesLeft,
+    );
+    final double? uniformRight = uniformEffectiveThicknessForSide(
+      'right',
+      touchesRight,
+    );
     final topController = TextEditingController(
       text: uniformTop == null ? '' : uniformTop.toStringAsFixed(1),
     );
@@ -1642,21 +2018,21 @@ class InspectorPanel extends StatelessWidget {
       void submitPad() {
         final raw = double.tryParse(padController.text);
         if (raw == null) return;
-        final double valuePx = (pxPerCm > 0 ? raw * pxPerCm : raw)
-            .clamp(0.0, 400.0);
+        final double valuePx = (pxPerCm > 0 ? raw * pxPerCm : raw).clamp(
+          0.0,
+          400.0,
+        );
         applyPadding(valuePx);
         final shown = (pxPerCm > 0 ? (valuePx / pxPerCm) : valuePx)
             .toStringAsFixed(2);
         padController.text = shown;
       }
+
       return Row(
         children: [
           SizedBox(
             width: 48,
-            child: Text(
-              label,
-              style: const TextStyle(fontSize: 12.0),
-            ),
+            child: Text(label, style: const TextStyle(fontSize: 12.0)),
           ),
           const SizedBox(width: 8),
           // 안쪽 여백(cm)
@@ -1755,7 +2131,8 @@ class InspectorPanel extends StatelessWidget {
           if (nr >= 0) {
             for (int c = colStart; c <= colEnd; c++) {
               final neigh = table.resolveRoot(nr, c);
-              if (table.borderStyleOf(neigh.$1, neigh.$2).bottom == CellBorderStyle.dashed) {
+              if (table.borderStyleOf(neigh.$1, neigh.$2).bottom ==
+                  CellBorderStyle.dashed) {
                 current = CellBorderStyle.dashed;
                 break;
               }
@@ -1766,7 +2143,8 @@ class InspectorPanel extends StatelessWidget {
           if (nr < table.rows) {
             for (int c = colStart; c <= colEnd; c++) {
               final neigh = table.resolveRoot(nr, c);
-              if (table.borderStyleOf(neigh.$1, neigh.$2).top == CellBorderStyle.dashed) {
+              if (table.borderStyleOf(neigh.$1, neigh.$2).top ==
+                  CellBorderStyle.dashed) {
                 current = CellBorderStyle.dashed;
                 break;
               }
@@ -1777,7 +2155,8 @@ class InspectorPanel extends StatelessWidget {
           if (nc >= 0) {
             for (int r = rowStart; r <= rowEnd; r++) {
               final neigh = table.resolveRoot(r, nc);
-              if (table.borderStyleOf(neigh.$1, neigh.$2).right == CellBorderStyle.dashed) {
+              if (table.borderStyleOf(neigh.$1, neigh.$2).right ==
+                  CellBorderStyle.dashed) {
                 current = CellBorderStyle.dashed;
                 break;
               }
@@ -1788,7 +2167,8 @@ class InspectorPanel extends StatelessWidget {
           if (nc < table.columns) {
             for (int r = rowStart; r <= rowEnd; r++) {
               final neigh = table.resolveRoot(r, nc);
-              if (table.borderStyleOf(neigh.$1, neigh.$2).left == CellBorderStyle.dashed) {
+              if (table.borderStyleOf(neigh.$1, neigh.$2).left ==
+                  CellBorderStyle.dashed) {
                 current = CellBorderStyle.dashed;
                 break;
               }
@@ -1851,7 +2231,7 @@ class InspectorPanel extends StatelessWidget {
       return value;
     }
 
-  double cmFromPx(double value) => pxPerCm > 0 ? value / pxPerCm : value;
+    double cmFromPx(double value) => pxPerCm > 0 ? value / pxPerCm : value;
 
     void applyPadding({
       double? top,
@@ -1905,10 +2285,7 @@ class InspectorPanel extends StatelessWidget {
         : [
             const SizedBox(height: 12),
             const Divider(),
-            const Text(
-              '셀 테두리',
-              style: TextStyle(fontWeight: FontWeight.bold),
-            ),
+            const Text('셀 테두리', style: TextStyle(fontWeight: FontWeight.bold)),
             const SizedBox(height: 8),
             _borderHeaderRow(),
             const SizedBox(height: 6),
@@ -1928,7 +2305,10 @@ class InspectorPanel extends StatelessWidget {
               applyPadding: (v) => applyPadding(bottom: v),
               controller: bottomController,
               applyThickness: (v) => applyBorders(bottom: v),
-              uniformStyle: uniformEffectiveStyleForSide('bottom', touchesBottom),
+              uniformStyle: uniformEffectiveStyleForSide(
+                'bottom',
+                touchesBottom,
+              ),
               applyStyle: (st) => applyBorderStyles(bottom: st),
             ),
             const SizedBox(height: 8),
@@ -1964,96 +2344,97 @@ class InspectorPanel extends StatelessWidget {
       _rowField(),
       const SizedBox(height: 8),
       _colField(),
-  ...borderControls,
+      ...borderControls,
     ];
   }
 
-
-List<Widget> _buildTableBackgroundControls(BuildContext context, TableDrawable table) {
-  final selection = cellSelectionRange;
-  if (selection == null) return const [];
-  // root 셀 추출
-  final roots = <String, (int,int)>{};
-  for (int r = selection.topRow; r <= selection.bottomRow; r++) {
-    for (int c = selection.leftCol; c <= selection.rightCol; c++) {
-      final root = table.resolveRoot(r, c);
-      roots["${root.$1},${root.$2}"] = root;
-    }
-  }
-
-  // 현재 색상(전부 동일하면 그 색, 아니면 null=혼합)
-  Color? current;
-  for (final rc in roots.values) {
-    final bg = table.backgroundColorOf(rc.$1, rc.$2);
-    if (current == null) {
-      current = bg;
-    } else {
-      if ((bg?.value ?? -1) != (current.value)) {
-        current = null;
-        break;
+  List<Widget> _buildTableBackgroundControls(
+    BuildContext context,
+    TableDrawable table,
+  ) {
+    final selection = cellSelectionRange;
+    if (selection == null) return const [];
+    // root 셀 추출
+    final roots = <String, (int, int)>{};
+    for (int r = selection.topRow; r <= selection.bottomRow; r++) {
+      for (int c = selection.leftCol; c <= selection.rightCol; c++) {
+        final root = table.resolveRoot(r, c);
+        roots["${root.$1},${root.$2}"] = root;
       }
     }
-  }
 
-  String label;
-  if (current == null) {
-    label = '혼합';
-  } else if (current.alpha == 0) {
-    label = '투명';
-  } else {
-    final hex = current.value.toRadixString(16).padLeft(8, '0').toUpperCase();
-    label = '#$hex';
-  }
+    // 현재 색상(전부 동일하면 그 색, 아니면 null=혼합)
+    Color? current;
+    for (final rc in roots.values) {
+      final bg = table.backgroundColorOf(rc.$1, rc.$2);
+      if (current == null) {
+        current = bg;
+      } else {
+        if ((bg?.toARGB32() ?? -1) != (current.toARGB32())) {
+          current = null;
+          break;
+        }
+      }
+    }
 
-  return [
-    const Divider(),
-    const Text('셀 바탕색'),
-    const SizedBox(height: 6),
-    Row(
-      children: [
-        SizedBox(
-          width: 22,
-          height: 22,
-          child: ColorDot(color: current ?? const Color(0x00000000)),
-        ),
-        const SizedBox(width: 8),
-        Text(label, style: const TextStyle(fontSize: 12.0)),
-        const Spacer(),
-        OutlinedButton(
-          onPressed: () async {
-            final picked = await showWindowsLikeColorDialog(
-              context,
-              initialColor: (current ?? Colors.black).withAlpha(255),
-              originColor: current ?? Colors.black,
-            );
-            if (picked != null) {
+    String label;
+    if (current == null) {
+      label = '혼합';
+    } else if (current.a == 0) {
+      label = '투명';
+    } else {
+      final hex = current
+          .toARGB32()
+          .toRadixString(16)
+          .padLeft(8, '0')
+          .toUpperCase();
+      label = '#$hex';
+    }
+
+    return [
+      const Divider(),
+      const Text('셀 바탕색'),
+      const SizedBox(height: 6),
+      Row(
+        children: [
+          SizedBox(
+            width: 22,
+            height: 22,
+            child: ColorDot(color: current ?? const Color(0x00000000)),
+          ),
+          const SizedBox(width: 8),
+          Text(label, style: const TextStyle(fontSize: 12.0)),
+          const Spacer(),
+          OutlinedButton(
+            onPressed: () async {
+              final picked = await showWindowsLikeColorDialog(
+                context,
+                initialColor: (current ?? Colors.black).withValues(alpha: 1.0),
+                originColor: current ?? Colors.black,
+              );
+              if (picked != null) {
+                this.mutateSelected((d) {
+                  final t = d as TableDrawable;
+                  t.setBackgroundForCells(roots.values, picked);
+                  return t;
+                });
+              }
+            },
+            child: const Text('선택'),
+          ),
+          const SizedBox(width: 8),
+          OutlinedButton(
+            onPressed: () {
               this.mutateSelected((d) {
                 final t = d as TableDrawable;
-                t.setBackgroundForCells(roots.values, picked);
+                t.setBackgroundForCells(roots.values, null);
                 return t;
               });
-            }
-          },
-          child: const Text('선택'),
-        ),
-        const SizedBox(width: 8),
-        OutlinedButton(
-          onPressed: () {
-            this.mutateSelected((d) {
-              final t = d as TableDrawable;
-              t.setBackgroundForCells(roots.values, null);
-              return t;
-            });
-          },
-          child: const Text('투명'),
-        ),
-      ],
-    ),
-  ];
+            },
+            child: const Text('투명'),
+          ),
+        ],
+      ),
+    ];
+  }
 }
-
-}
-
-
-
-

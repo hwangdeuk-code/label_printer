@@ -1,4 +1,3 @@
-
 import 'package:flutter/foundation.dart';
 import 'package:flutter/rendering.dart';
 
@@ -24,16 +23,17 @@ class OvalDrawable extends Sized2DDrawable implements ShapeDrawable {
         const <ObjectDrawableAssist, Paint>{},
     bool locked = false,
     bool hidden = false,
-  })  : paint = paint ?? ShapeDrawable.defaultPaint,
-        super(
-            size: size,
-            position: position,
-            rotationAngle: rotationAngle,
-            scale: scale,
-            assists: assists,
-            assistPaints: assistPaints,
-            locked: locked,
-            hidden: hidden);
+  }) : paint = paint ?? ShapeDrawable.defaultPaint,
+       super(
+         size: size,
+         position: position,
+         rotationAngle: rotationAngle,
+         scale: scale,
+         assists: assists,
+         assistPaints: assistPaints,
+         locked: locked,
+         hidden: hidden,
+       );
 
   /// Getter for padding of drawable.
   ///
@@ -47,11 +47,13 @@ class OvalDrawable extends Sized2DDrawable implements ShapeDrawable {
   void drawObject(Canvas canvas, Size size) {
     final drawingSize = this.size * scale;
     canvas.drawOval(
-        Rect.fromCenter(
-            center: position,
-            width: drawingSize.width,
-            height: drawingSize.height),
-        paint);
+      Rect.fromCenter(
+        center: position,
+        width: drawingSize.width,
+        height: drawingSize.height,
+      ),
+      paint,
+    );
   }
 
   /// Creates a copy of this but with the given fields replaced with the new values.

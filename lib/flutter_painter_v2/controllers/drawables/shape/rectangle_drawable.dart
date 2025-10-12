@@ -1,4 +1,3 @@
-
 import 'package:flutter/foundation.dart';
 import 'package:flutter/rendering.dart';
 
@@ -29,16 +28,17 @@ class RectangleDrawable extends Sized2DDrawable implements ShapeDrawable {
     bool locked = false,
     bool hidden = false,
     this.borderRadius = const BorderRadius.all(Radius.circular(5)),
-  })  : paint = paint ?? ShapeDrawable.defaultPaint,
-        super(
-            size: size,
-            position: position,
-            rotationAngle: rotationAngle,
-            scale: scale,
-            assists: assists,
-            assistPaints: assistPaints,
-            locked: locked,
-            hidden: hidden);
+  }) : paint = paint ?? ShapeDrawable.defaultPaint,
+       super(
+         size: size,
+         position: position,
+         rotationAngle: rotationAngle,
+         scale: scale,
+         assists: assists,
+         assistPaints: assistPaints,
+         locked: locked,
+         hidden: hidden,
+       );
 
   /// Getter for padding of drawable.
   ///
@@ -52,17 +52,19 @@ class RectangleDrawable extends Sized2DDrawable implements ShapeDrawable {
   void drawObject(Canvas canvas, Size size) {
     final drawingSize = this.size * scale;
     canvas.drawRRect(
-        RRect.fromRectAndCorners(
-          Rect.fromCenter(
-              center: position,
-              width: drawingSize.width,
-              height: drawingSize.height),
-          topLeft: borderRadius.topLeft,
-          topRight: borderRadius.topRight,
-          bottomLeft: borderRadius.bottomLeft,
-          bottomRight: borderRadius.bottomRight,
+      RRect.fromRectAndCorners(
+        Rect.fromCenter(
+          center: position,
+          width: drawingSize.width,
+          height: drawingSize.height,
         ),
-        paint);
+        topLeft: borderRadius.topLeft,
+        topRight: borderRadius.topRight,
+        bottomLeft: borderRadius.bottomLeft,
+        bottomRight: borderRadius.bottomRight,
+      ),
+      paint,
+    );
   }
 
   /// Creates a copy of this but with the given fields replaced with the new values.

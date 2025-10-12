@@ -95,14 +95,18 @@ class _CanvasAreaState extends State<CanvasArea> {
     // 마우스 좌클릭에 대해서만 더블클릭 수동 감지
     if (e.kind == PointerDeviceKind.mouse && e.buttons == kPrimaryMouseButton) {
       final now = DateTime.now();
-      final isDbl = _lastClickAt != null &&
+      final isDbl =
+          _lastClickAt != null &&
           now.difference(_lastClickAt!) <= _dblThreshold &&
           _lastClickPos != null &&
           (e.position - _lastClickPos!).distance <= _dblDistance;
 
       if (isDbl && widget.onCanvasDoubleTapDown != null) {
         widget.onCanvasDoubleTapDown!(
-          TapDownDetails(globalPosition: e.position, kind: PointerDeviceKind.mouse),
+          TapDownDetails(
+            globalPosition: e.position,
+            kind: PointerDeviceKind.mouse,
+          ),
         );
       }
       _lastClickAt = now;
@@ -112,8 +116,10 @@ class _CanvasAreaState extends State<CanvasArea> {
 
   @override
   Widget build(BuildContext context) {
-    final overlayIgnored = widget.currentTool == Tool.pen || widget.currentTool == Tool.eraser;
-    final absorbPainter = widget.currentTool == Tool.rect ||
+    final overlayIgnored =
+        widget.currentTool == Tool.pen || widget.currentTool == Tool.eraser;
+    final absorbPainter =
+        widget.currentTool == Tool.rect ||
         widget.currentTool == Tool.oval ||
         widget.currentTool == Tool.line ||
         widget.currentTool == Tool.arrow ||
@@ -128,8 +134,8 @@ class _CanvasAreaState extends State<CanvasArea> {
     final double scaleFactor = widget.scalePercent / 100.0;
     final double paintWidth = widget.labelPixelSize.width * scaleFactor;
     final double paintHeight = widget.labelPixelSize.height * scaleFactor;
-  final double canvasWidth = paintWidth + _rulerThickness;
-  final double canvasHeight = paintHeight + _rulerThickness;
+    final double canvasWidth = paintWidth + _rulerThickness;
+    final double canvasHeight = paintHeight + _rulerThickness;
 
     final content = SizedBox(
       width: canvasWidth,
@@ -140,7 +146,9 @@ class _CanvasAreaState extends State<CanvasArea> {
           Positioned.fill(child: Container(color: Colors.white)),
           Positioned.fill(
             child: DecoratedBox(
-              decoration: BoxDecoration(border: Border.all(color: Colors.black12)),
+              decoration: BoxDecoration(
+                border: Border.all(color: Colors.black12),
+              ),
             ),
           ),
           // 눈금자
@@ -149,17 +157,25 @@ class _CanvasAreaState extends State<CanvasArea> {
             top: 0,
             width: paintWidth,
             height: _rulerThickness,
-            child: CustomPaint(painter: _HorizontalRulerPainter(pixelsPerCm: pixelsPerCm)),
+            child: CustomPaint(
+              painter: _HorizontalRulerPainter(pixelsPerCm: pixelsPerCm),
+            ),
           ),
           Positioned(
             left: 0,
             top: _rulerThickness,
             width: _rulerThickness,
             height: paintHeight,
-            child: CustomPaint(painter: _VerticalRulerPainter(pixelsPerCm: pixelsPerCm)),
+            child: CustomPaint(
+              painter: _VerticalRulerPainter(pixelsPerCm: pixelsPerCm),
+            ),
           ),
           const Positioned(
-            left: 0, top: 0, width: _rulerThickness, height: _rulerThickness, child: _RulerCorner(),
+            left: 0,
+            top: 0,
+            width: _rulerThickness,
+            height: _rulerThickness,
+            child: _RulerCorner(),
           ),
 
           // 캔버스 + 오버레이
@@ -169,7 +185,9 @@ class _CanvasAreaState extends State<CanvasArea> {
             width: paintWidth,
             height: paintHeight,
             child: DecoratedBox(
-              decoration: BoxDecoration(border: Border.all(color: Colors.black12)),
+              decoration: BoxDecoration(
+                border: Border.all(color: Colors.black12),
+              ),
               child: Stack(
                 children: [
                   // 실제 페인터(컨텐츠)는 라벨 영역 -1px 인셋으로만 클립
@@ -185,7 +203,9 @@ class _CanvasAreaState extends State<CanvasArea> {
                           height: widget.labelPixelSize.height,
                           child: ClipRect(
                             clipper: _InsetClipper(1.0),
-                            child: FlutterPainter(controller: widget.controller),
+                            child: FlutterPainter(
+                              controller: widget.controller,
+                            ),
                           ),
                         ),
                       ),
@@ -263,12 +283,21 @@ class _CanvasAreaState extends State<CanvasArea> {
                   ),
 
                   // ✅ 인라인 편집기 오버레이는 가장 위에!
-                  if (widget.inlineEditor != null && widget.inlineEditorRect != null)
+                  if (widget.inlineEditor != null &&
+                      widget.inlineEditorRect != null)
                     Positioned(
-                      left: widget.inlineEditorRect!.left * (widget.scalePercent / 100.0),
-                      top: widget.inlineEditorRect!.top * (widget.scalePercent / 100.0),
-                      width: widget.inlineEditorRect!.width * (widget.scalePercent / 100.0),
-                      height: widget.inlineEditorRect!.height * (widget.scalePercent / 100.0),
+                      left:
+                          widget.inlineEditorRect!.left *
+                          (widget.scalePercent / 100.0),
+                      top:
+                          widget.inlineEditorRect!.top *
+                          (widget.scalePercent / 100.0),
+                      width:
+                          widget.inlineEditorRect!.width *
+                          (widget.scalePercent / 100.0),
+                      height:
+                          widget.inlineEditorRect!.height *
+                          (widget.scalePercent / 100.0),
                       child: widget.inlineEditor!,
                     ),
                 ],
@@ -300,7 +329,10 @@ class _RulerCorner extends StatelessWidget {
     return Container(
       color: _rulerBackground,
       alignment: Alignment.center,
-      child: const Text('cm', style: TextStyle(fontSize: 10, color: Colors.black54)),
+      child: const Text(
+        'cm',
+        style: TextStyle(fontSize: 10, color: Colors.black54),
+      ),
     );
   }
 }
@@ -314,13 +346,23 @@ class _HorizontalRulerPainter extends CustomPainter {
     final bg = Paint()..color = _rulerBackground;
     canvas.drawRect(Offset.zero & size, bg);
 
-    final border = Paint()..color = _rulerBorder..strokeWidth = 1;
-    canvas.drawLine(Offset(0, size.height - 0.5), Offset(size.width, size.height - 0.5), border);
+    final border = Paint()
+      ..color = _rulerBorder
+      ..strokeWidth = 1;
+    canvas.drawLine(
+      Offset(0, size.height - 0.5),
+      Offset(size.width, size.height - 0.5),
+      border,
+    );
 
     if (pixelsPerCm <= 0) return;
 
-    final major = Paint()..color = Colors.black87..strokeWidth = 1;
-    final minor = Paint()..color = Colors.black45..strokeWidth = 1;
+    final major = Paint()
+      ..color = Colors.black87
+      ..strokeWidth = 1;
+    final minor = Paint()
+      ..color = Colors.black45
+      ..strokeWidth = 1;
 
     final double majorTickTop = size.height * 0.65;
 
@@ -328,10 +370,20 @@ class _HorizontalRulerPainter extends CustomPainter {
     while (true) {
       final double x = i * pixelsPerCm;
       if (x > size.width + 0.5) break;
-      canvas.drawLine(Offset(x, size.height), Offset(x, size.height - (size.height - majorTickTop)), major);
-      final tp = TextPainter(text: TextSpan(text: '$i', style: _rulerLabelStyle), textDirection: TextDirection.ltr)..layout();
+      canvas.drawLine(
+        Offset(x, size.height),
+        Offset(x, size.height - (size.height - majorTickTop)),
+        major,
+      );
+      final tp = TextPainter(
+        text: TextSpan(text: '$i', style: _rulerLabelStyle),
+        textDirection: TextDirection.ltr,
+      )..layout();
       final labelX = (x - tp.width / 2).clamp(0.0, size.width - tp.width);
-      final labelY = (majorTickTop - tp.height - 6).clamp(0.0, size.height - tp.height);
+      final labelY = (majorTickTop - tp.height - 6).clamp(
+        0.0,
+        size.height - tp.height,
+      );
       tp.paint(canvas, Offset(labelX, labelY));
       i++;
     }
@@ -341,14 +393,19 @@ class _HorizontalRulerPainter extends CustomPainter {
       final double x = cm * pixelsPerCm;
       if (x > size.width + 0.5) break;
       if ((cm * 10) % 10 != 0) {
-        canvas.drawLine(Offset(x, size.height), Offset(x, size.height - size.height * 0.225), minor);
+        canvas.drawLine(
+          Offset(x, size.height),
+          Offset(x, size.height - size.height * 0.225),
+          minor,
+        );
       }
       cm += 0.1;
     }
   }
 
   @override
-  bool shouldRepaint(covariant _HorizontalRulerPainter old) => old.pixelsPerCm != pixelsPerCm;
+  bool shouldRepaint(covariant _HorizontalRulerPainter old) =>
+      old.pixelsPerCm != pixelsPerCm;
 }
 
 class _VerticalRulerPainter extends CustomPainter {
@@ -360,20 +417,37 @@ class _VerticalRulerPainter extends CustomPainter {
     final bg = Paint()..color = _rulerBackground;
     canvas.drawRect(Offset.zero & size, bg);
 
-    final border = Paint()..color = _rulerBorder..strokeWidth = 1;
-    canvas.drawLine(Offset(size.width - 0.5, 0), Offset(size.width - 0.5, size.height), border);
+    final border = Paint()
+      ..color = _rulerBorder
+      ..strokeWidth = 1;
+    canvas.drawLine(
+      Offset(size.width - 0.5, 0),
+      Offset(size.width - 0.5, size.height),
+      border,
+    );
 
     if (pixelsPerCm <= 0) return;
 
-    final major = Paint()..color = Colors.black87..strokeWidth = 1;
-    final minor = Paint()..color = Colors.black45..strokeWidth = 1;
+    final major = Paint()
+      ..color = Colors.black87
+      ..strokeWidth = 1;
+    final minor = Paint()
+      ..color = Colors.black45
+      ..strokeWidth = 1;
 
     int i = 0;
     while (true) {
       final double y = i * pixelsPerCm;
       if (y > size.height + 0.5) break;
-      canvas.drawLine(Offset(size.width, y), Offset(size.width - size.width * 0.35, y), major);
-      final tp = TextPainter(text: TextSpan(text: '$i', style: _rulerLabelStyle), textDirection: TextDirection.ltr)..layout();
+      canvas.drawLine(
+        Offset(size.width, y),
+        Offset(size.width - size.width * 0.35, y),
+        major,
+      );
+      final tp = TextPainter(
+        text: TextSpan(text: '$i', style: _rulerLabelStyle),
+        textDirection: TextDirection.ltr,
+      )..layout();
       final labelY = (y - tp.height / 2).clamp(0.0, size.height - tp.height);
       tp.paint(canvas, Offset(2, labelY));
       i++;
@@ -384,14 +458,19 @@ class _VerticalRulerPainter extends CustomPainter {
       final double y = cm * pixelsPerCm;
       if (y > size.height + 0.5) break;
       if ((cm * 10) % 10 != 0) {
-        canvas.drawLine(Offset(size.width, y), Offset(size.width - size.width * 0.225, y), minor);
+        canvas.drawLine(
+          Offset(size.width, y),
+          Offset(size.width - size.width * 0.225, y),
+          minor,
+        );
       }
       cm += 0.1;
     }
   }
 
   @override
-  bool shouldRepaint(covariant _VerticalRulerPainter old) => old.pixelsPerCm != pixelsPerCm;
+  bool shouldRepaint(covariant _VerticalRulerPainter old) =>
+      old.pixelsPerCm != pixelsPerCm;
 }
 
 class _SelectionPainter extends CustomPainter {
@@ -501,7 +580,11 @@ class _SelectionPainter extends CustomPainter {
 
     final handlePaint = Paint()..color = const Color(0xFF3F51B5);
     for (final c in [r.topLeft, r.topRight, r.bottomLeft, r.bottomRight]) {
-      final h = Rect.fromCenter(center: c, width: handleSize, height: handleSize);
+      final h = Rect.fromCenter(
+        center: c,
+        width: handleSize,
+        height: handleSize,
+      );
       canvas.drawRect(h, handlePaint);
     }
 
@@ -541,5 +624,6 @@ class _InsetClipper extends CustomClipper<Rect> {
   }
 
   @override
-  bool shouldReclip(covariant _InsetClipper oldClipper) => oldClipper.inset != inset;
+  bool shouldReclip(covariant _InsetClipper oldClipper) =>
+      oldClipper.inset != inset;
 }
