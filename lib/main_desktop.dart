@@ -1,18 +1,24 @@
 import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:window_manager/window_manager.dart';
 
 import 'core/app.dart';
 import 'core/bootstrap.dart';
+import 'core/lifecycle.dart';
 import 'ui_shared/startup_home.dart';
 
 Future<void> main(List<String> args) async {
   WidgetsFlutterBinding.ensureInitialized();
-
+  LifecycleManager.instance.ensureInitialized();
   await initDesktopWindow(targetIndex: 0);
-  isDesktop = true;
+
+  // 창 닫기(X) 시 우리 정리 로직을 먼저 수행할 수 있도록 보장
+  await windowManager.setPreventClose(true);
+  windowManager.addListener(_AppWindowListener());
 
   final info = await PackageInfo.fromPlatform();
   appVersion = info.version;
+  isDesktop = true;
 
   runApp(
     const MaterialApp(
@@ -20,4 +26,18 @@ Future<void> main(List<String> args) async {
       home: StartupHomePage(),
     ),
   );
+}
+
+class _AppWindowListener extends WindowListener {
+  @override
+  void onWindowClose() async {
+    final isPrevent = await windowManager.isPreventClose();
+    if (isPrevent) {
+      // 앱 전역 종료 요청 브로드캐스트(비동기 정리 작업이 있다면 여기서 시작)
+      LifecycleManager.instance.notifyExitRequested();
+      // 짧은 딜레이로 즉시 종료로 인한 정리 누락을 완화(필요시 조정)
+      await Future.delayed(const Duration(milliseconds: 120));
+      await windowManager.destroy();
+    }
+  }
 }

@@ -330,10 +330,10 @@ class _PainterPageState extends State<PainterPage> {
       final file = File(path);
       const encoder = JsonEncoder.withIndent('  ');
       await file.writeAsString(encoder.convert(bundle));
-      _showSnackBar(context, '저장 완료: ${objects.length}개 객체');
+      showSnackBar(context, '저장 완료: ${objects.length}개 객체');
     } catch (e, stack) {
       debugPrint('Save project error: $e\n$stack');
-      _showSnackBar(context, '저장 실패: $e', isError: true);
+      showSnackBar(context, '저장 실패: $e', isError: true);
     }
   }
 
@@ -385,27 +385,14 @@ class _PainterPageState extends State<PainterPage> {
         added++;
       }
       if (added > 0) {
-        _showSnackBar(context, '불러오기 완료: $added개 객체 추가');
+        showSnackBar(context, '불러오기 완료: $added개 객체 추가');
       } else {
-        _showSnackBar(context, '불러온 객체가 없습니다.');
+        showSnackBar(context, '불러온 객체가 없습니다.');
       }
     } catch (e, stack) {
       debugPrint('Load project error: $e\n$stack');
-      _showSnackBar(context, '불러오기 실패: $e', isError: true);
+        showSnackBar(context, '불러오기 실패: $e', isError: true);
     }
-  }
-
-  void _showSnackBar(
-    BuildContext context,
-    String message, {
-    bool isError = false,
-  }) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: isError ? Theme.of(context).colorScheme.error : null,
-      ),
-    );
   }
 
   // removed unused: _rotateHandlePos

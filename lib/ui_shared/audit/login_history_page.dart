@@ -1,4 +1,4 @@
-// UTF-8, ?쒓뎅??二쇱꽍
+// UTF-8, 한국어 주석
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:intl/date_symbol_data_local.dart';
@@ -6,7 +6,7 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'package:label_printer/core/app.dart';
 import 'package:label_printer/models/login_event.dart';
 
-/// 怨듯넻(?곗뒪?ы넲/?쒕툝由? 濡쒓렇???대젰 議고쉶 ?섏씠吏
+/// 공통(데스크톱/태블릿) 로그인 이력 조회 페이지
 class LoginHistoryPage extends StatefulWidget {
   const LoginHistoryPage({super.key});
 
@@ -15,7 +15,7 @@ class LoginHistoryPage extends StatefulWidget {
 }
 
 class _LoginHistoryPageState extends State<LoginHistoryPage> {
-  // ?꾪꽣 ?곹깭
+  // 필터 상태
   late DateTime _from;
   late DateTime _to;
   String? _selectedCompany;
@@ -23,7 +23,7 @@ class _LoginHistoryPageState extends State<LoginHistoryPage> {
   final TextEditingController _keywordCtrl = TextEditingController();
   final ScrollController _tableScrollController = ScrollController();
 
-  // 紐⑸줉 ?곹깭
+  // 목록 상태
   List<LoginEvent> _rows = [];
   bool _loading = false;
   bool _intlReady = false;
@@ -36,9 +36,9 @@ class _LoginHistoryPageState extends State<LoginHistoryPage> {
     super.initState();
     final now = DateTime.now();
     _to = DateTime(now.year, now.month, now.day);
-    _from = _to.subtract(const Duration(days: 27)); // 理쒓렐 4二?
+    _from = _to.subtract(const Duration(days: 27)); // 최근 4주
 
-    // ?몄뀡?먯꽌 湲곕낯 ?뚯궗紐??묐젰?낆껜 ?뚰듃 (?놁쑝硫?null)
+    // 세션에서 기본 회사명/협력업체 힌트 (없으면 null)
     _selectedCompany = gUserSession?.companyName;
     _selectedPartner = gUserSession?.branchName;
 
@@ -46,7 +46,7 @@ class _LoginHistoryPageState extends State<LoginHistoryPage> {
   }
 
   Future<void> _initIntlAndQuery() async {
-    // 湲곕낯 ?щ㎎(?쒖뒪??濡쒖????쇰줈 癒쇱? ?명똿
+    // 기본 포맷(시스템 로케일)으로 먼저 세팅
     _dateFmt = DateFormat('yyyy-MM-dd');
     _timeFmt = DateFormat('a hh:mm:ss');
     try {
@@ -81,7 +81,7 @@ class _LoginHistoryPageState extends State<LoginHistoryPage> {
     if (picked != null) setState(() => _to = picked);
   }
 
-  // ?ㅼ젣濡쒕뒗 ?쒕쾭?먯꽌 諛쏆븘?ㅻ㈃ ?? 吏湲덉? ?곕え ?곗씠?곕? ?앹꽦?쒕떎.
+  // 실제로는 서버에서 받아오면 됨. 지금은 데모 데이터를 생성한다.
   Future<void> _query() async {
     setState(() => _loading = true);
     await Future.delayed(const Duration(milliseconds: 300));
@@ -233,7 +233,7 @@ class _LoginHistoryPageState extends State<LoginHistoryPage> {
     }).toList();
 
     final table = DataTable(
-      headingRowHeight: 40, // ?ㅻ뜑???믪씠瑜?吏?뺥빀?덈떎.
+      headingRowHeight: 40, // 헤더의 높이를 지정합니다.
       columns: columns,
       rows: rows,
       headingRowColor: WidgetStateProperty.resolveWith(
@@ -275,7 +275,7 @@ class _LoginHistoryPageState extends State<LoginHistoryPage> {
   }
 }
 
-/// ?좎쭨 踰꾪듉(?ㅽ겕由곗꺑??肄ㅻ낫 ?먮굦???ы뵆?섍쾶 ?쒗쁽)
+/// 날짜 버튼(스크린샷의 콤보 느낌을 심플하게 표현)
 class _DateButton extends StatelessWidget {
   final String label;
   final VoidCallback onTap;
@@ -297,7 +297,7 @@ class _DateButton extends StatelessWidget {
   }
 }
 
-/// ?쇰꺼 + Dropdown ?쇱껜??
+/// 라벨 + Dropdown 일체형
 class _LabeledDropdown extends StatelessWidget {
   final String label;
   final String? value;

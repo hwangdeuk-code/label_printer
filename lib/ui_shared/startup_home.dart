@@ -2,10 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'package:label_printer/core/app.dart';
+import 'package:label_printer/core/lifecycle.dart';
+import 'package:label_printer/data/db_server_connect_info.dart';
+import 'package:label_printer/data/main_database.dart';
+import 'package:label_printer/utils/on_messages.dart';
 import '../ui_desktop/screens/home_desktop.dart' as desktop;
 import '../ui_tablet/screens/home_tablet.dart' as tablet;
 
-// 怨듯넻 ?쒖옉 ?섏씠吏: 鍮꾩뼱?덈뒗 ?덊럹?댁? + ?쒖옉 ?ㅼ씠?쇰줈洹?濡쒓렇??怨듭?/愿묎퀬)
+// 사용자 로그인 및 앱 시작: 기본 프린터 설정 + 사용자 정보 입력
 class StartupHomePage extends StatefulWidget {
   const StartupHomePage({super.key});
 
@@ -14,7 +18,7 @@ class StartupHomePage extends StatefulWidget {
 }
 
 class _StartupHomePageState extends State<StartupHomePage> {
-  // 濡쒓렇?????곹깭 (鍮꾩쫰 濡쒖쭅 遺꾨━ ?덊븿)
+  // 로그인 폼 상태 (비즈 로직 분리 안함)
   final _id = TextEditingController(text: '8134');
   final _company = TextEditingController();
   final _branch = TextEditingController();
@@ -22,13 +26,38 @@ class _StartupHomePageState extends State<StartupHomePage> {
   final _password = TextEditingController();
 
   void _goNext() {
-    final next = isDesktop
-        ? const desktop.HomeDesktop()
-        : const tablet.HomeTablet();
+    final next = isDesktop ? const desktop.HomeDesktop() : const tablet.HomeTablet();
     Navigator.of(context).pushAndRemoveUntil(
       MaterialPageRoute(builder: (_) => next),
       (route) => false,
     );
+  }
+
+  Future<void> _loginToServerDB() async {
+    try {
+      if (MainDatabaseHelper.isConnected) {
+        debugPrint('Already connected to the server database.');
+        return;
+      }
+      
+      BlockingOverlay.show(context, message: '서버 데이터베이스에 접속 중 입니다...');
+			final currConnectInto = await DbServerConnectInfoHelper.getLastConnectDBInfo();
+			if (currConnectInto != null) {
+				MainDatabaseHelper.connect(currConnectInto);
+        LifecycleManager.instance.addObserver(LifecycleCallbacks(
+          onDetached: () { MainDatabaseHelper.disconnect(); },
+          onExitRequested: () { MainDatabaseHelper.disconnect(); }
+        ));
+			} else {
+				debugPrint('No previous server connect info found.');
+			}
+    }
+		catch (e) {
+      debugPrint('Error loading server connect info: $e');
+    }
+    finally  {
+      BlockingOverlay.hide();
+    }
   }
 
   void _showStartupDialog() {
@@ -52,7 +81,7 @@ class _StartupHomePageState extends State<StartupHomePage> {
               password: _password,
               dontShow: dontShowUntilNextUpdate,
               onToggleDontShow: (v) =>
-                  setState(() => dontShowUntilNextUpdate = v),
+                setState(() => dontShowUntilNextUpdate = v),
             );
 
             return Dialog(
@@ -66,9 +95,7 @@ class _StartupHomePageState extends State<StartupHomePage> {
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 200),
                 curve: Curves.easeInOut,
-                width: noticeClosed
-                    ? 600
-                    : MediaQuery.of(context).size.width * 0.8,
+                width: noticeClosed ? 600 : MediaQuery.of(context).size.width * 0.8,
                 constraints: BoxConstraints(
                   maxHeight: MediaQuery.of(context).size.height * 0.8,
                 ),
@@ -90,6 +117,7 @@ class _StartupHomePageState extends State<StartupHomePage> {
 
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (mounted) {
+        await _loginToServerDB();
         _showStartupDialog();
       }
     });

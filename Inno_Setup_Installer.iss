@@ -33,6 +33,8 @@ RestartApplications=no
 [Files]
 ; 상대경로로 Release 폴더 내 모든 파일을 복사
 Source: "build\windows\x64\runner\Release\*"; DestDir: "{app}"; Flags: recursesubdirs createallsubdirs ignoreversion
+; 프로젝트에 포함된 서드파티 네이티브 DLL(예: FreeTDS sybdb.dll 등)
+Source: "windows\Libraries\bin\*.dll"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs skipifsourcedoesntexist
 ; Microsoft Visual C++ 2015–2022 (x64) 런타임
 Source: "{sys}\vcruntime140_1.dll"; DestDir: "{app}"; Flags: external skipifsourcedoesntexist ignoreversion
 Source: "{sys}\vcruntime140.dll";   DestDir: "{app}"; Flags: external skipifsourcedoesntexist ignoreversion

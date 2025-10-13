@@ -33,6 +33,7 @@ import 'package:label_printer/widgets/tool_panel.dart';
 import 'package:label_printer/printing/raw_printer_win32.dart';
 import 'package:label_printer/printing/ezpl_builder.dart' as ezpl;
 import 'package:label_printer/printing/printer_profiles.dart';
+import 'package:label_printer/utils/on_messages.dart';
 
 part 'painter_page_state.dart';
 part 'painter_inline_editor.dart';

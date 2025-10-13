@@ -66,7 +66,7 @@ Future<void> showPrintDialog(
   } catch (e, stack) {
     debugPrint('build label document failed: $e\n$stack');
     if (state.mounted) {
-      state._showSnackBar(context, '라벨 미리보기를 준비하지 못했습니다: $e', isError: true);
+      showSnackBar(context, '라벨 미리보기를 준비하지 못했습니다: $e', isError: true);
     }
     return;
   }
@@ -391,7 +391,7 @@ Future<void> showPrintDialog(
   );
 
   if (printed == true && state.mounted) {
-    state._showSnackBar(context, '인쇄 작업을 전송했습니다.');
+    showSnackBar(context, '인쇄 작업을 전송했습니다.');
   }
 }
 

@@ -1,0 +1,16 @@
+{
+	"version": "2.0.0",
+	"tableSize": 2,
+	"tasks": [
+		{
+			"label": "Install Flutter packages",
+			"type": "shell",
+			"command": "flutter pub get",
+			"args": [],
+			"problemMatcher": [
+				"$dart-cli"
+			],
+			"group": "build"
+		}
+	]
+}

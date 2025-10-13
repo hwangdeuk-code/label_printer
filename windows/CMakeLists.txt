@@ -38,6 +38,7 @@ add_definitions(-DUNICODE -D_UNICODE)
 # default. In most cases, you should add new options to specific targets instead
 # of modifying this function.
 function(APPLY_STANDARD_SETTINGS TARGET)
+  # Keep C++17 for broad plugin compatibility; ZXing's <span> warning is acceptable
   target_compile_features(${TARGET} PUBLIC cxx_std_17)
   target_compile_options(${TARGET} PRIVATE /W4 /WX /wd"4100")
   target_compile_options(${TARGET} PRIVATE /EHsc)
@@ -83,6 +84,15 @@ install(FILES "${FLUTTER_LIBRARY}" DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
 
 if(PLUGIN_BUNDLED_LIBRARIES)
   install(FILES "${PLUGIN_BUNDLED_LIBRARIES}"
+    DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
+    COMPONENT Runtime)
+endif()
+
+# Project-local native libraries (e.g., third-party DLLs like FreeTDS) copied next to the EXE
+# Place 64-bit DLLs under windows/Libraries/bin and they will be included in the build output.
+set(PROJECT_LIBS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/Libraries/bin")
+if(EXISTS "${PROJECT_LIBS_DIR}")
+  install(DIRECTORY "${PROJECT_LIBS_DIR}/"
     DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
     COMPONENT Runtime)
 endif()

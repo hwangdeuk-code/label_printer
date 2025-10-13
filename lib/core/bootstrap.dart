@@ -1,5 +1,6 @@
 // 데스크톱(Windows/macOS) 런타임 초기화를 위한 유틸리티.
 // 다중 모니터 환경에서 시작 위치와 창 상태를 제어한다.
+
 import 'package:flutter/material.dart';
 import 'package:screen_retriever/screen_retriever.dart';
 import 'package:window_manager/window_manager.dart';
