@@ -5,6 +5,7 @@ import 'package:intl/date_symbol_data_local.dart';
 
 import 'package:label_printer/core/app.dart';
 import 'package:label_printer/models/login_event.dart';
+import 'package:label_printer/ui_shared/components/connection_status_icon.dart';
 
 /// 공통(데스크톱/태블릿) 로그인 이력 조회 페이지
 class LoginHistoryPage extends StatefulWidget {
@@ -26,7 +27,6 @@ class _LoginHistoryPageState extends State<LoginHistoryPage> {
   // 목록 상태
   List<LoginEvent> _rows = [];
   bool _loading = false;
-  bool _intlReady = false;
 
   late DateFormat _dateFmt;
   late DateFormat _timeFmt;
@@ -53,10 +53,7 @@ class _LoginHistoryPageState extends State<LoginHistoryPage> {
       await initializeDateFormatting('ko_KR', null);
       _dateFmt = DateFormat('yyyy-MM-dd', 'ko_KR');
       _timeFmt = DateFormat('a hh:mm:ss', 'ko_KR');
-      _intlReady = true;
-    } catch (_) {
-      _intlReady = false;
-    }
+    } catch (_) {}
     await _query();
     if (mounted) setState(() {});
   }
@@ -124,7 +121,7 @@ class _LoginHistoryPageState extends State<LoginHistoryPage> {
     final table = _buildTable(context);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('사용자 접속 이력')),
+      appBar: AppBar(title: const Text('사용자 접속 이력'), actions: const [DbConnectionStatusIcon()]),
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [

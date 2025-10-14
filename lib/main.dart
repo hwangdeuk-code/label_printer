@@ -8,6 +8,7 @@ import 'core/app.dart';
 import 'core/bootstrap.dart';
 import 'core/lifecycle.dart';
 import 'ui_shared/startup_home.dart';
+import 'ui_shared/global_reconnect_overlay.dart';
 export 'ui_shared/startup_home.dart';
 
 Future<void> main(List<String> args) async {
@@ -35,9 +36,10 @@ Future<void> main(List<String> args) async {
 
   // 공통 StartUp 페이지를 표시한다.
   runApp(
-    const MaterialApp(
+    MaterialApp(
       debugShowCheckedModeBanner: false,
-      home: StartupHomePage(),
+      builder: (context, child) => GlobalReconnectOverlay(child: child),
+      home: const StartupHomePage(),
     ),
   );
 }

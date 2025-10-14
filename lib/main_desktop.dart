@@ -6,6 +6,7 @@ import 'core/app.dart';
 import 'core/bootstrap.dart';
 import 'core/lifecycle.dart';
 import 'ui_shared/startup_home.dart';
+import 'ui_shared/global_reconnect_overlay.dart';
 
 Future<void> main(List<String> args) async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -21,9 +22,10 @@ Future<void> main(List<String> args) async {
   isDesktop = true;
 
   runApp(
-    const MaterialApp(
+    MaterialApp(
       debugShowCheckedModeBanner: false,
-      home: StartupHomePage(),
+      builder: (context, child) => GlobalReconnectOverlay(child: child),
+      home: const StartupHomePage(),
     ),
   );
 }

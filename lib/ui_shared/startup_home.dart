@@ -1,17 +1,25 @@
+// ignore_for_file: no_leading_underscores_for_local_identifiers
+
+import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
 import 'package:label_printer/core/app.dart';
 import 'package:label_printer/core/lifecycle.dart';
 import 'package:label_printer/data/db_server_connect_info.dart';
 import 'package:label_printer/data/main_database.dart';
 import 'package:label_printer/utils/on_messages.dart';
+import 'package:label_printer/utils/user_prefs.dart';
+import 'package:label_printer/data/db_connection_monitor.dart';
+import 'package:label_printer/data/db_connection_service.dart';
+import 'package:label_printer/data/db_connection_status.dart';
+import 'package:label_printer/ui_shared/components/connection_status_icon.dart';
 import '../ui_desktop/screens/home_desktop.dart' as desktop;
 import '../ui_tablet/screens/home_tablet.dart' as tablet;
 
 // 사용자 로그인 및 앱 시작: 기본 프린터 설정 + 사용자 정보 입력
 class StartupHomePage extends StatefulWidget {
-  const StartupHomePage({super.key});
+  final bool fromLogout; // 사용자 로그아웃으로 진입했는지 여부
+  const StartupHomePage({super.key, this.fromLogout = false});
 
   @override
   State<StartupHomePage> createState() => _StartupHomePageState();
@@ -24,6 +32,41 @@ class _StartupHomePageState extends State<StartupHomePage> {
   final _branch = TextEditingController();
   final _user = TextEditingController();
   final _password = TextEditingController();
+  DbConnectionMonitor? _monitor; // 제거 예정(전역 서비스로 대체)
+  ServerConnectInfo? _lastConnectInfo;
+  // ValueNotifier 기반 상태 감지를 위한 리스너 보관
+  VoidCallback? _upListener;
+  StreamSubscription<bool>? _monitorSub; // 삭제 예정
+
+  // 공지 섹션(내용/버전)을 한 곳에서 관리하여 해시 계산과 UI가 동일한 소스를 사용하도록 함
+  final String _noticeUpdateVersion = '2.7.5.3';
+  final List<String> _noticeLines = const [
+    '라벨매니저 2.7.4',
+    '1. 공용라벨관리- 첨자 기능 추가',
+    '2. tab 메뉴 자동 축소 기능 추가',
+  ];
+
+  String _currentNoticePayload() {
+    final buf = StringBuffer();
+    buf.writeln(_noticeUpdateVersion);
+    for (final line in _noticeLines) {
+      buf.writeln(line);
+    }
+    return buf.toString();
+  }
+
+  // 간단한 FNV-1a 64-bit 해시 구현 (의존성 없이 안정적인 텍스트 해시)
+  String _fnv1a64Hex(String input) {
+    const int fnv64Offset = 0xcbf29ce484222325; // 14695981039346656037
+    const int fnv64Prime = 0x100000001b3;       // 1099511628211
+    int hash = fnv64Offset;
+    for (int i = 0; i < input.length; i++) {
+      hash ^= input.codeUnitAt(i);
+      hash = (hash * fnv64Prime) & 0xFFFFFFFFFFFFFFFF; // 64-bit wrap
+    }
+    final hex = hash.toRadixString(16).padLeft(16, '0');
+    return hex;
+  }
 
   void _goNext() {
     final next = isDesktop ? const desktop.HomeDesktop() : const tablet.HomeTablet();
@@ -34,6 +77,8 @@ class _StartupHomePageState extends State<StartupHomePage> {
   }
 
   Future<void> _loginToServerDB() async {
+    bool _errorOverlayShown = false; // 에러 오버레이가 표시되었는지 여부
+
     try {
       if (MainDatabaseHelper.isConnected) {
         debugPrint('Already connected to the server database.');
@@ -41,28 +86,77 @@ class _StartupHomePageState extends State<StartupHomePage> {
       }
       
       BlockingOverlay.show(context, message: '서버 데이터베이스에 접속 중 입니다...');
-			final currConnectInto = await DbServerConnectInfoHelper.getLastConnectDBInfo();
-			if (currConnectInto != null) {
-				MainDatabaseHelper.connect(currConnectInto);
+      final currConnectInto = await DbServerConnectInfoHelper.getLastConnectDBInfo();
+
+      if (currConnectInto != null) {
+        _lastConnectInfo = currConnectInto;
+        await MainDatabaseHelper.connect(currConnectInto);
+
         LifecycleManager.instance.addObserver(LifecycleCallbacks(
           onDetached: () { MainDatabaseHelper.disconnect(); },
           onExitRequested: () { MainDatabaseHelper.disconnect(); }
         ));
-			} else {
-				debugPrint('No previous server connect info found.');
-			}
+
+        _startMonitor();
+
+        // 로그아웃 유입이면 자동 표시하지 않음, 사용자 요청 시(앱바 로그인 아이콘) 열도록 함
+        if (!widget.fromLogout) {
+          _showStartupDialog();
+        }
+      }
+      else {
+        debugPrint('No previous server connect info found.');
+      }
     }
 		catch (e) {
-      debugPrint('Error loading server connect info: $e');
+      debugPrint('Exception: $e');
+
+      if (mounted) {
+        // 진행중 오버레이가 켜져 있을 수 있으니 먼저 닫고, 에러 오버레이를 띄운다.
+        BlockingOverlay.hide();
+        BlockingOverlay.show(
+          context,
+          message: '서버 접속에 실패하였습니다!!\n인터넷 연결상태를 먼저 확인해주시고 02)3274-1776으로 전화주세요!',
+          actions: const [BlockingOverlayAction(label: '닫기')],
+        );
+
+        _errorOverlayShown = true;
+      }
     }
     finally  {
-      BlockingOverlay.hide();
+      // 에러 오버레이를 띄운 경우에는 사용자가 버튼을 누를 때까지 유지
+      if (!_errorOverlayShown) {
+        BlockingOverlay.hide();
+      }
     }
   }
 
-  void _showStartupDialog() {
-    bool noticeClosed = false;
-    bool dontShowUntilNextUpdate = false;
+  void _startMonitor() {
+    // 전역 서비스로 모니터 연결 및 상태 반영
+    final info = _lastConnectInfo;
+
+    if (info != null) {
+      DbConnectionService.instance.attachAndStart(info: info);
+
+      // 상태 전환에 따라 재연결 다이얼로그 표시/닫기
+      _upListener ??= () {
+        // 전역 오버레이가 표시/숨김을 담당. 여기서는 추가 동작 없음
+      };
+
+      DbConnectionService.instance.status.up.addListener(_upListener!);
+    }
+  }
+
+  // 재연결 모달은 전역 오버레이(GlobalReconnectOverlay)가 담당
+
+  void _showStartupDialog({bool forceNoticeClosed = false}) async {
+    // 저장된 버전과 현재 버전이 같으면 공지 섹션을 숨기고 체크박스를 기본 체크로 둔다.
+    final suppressedVer = await UserPrefs.getString('suppressNoticeVersion');
+    final suppressedHash = await UserPrefs.getString('suppressNoticeHash');
+    final currHash = _fnv1a64Hex(_currentNoticePayload());
+    final isSuppressed = (suppressedVer == appVersion) && (suppressedHash == currHash);
+    bool noticeClosed = forceNoticeClosed || isSuppressed; // 로그아웃 유입시 공지 섹션 생략
+    bool dontShowUntilNextUpdate = isSuppressed; // 로그아웃 유입으로 noticeClosed가 true여도 사용자 설정은 건드리지 않음
 
     showDialog(
       context: context,
@@ -80,8 +174,20 @@ class _StartupHomePageState extends State<StartupHomePage> {
               user: _user,
               password: _password,
               dontShow: dontShowUntilNextUpdate,
-              onToggleDontShow: (v) =>
-                setState(() => dontShowUntilNextUpdate = v),
+              onToggleDontShow: (v) async {
+                setState(() => dontShowUntilNextUpdate = v);
+                if (v) {
+                  // 현재 버전에 대해 공지 숨김 유지
+                  await UserPrefs.setString(
+                      'suppressNoticeVersion', appVersion);
+                  await UserPrefs.setString(
+                      'suppressNoticeHash', currHash);
+                } else {
+                  // 체크 해제 시 즉시 표시되도록 제거
+                  await UserPrefs.setString('suppressNoticeVersion', null);
+                  await UserPrefs.setString('suppressNoticeHash', null);
+                }
+              },
             );
 
             return Dialog(
@@ -118,15 +224,45 @@ class _StartupHomePageState extends State<StartupHomePage> {
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (mounted) {
         await _loginToServerDB();
-        _showStartupDialog();
       }
     });
   }
 
   @override
+  void dispose() {
+    _monitor?.dispose();
+    _monitorSub?.cancel();
+
+    if (_upListener != null) {
+      DbConnectionService.instance.status.up.removeListener(_upListener!);
+      _upListener = null;
+    }
+
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+  // AppBar 아이콘으로 대체함
+
     return Scaffold(
-      appBar: AppBar(title: Text('$appTitle v$appVersion'), centerTitle: false),
+      appBar: AppBar(
+        title: Text('$appTitle v$appVersion'),
+        centerTitle: false,
+        actions: [
+          const DbConnectionStatusIcon(),
+          IconButton(
+            icon: const Icon(Icons.login),
+            tooltip: '로그인',
+            onPressed: _showStartupDialog,
+          ),
+          // IconButton(
+          //   icon: const Icon(Icons.exit_to_app),
+          //   tooltip: '종료',
+          //   onPressed: _exitApp,
+          // ),
+        ],
+      ),
       body: Container(color: const Color(0xFFF4F4F4)),
     );
   }
@@ -318,7 +454,23 @@ class _LoginPanel extends StatelessWidget {
                     child: const Text('라벨매니저 서버(서울 - 일반거래처)'),
                   ),
                   const SizedBox(height: 6),
-                  _LabeledField(label: '접속 상태', child: const Text('서버 연결 성공')),
+                  _LabeledField(
+                    label: '접속 상태',
+                    child: ValueListenableBuilder<bool?>(
+                      valueListenable: DbConnectionStatus.instance.up,
+                      builder: (context, up, _) {
+                        return ValueListenableBuilder<bool>(
+                          valueListenable: DbConnectionStatus.instance.reconnecting,
+                          builder: (context, reconnecting, __) {
+                            final String statusText = up == null
+                                ? '확인 중'
+                                : (up ? '연결 양호' : (reconnecting ? '끊김 - 재연결 중' : '끊김'));
+                            return Text(statusText);
+                          },
+                        );
+                      },
+                    ),
+                  ),
                   const SizedBox(height: 12),
                   Row(
                     children: [
@@ -400,7 +552,7 @@ class _LoginPanel extends StatelessWidget {
                       ),
                       const SizedBox(width: 8),
                       OutlinedButton(
-                        onPressed: () => SystemNavigator.pop(),
+                        onPressed: () => Navigator.of(context).pop(),
                         child: const Text('취소'),
                       ),
                     ],

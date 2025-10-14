@@ -16,7 +16,7 @@ class MainDatabaseHelper {
 
   static bool get isConnected => _connection != null && _connection!.isConnected;
 
-  static void connect(ServerConnectInfo serverConnectInfo) async {
+  static Future<void> connect(ServerConnectInfo serverConnectInfo) async {
     if (_connection != null && _connection!.isConnected) {
       debugPrint('$cName.connect() | already connected.');
       return;
@@ -40,6 +40,13 @@ class MainDatabaseHelper {
       debugPrint('$cName.connect() | $error');
       throw Exception(error);
     }
+  }
+
+  static Future<String> getDataWithParams(
+    String query,
+    Map<String, dynamic> params,
+  ) async {
+    return await _connection!.getDataWithParams(query, params);
   }
 
   static void disconnect() async {

@@ -34,6 +34,9 @@ import 'package:label_printer/printing/raw_printer_win32.dart';
 import 'package:label_printer/printing/ezpl_builder.dart' as ezpl;
 import 'package:label_printer/printing/printer_profiles.dart';
 import 'package:label_printer/utils/on_messages.dart';
+import 'package:label_printer/ui_shared/startup_home.dart';
+import 'package:label_printer/utils/user_prefs.dart';
+import 'package:label_printer/ui_shared/components/connection_status_icon.dart';
 
 part 'painter_page_state.dart';
 part 'painter_inline_editor.dart';

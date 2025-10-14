@@ -104,6 +104,10 @@ class _PainterPageState extends State<PainterPage> {
   final Map<Drawable, String> _pendingIdOverrides = {};
   List<Drawable> _previousDrawables = const [];
   int _idSequence = 0;
+  bool _isDirty = false;
+  String? _lastProjectPath; // 최근 저장/불러오기 경로
+  String? _lastSavedSignature; // 마지막 저장/불러오기 시점의 장면 시그니처
+  Timer? _sigTimer; // 시그니처 계산 디바운스 타이머
 
   bool _inspBold = false;
   bool _inspItalic = false;
@@ -144,7 +148,7 @@ class _PainterPageState extends State<PainterPage> {
     controller.addListener(() {
       if (!mounted) return;
       _syncDrawableRegistry();
-      setState(() {});
+      _scheduleSignatureRecompute();
     });
     _previousDrawables = List<Drawable>.from(controller.value.drawables);
 
@@ -155,11 +159,18 @@ class _PainterPageState extends State<PainterPage> {
           appVersion = info.version;
         });
       }
+      // 최근 경로 로드
+      try {
+        _lastProjectPath = await UserPrefs.getLastProjectPath();
+      } catch (_) {}
+      // 초기 시그니처 계산(빈 장면 포함)으로 초기 dirty=false 보장
+      await _recomputeSignature();
     });
   }
 
   @override
   void dispose() {
+    _sigTimer?.cancel();
     _keyboardFocus.dispose();
     _quillFocus.dispose();
     _pressSnapTimer?.cancel();
@@ -305,10 +316,14 @@ class _PainterPageState extends State<PainterPage> {
 
   Future<void> _saveProject(BuildContext context) async {
     try {
+      final initialDir = _lastProjectPath == null
+          ? null
+          : File(_lastProjectPath!).parent.path;
       final location = await getSaveLocation(
         acceptedTypeGroups: const [
           XTypeGroup(label: 'JSON', extensions: ['json']),
         ],
+        initialDirectory: initialDir,
       );
       if (location == null) return;
 
@@ -330,6 +345,12 @@ class _PainterPageState extends State<PainterPage> {
       final file = File(path);
       const encoder = JsonEncoder.withIndent('  ');
       await file.writeAsString(encoder.convert(bundle));
+      _lastProjectPath = file.path;
+      // 최근 경로 저장
+      try { await UserPrefs.setLastProjectPath(_lastProjectPath!); } catch (_) {}
+      // 저장 후 시그니처 최신화
+      _lastSavedSignature = await _computeSceneSignature();
+      _isDirty = false;
       showSnackBar(context, '저장 완료: ${objects.length}개 객체');
     } catch (e, stack) {
       debugPrint('Save project error: $e\n$stack');
@@ -343,6 +364,9 @@ class _PainterPageState extends State<PainterPage> {
         acceptedTypeGroups: const [
           XTypeGroup(label: 'JSON', extensions: ['json']),
         ],
+        initialDirectory: _lastProjectPath == null
+            ? null
+            : File(_lastProjectPath!).parent.path,
       );
       if (file == null) return;
       final content = await file.readAsString();
@@ -389,6 +413,11 @@ class _PainterPageState extends State<PainterPage> {
       } else {
         showSnackBar(context, '불러온 객체가 없습니다.');
       }
+      _lastProjectPath = file.path;
+      try { await UserPrefs.setLastProjectPath(_lastProjectPath!); } catch (_) {}
+      // 불러오기 후 시그니처 최신화
+      _lastSavedSignature = await _computeSceneSignature();
+      _isDirty = false; // 새로 로드된 상태를 기준으로 깨끗함
     } catch (e, stack) {
       debugPrint('Load project error: $e\n$stack');
         showSnackBar(context, '불러오기 실패: $e', isError: true);
@@ -439,6 +468,106 @@ class _PainterPageState extends State<PainterPage> {
       showPrintDialog(this, context);
 
   Future<void> _pickImageAndAdd() => pickImageAndAdd(this);
+
+  void _goStartup(BuildContext context) {
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const StartupHomePage(fromLogout: true)),
+      (route) => false,
+    );
+  }
+
+  Future<void> _confirmLogout(BuildContext context) async {
+    // 변경사항이 없다면 다이얼로그 생략
+    try {
+      final sig = await _computeSceneSignature();
+      // 그려진 객체가 하나도 없으면 변경 없음으로 간주
+      if (sig.isEmpty) {
+        _isDirty = false;
+        _goStartup(context);
+        return;
+      }
+      if (_lastSavedSignature != null && sig == _lastSavedSignature) {
+        _isDirty = false;
+        _goStartup(context);
+        return;
+      }
+    } catch (_) {}
+
+    final choice = await showDialog<int>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) {
+        return AlertDialog(
+          title: const Text('로그아웃'),
+          content: const Text('작업 내용을 저장하시겠습니까?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(0),
+              child: const Text('취소'),
+            ),
+            OutlinedButton(
+              onPressed: () => Navigator.of(ctx).pop(2),
+              child: const Text('저장 안 함'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.of(ctx).pop(1),
+              child: const Text('저장 후 로그아웃'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (choice == 1) {
+      // 저장 후 로그아웃
+      await _saveProject(context);
+      _goStartup(context);
+    } else if (choice == 2) {
+      // 저장하지 않고 로그아웃
+      _goStartup(context);
+    } else {
+      // 취소 또는 닫힘
+      return;
+    }
+  }
+
+  // --- Dirty tracking helpers ---
+  void _scheduleSignatureRecompute() {
+    _sigTimer?.cancel();
+    _sigTimer = Timer(const Duration(milliseconds: 250), () async {
+      await _recomputeSignature();
+    });
+  }
+
+  Future<void> _recomputeSignature() async {
+    final sig = await _computeSceneSignature();
+    if (!mounted) return;
+    setState(() {
+      _isDirty = _lastSavedSignature == null ? sig.isNotEmpty : (sig != _lastSavedSignature);
+    });
+  }
+
+  Future<String> _computeSceneSignature() async {
+    // 객체가 하나도 없으면 변경 없음으로 취급: 빈 문자열 반환
+    if (controller.value.drawables.isEmpty) {
+      return '';
+    }
+    // 저장 시와 동일한 구조의 bundle을 만들되 파일로 쓰지 않고 JSON 문자열로 비교합니다.
+    final objects = <Map<String, dynamic>>[];
+    for (final drawable in controller.value.drawables) {
+      final id = _ensureDrawableId(drawable);
+      final json = await DrawableSerializer.toJson(drawable, id);
+      objects.add(json);
+    }
+    final bundle = DrawableSerializer.wrapScene(
+      printerDpi: printerDpi,
+      labelWidthMm: labelWidthMm,
+      labelHeightMm: labelHeightMm,
+      objects: objects,
+    );
+    // 공백 없는 인코딩으로 안정적인 비교
+    return jsonEncode(bundle);
+  }
 
   _CellSelectionRange? _currentCellSelectionRange() {
     final table = selectedDrawable;

@@ -6,6 +6,12 @@ Widget buildPainterScaffold(_PainterPageState state, BuildContext context) {
     appBar: AppBar(
       title: Text('$appTitle v${state.appVersion}'),
       actions: [
+        const DbConnectionStatusIcon(),
+        IconButton(
+          onPressed: () => state._confirmLogout(context),
+          icon: const Icon(Icons.logout),
+          tooltip: '로그아웃',
+        ),
         IconButton(
           onPressed: state.controller.canUndo ? state.controller.undo : null,
           icon: const Icon(Icons.undo),
@@ -29,7 +35,7 @@ Widget buildPainterScaffold(_PainterPageState state, BuildContext context) {
           tooltip: 'Clear',
         ),
         IconButton(
-          onPressed: () => state._saveProject(context),
+          onPressed: state._isDirty ? () => state._saveProject(context) : null,
           icon: const Icon(Icons.save),
           tooltip: 'Save Project',
         ),
