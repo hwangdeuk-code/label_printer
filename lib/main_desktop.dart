@@ -9,14 +9,20 @@ import 'ui_shared/startup_home.dart';
 import 'ui_shared/global_reconnect_overlay.dart';
 
 Future<void> main(List<String> args) async {
+  // Widgets 초기화는 모든 플랫폼 공통으로 필요하다.
   WidgetsFlutterBinding.ensureInitialized();
+
+  // 앱 시작 시 라이프사이클 옵저버를 1회 등록
   LifecycleManager.instance.ensureInitialized();
+
+  // 데스크톱 환경에서는 지정한 디스플레이로 이동 후 최대화.
   await initDesktopWindow(targetIndex: 0);
 
   // 창 닫기(X) 시 우리 정리 로직을 먼저 수행할 수 있도록 보장
   await windowManager.setPreventClose(true);
   windowManager.addListener(_AppWindowListener());
 
+  // 앱 정보를 조회해 전역에 보관한다.
   final info = await PackageInfo.fromPlatform();
   appPackageName = info.packageName;
   appVersion = info.version;

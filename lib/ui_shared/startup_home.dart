@@ -168,7 +168,7 @@ class _StartupHomePageState extends State<StartupHomePage> {
     final suppressedVer = await UserPrefs.getString('suppressNoticeVersion');
     final suppressedHash = await UserPrefs.getString('suppressNoticeHash');
 
-		// 앱 버전을 공지 버전으로 사용
+    final fHeight = isDesktop ? 0.8 : 0.9;
 		final effectiveVersion = appVersion;
 		String effectiveContent = expandTabs('');
     final initialHash = _fnv1a64Hex(_currentNoticePayload(content: effectiveContent, version: effectiveVersion));
@@ -230,7 +230,7 @@ class _StartupHomePageState extends State<StartupHomePage> {
                 curve: Curves.easeInOut,
                 width: noticeClosed ? 600 : MediaQuery.of(context).size.width * 0.8,
                 constraints: BoxConstraints(
-                  maxHeight: MediaQuery.of(context).size.height * 0.8,
+                  maxHeight: MediaQuery.of(context).size.height * fHeight,
                 ),
                 child: Padding(
                   padding: const EdgeInsets.all(12),
@@ -366,13 +366,8 @@ class _DialogBody extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     Expanded(
-                      child: Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFF7F7F7),
-                          border: Border.all(color: const Color(0x11000000)),
-                          borderRadius: BorderRadius.circular(6),
-                        ),
+                      child: _InlayPanel(
+                        margin: const EdgeInsets.only(top: 2),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
@@ -381,6 +376,7 @@ class _DialogBody extends StatelessWidget {
                               style: const TextStyle(
                                 fontFamily: 'monospace',
                                 fontSize: 13,
+                                color: Color(0xFF1F1F1F),
                               ),
                               child: Text(noticeContent),
                             ),
@@ -517,12 +513,8 @@ class _LoginPanel extends StatelessWidget {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        return Container(
-          decoration: BoxDecoration(
-            border: Border.all(color: const Color(0x11000000)),
-            borderRadius: BorderRadius.circular(6),
-          ),
-          padding: const EdgeInsets.all(12),
+        return _InlayPanel(
+          margin: const EdgeInsets.only(top: 2),
           child: SingleChildScrollView(
             physics: const ClampingScrollPhysics(),
             child: ConstrainedBox(
@@ -531,14 +523,18 @@ class _LoginPanel extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Text(
-                    '사용자 인증', style: TextStyle(fontWeight: FontWeight.bold),
+                  Text(
+                    '사용자 인증',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                      color: const Color(0xFF202020),
+                    ) ?? const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
                   ),
                   const SizedBox(height: 8),
                   _LabeledField(
                     label: '접속 서버',
                     child: Text(serverName == null || serverName!.isEmpty
-                        ? '라벨매니저' : serverName!, style: TextStyle(fontWeight: FontWeight.bold))
+                      ? '라벨매니저' : serverName!, style: const TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF1A1A1A)))
                   ),
                   const SizedBox(height: 6),
                   _LabeledField(
@@ -550,9 +546,9 @@ class _LoginPanel extends StatelessWidget {
                           valueListenable: DbConnectionStatus.instance.reconnecting,
                           builder: (context, reconnecting, __) {
                             final String statusText = up == null
-                                ? '확인 중'
-                                : (up ? '연결 양호' : (reconnecting ? '끊김 - 재연결 중' : '끊김'));
-                            return Text(statusText, style: TextStyle(fontWeight: FontWeight.bold));
+                              ? '확인 중'
+                              : (up ? '연결 양호' : (reconnecting ? '끊김 - 재연결 중' : '끊김'));
+                            return Text(statusText, style: const TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF1A1A1A)));
                           },
                         );
                       },
@@ -653,25 +649,63 @@ class _LabeledField extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         if (label != null) ...[
-          SizedBox(width: 90, child: Text(label!, textAlign: TextAlign.right)),
+          SizedBox(
+            width: 90,
+            child: Text(
+              label!,
+              textAlign: TextAlign.right,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: const Color(0xFF2A2A2A),
+                    fontWeight: FontWeight.w600,
+                  ),
+            ),
+          ),
           const SizedBox(width: 8),
         ],
         Expanded(
           child: Container(
             height: height,
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
             decoration: BoxDecoration(
-              color: const Color(0xFFFDFDFD),
-              border: Border.all(color: Color(0x11000000)),
-              borderRadius: BorderRadius.circular(4),
+              color: const Color(0xFFFFFFFF),
+              border: Border.all(color: Color(0x22000000)),
+              borderRadius: BorderRadius.circular(6),
+              boxShadow: const [
+                BoxShadow(color: Color(0x08000000), blurRadius: 4, offset: Offset(0, 1)),
+              ],
             ),
             child: DefaultTextStyle.merge(
-              style: const TextStyle(color: Color(0xFF222222)),
+              style: const TextStyle(color: Color(0xFF1F1F1F)),
               child: child,
             ),
           ),
         ),
       ],
+    );
+  }
+}
+
+// 살짝 들어간(UI inlay) 컨테이너: 대비/그림자/패딩 보강
+class _InlayPanel extends StatelessWidget {
+  final Widget child;
+  final EdgeInsetsGeometry margin;
+  const _InlayPanel({required this.child, this.margin = EdgeInsets.zero});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: margin,
+      decoration: BoxDecoration(
+        color: const Color(0xFFFAFAFC),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color(0x22000000)),
+        boxShadow: const [
+          BoxShadow(color: Color(0x14000000), blurRadius: 10, offset: Offset(0, 3)),
+          BoxShadow(color: Color(0x08000000), blurRadius: 3, offset: Offset(0, 0)),
+        ],
+      ),
+      padding: const EdgeInsets.all(14),
+      child: child,
     );
   }
 }
