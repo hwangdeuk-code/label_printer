@@ -7,13 +7,14 @@ import 'package:label_printer/core/app.dart';
 import 'package:label_printer/core/lifecycle.dart';
 import 'package:label_printer/data/db_server_connect_info.dart';
 import 'package:label_printer/utils/db_result_utils.dart';
-import 'package:mssql_connection/mssql_connection.dart';
+// import 'package:mssql_connection/mssql_connection.dart';
 import 'package:label_printer/data/db_client.dart';
 import 'package:label_printer/utils/on_messages.dart';
 import 'package:label_printer/utils/user_prefs.dart';
 import 'package:label_printer/data/db_connection_service.dart';
 import 'package:label_printer/data/db_connection_status.dart';
 import 'package:label_printer/ui_shared/components/connection_status_icon.dart';
+import 'package:label_printer/utils/net_diag.dart';
 import '../ui_desktop/screens/home_desktop.dart' as desktop;
 import '../ui_tablet/screens/home_tablet.dart' as tablet;
 
@@ -73,7 +74,7 @@ class _StartupHomePageState extends State<StartupHomePage> {
     bool _errorOverlayShown = false; // 에러 오버레이가 표시되었는지 여부
 
     try {
-      final dbConnection = MssqlConnection.getInstance();
+  final dbConnection = DbClient.instance;
 
       if (dbConnection.isConnected) {
         debugPrint('Already connected to the server database.');
@@ -84,13 +85,21 @@ class _StartupHomePageState extends State<StartupHomePage> {
       _lastConnectInfo = await DbServerConnectInfoHelper.getLastConnectDBInfo();
 
       if (_lastConnectInfo != null) {
+        // 안드로이드에서 네트워크/포트 도달성 문제를 먼저 진단
+        final host = _lastConnectInfo!.serverIp;
+        final port = _lastConnectInfo!.serverPort;
+        final reachable = await NetDiag.probeTcp(host, port, timeout: const Duration(seconds: 3));
+        if (!reachable) {
+          debugPrint('TCP not reachable to $host:$port (Android에서 방화벽/라우팅/SSL 문제 가능)');
+        }
+        debugPrint('Connecting to MSSQL {host:$host, port:$port, db:${_lastConnectInfo!.databaseName}, user:${_lastConnectInfo!.userId}}');
         final success = await dbConnection.connect(
           ip: _lastConnectInfo!.serverIp,
           port: _lastConnectInfo!.serverPort.toString(),
           databaseName: _lastConnectInfo!.databaseName,
           username: _lastConnectInfo!.userId,
           password: _lastConnectInfo!.password,
-          timeoutInSeconds: 15,
+          timeoutInSeconds: 30,
         );
 
         if (!success) {
@@ -98,8 +107,8 @@ class _StartupHomePageState extends State<StartupHomePage> {
         }
 
         LifecycleManager.instance.addObserver(LifecycleCallbacks(
-          onDetached: () { MssqlConnection.getInstance().disconnect(); },
-          onExitRequested: () { MssqlConnection.getInstance().disconnect(); }
+          onDetached: () { DbClient.instance.disconnect(); },
+          onExitRequested: () { DbClient.instance.disconnect(); }
         ));
 
         _startDatabaseMonitor();

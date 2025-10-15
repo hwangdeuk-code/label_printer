@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
-
-import 'package:mssql_connection/src/mssql_connection.dart';
+import 'package:label_printer/data/db_client.dart';
 
 /// MSSQL 연결 상태를 주기적으로 점검하는 간단한 모니터.
 /// - 기본은 SELECT 1 핑으로 연결 끊김을 감지
@@ -62,8 +61,7 @@ class DbConnectionMonitor {
         return await customPing!();
       }
       // 기본 핑: SELECT 1
-      final conn = MssqlConnection.getInstance();
-      final s = await conn.getData('SELECT 1');
+  final s = await DbClient.instance.getData('SELECT 1');
       try {
         final j = jsonDecode(s);
         if (j is Map && j['error'] != null) return false;

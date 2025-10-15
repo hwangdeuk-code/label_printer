@@ -7,7 +7,10 @@
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
+import 'package:label_printer/core/app.dart';
 import 'package:path/path.dart' as p;
+import 'package:permission_handler/permission_handler.dart' as ph;
 import 'package:path_provider/path_provider.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart' as ffi;
@@ -66,8 +69,8 @@ class ServerConnectInfo {
 /// DB 헬퍼: 생성/오픈/조회/업데이트
 class DbServerConnectInfoHelper {
   static const _dbName = 'labelmanager_server_connect_info.db';
-  static const table = 'BM_DB_SERVER_CONNECT_INFO';
-  static const lastTable = 'BM_LAST_CONNECT_DB_SERVER';
+  static const _table = 'BM_DB_SERVER_CONNECT_INFO';
+  static const _lastTable = 'BM_LAST_CONNECT_DB_SERVER';
   static const _dbVersion = 2;
 
   static Database? _db;
@@ -86,27 +89,74 @@ class DbServerConnectInfoHelper {
   static Future<String> _dbPath() async {
     // 주의: 실제 앱 번들의 assets 폴더는 read-only이므로, 쓰기 가능한 앱 데이터 폴더에
     // 동일한 하위 경로(assets/data)를 만들어 DB를 저장합니다.
-    final Directory baseDir;
+    Directory baseDir;
     if (kIsWeb) {
       // Web은 sqflite 미지원. 여기선 예외를 던집니다.
       throw UnsupportedError('sqflite is not supported on Web');
-    } else if (Platform.isAndroid || Platform.isIOS) {
+    }
+    else if (Platform.isAndroid) {
+      // 안드로이드: 공개 Documents 하위 폴더에 저장(요청 권한 필요)
+      await _ensureStoragePermission();
+      final docs = await _getAndroidPublicDocumentsDir();
+      baseDir = Directory(p.join(docs, appPackageName));
+    }
+    else if (Platform.isIOS) {
+      // iOS는 앱의 Documents 디렉터리를 사용합니다.
       baseDir = await getApplicationDocumentsDirectory();
-    } else if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
+      debugPrint('DB baseDir (iOS): ${baseDir.path}');
+    }
+    else if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
 			if (kDebugMode) {
 				baseDir = Directory.current;
 			} else {
       	baseDir = await getApplicationSupportDirectory();
 			}
-    } else {
+    }
+    else {
       baseDir = await getTemporaryDirectory();
     }
 
     final dir = Directory(p.join(baseDir.path, 'assets', 'data'));
+
     if (!await dir.exists()) {
       await dir.create(recursive: true);
     }
+
+    if (Platform.isAndroid) {
+      // Android에서는 공개 문서 디렉터리에 생성된 폴더가 미디어 스캔에서 누락될 수 있으므로,
+      // .nomedia 파일을 생성해 다른 미디어 스캔이 이 폴더를 스캔하지 않도록 합니다.
+      final noMediaFile = File(p.join(dir.path, '.nomedia'));
+      if (!await noMediaFile.exists()) { await noMediaFile.create(); }
+
+      // labelmanager_server_connect_info.db 파일이 없으면 assets에서 복사해 넣는 다.
+      final dbFile = File(p.join(dir.path, _dbName));
+      if (!await dbFile.exists()) {
+        final dbAssetPath = p.join('assets', 'data', _dbName);
+        final byteData = await rootBundle.load(dbAssetPath);
+        final bytes = byteData.buffer.asUint8List();
+        await dbFile.writeAsBytes(bytes, flush: true);
+      }
+    }
+
     return p.join(dir.path, _dbName);
+  }
+
+  static const MethodChannel _filesChannel = MethodChannel('com.itsng.label_printer/files');
+
+  static Future<void> _ensureStoragePermission() async {
+    // Android 13+: READ_MEDIA_*는 이미지/동영상/오디오에 해당. Documents에는 SAF 권장이나, 여기서는 best-effort로 READ/WRITE 권한 요청(33 이하 대상).
+    if (await ph.Permission.storage.isGranted) return;
+    await ph.Permission.storage.request();
+  }
+
+  static Future<String> _getAndroidPublicDocumentsDir() async {
+    try {
+      final String? path = await _filesChannel.invokeMethod<String>('getPublicDocumentsDir');
+      if (path != null && path.isNotEmpty) return path;
+    } catch (_) {}
+    // 폴백: 앱 전용 문서 디렉토리
+    final d = await getApplicationDocumentsDirectory();
+    return d.path;
   }
 
   /// DB 오픈 (필요 시 생성 및 마이그레이션)
@@ -121,7 +171,7 @@ class DbServerConnectInfoHelper {
       version: _dbVersion,
       onCreate: (db, version) async {
         await db.execute('''
-          CREATE TABLE IF NOT EXISTS $table (
+          CREATE TABLE IF NOT EXISTS $_table (
 						RICH_SERVER_IP     TEXT (0, 64),
 						RICH_DATABASE_NAME TEXT (0, 256),
 						RICH_SERVER_PORT   INTEGER (0, 5),
@@ -137,7 +187,7 @@ class DbServerConnectInfoHelper {
 				  )
         ''');
         await db.execute('''
-					CREATE TABLE IF NOT EXISTS $lastTable (
+					CREATE TABLE IF NOT EXISTS $_lastTable (
 						RICH_SERVER_IP     TEXT (64),
 						RICH_DATABASE_NAME TEXT (0, 256),
 						PRIMARY KEY (
@@ -192,13 +242,13 @@ class DbServerConnectInfoHelper {
   static Future<void> upsert(ServerConnectInfo info) async {
     final db = await open();
     await db.insert(
-      table,
+      _table,
       info.toMap(),
       conflictAlgorithm: ConflictAlgorithm.replace,
     );
     // 마지막 접속 테이블 갱신 (업데이트 타임스탬프)
     await db.insert(
-      lastTable,
+      _lastTable,
       {
         'RICH_SERVER_IP': info.serverIp,
         'RICH_DATABASE_NAME': info.databaseName,
@@ -211,7 +261,7 @@ class DbServerConnectInfoHelper {
   static Future<void> setLastConnected(String serverIp, String databaseName) async {
     final db = await open();
     await db.insert(
-      lastTable,
+      _lastTable,
       {
         'RICH_SERVER_IP': serverIp,
         'RICH_DATABASE_NAME': databaseName,

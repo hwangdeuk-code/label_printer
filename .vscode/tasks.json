@@ -10,6 +10,11 @@
 				"$dart-cli"
 			],
 			"group": "build"
+		},
+		{
+			"label": "Install Flutter packages",
+			"type": "shell",
+			"command": "flutter pub get"
 		}
 	]
 }

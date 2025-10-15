@@ -12,6 +12,7 @@ Future<void> main(List<String> args) async {
 
   // 앱 버전 정보 가져오기
   final info = await PackageInfo.fromPlatform();
+  appPackageName = info.packageName;
   appVersion = info.version;
 
   // StartupHomePage 실행

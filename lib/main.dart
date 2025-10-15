@@ -32,6 +32,7 @@ Future<void> main(List<String> args) async {
 
   // 앱 버전 정보를 조회해 전역에 보관한다.
   final info = await PackageInfo.fromPlatform();
+  appPackageName = info.packageName;
   appVersion = info.version;
 
   // 공통 StartUp 페이지를 표시한다.

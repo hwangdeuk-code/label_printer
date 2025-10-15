@@ -18,6 +18,7 @@ Future<void> main(List<String> args) async {
   windowManager.addListener(_AppWindowListener());
 
   final info = await PackageInfo.fromPlatform();
+  appPackageName = info.packageName;
   appVersion = info.version;
   isDesktop = true;
 

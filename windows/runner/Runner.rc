@@ -90,12 +90,12 @@ BEGIN
         BLOCK "040904e4"
         BEGIN
             VALUE "CompanyName", "com.itsng" "\0"
-            VALUE "FileDescription", "label_printer" "\0"
+            VALUE "FileDescription", "Label Printer" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
             VALUE "InternalName", "label_printer" "\0"
             VALUE "LegalCopyright", "Copyright (C) 2025 com.itsng. All rights reserved." "\0"
             VALUE "OriginalFilename", "label_printer.exe" "\0"
-            VALUE "ProductName", "label_printer" "\0"
+            VALUE "ProductName", "Label Printer" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END

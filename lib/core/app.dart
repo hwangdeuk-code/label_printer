@@ -6,6 +6,7 @@ import '../models/user_session.dart';
 const String appTitle = 'ITS&G Label Printer';
 
 // StartupHomePage.initState()에서 설정됨.
+String appPackageName = '';
 String appVersion = '';
 bool isDesktop = false;
 

@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:label_printer/data/db_connection_status.dart';
 import 'package:label_printer/data/db_connection_monitor.dart';
 import 'package:label_printer/data/db_server_connect_info.dart';
-import 'package:mssql_connection/mssql_connection.dart';
+import 'package:label_printer/data/db_client.dart';
 
 /// DB 연결 상태 모니터링과 재연결을 담당하는 전역 서비스
 class DbConnectionService {
@@ -70,11 +70,11 @@ class DbConnectionService {
   /// - 실행 전 모니터링 폴링을 일시 중지하고, 종료 후 재개한다(중첩 안전).
   /// - [timeout]이 지정되면 해당 시간 내 미응답 시 [onTimeout] 결과를 반환한다.
   Future<T> runUserDbAction<T>(
-    Future<T> Function(MssqlConnection db) action, {
+    Future<T> Function(DbClient db) action, {
     Duration? timeout,
     T Function()? onTimeout,
   }) async {
-    final db = MssqlConnection.getInstance();
+    final db = DbClient.instance;
     pausePolling();
     try {
       final fut = action(db);
@@ -91,16 +91,16 @@ class DbConnectionService {
     if (status.reconnecting.value) return;
     status.reconnecting.value = true;
     _reconnectCancelled = false;
-    final dbConnection = MssqlConnection.getInstance();
+  final db = DbClient.instance;
 
-    while (!dbConnection.isConnected && _lastConnectInfo != null) {
+  while (!db.isConnected && _lastConnectInfo != null) {
       if (_reconnectCancelled) break;
       final backoff = Duration(seconds: (5 * (1 << _retryAttempt)).clamp(5, 60));
       await Future.delayed(backoff);
       if (_reconnectCancelled) break;
 
       try {
-        final ok = await dbConnection.connect(
+        final ok = await db.connect(
           ip: _lastConnectInfo!.serverIp,
           port: _lastConnectInfo!.serverPort.toString(),
           databaseName: _lastConnectInfo!.databaseName,
