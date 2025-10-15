@@ -53,7 +53,7 @@ class ServerConnectInfo {
   };
 
   static ServerConnectInfo fromMap(Map<String, Object?> m) => ServerConnectInfo(
-    serverIp: ((m['RICH_SERVER_IP'] ?? '') as String) + '11',
+    serverIp: (m['RICH_SERVER_IP'] ?? '') as String,
     databaseName: (m['RICH_DATABASE_NAME'] ?? '') as String,
     serverPort: (m['RICH_SERVER_PORT'] ?? 0) as int,
     userId: (m['RICH_USER_ID'] ?? '') as String,

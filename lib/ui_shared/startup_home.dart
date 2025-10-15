@@ -6,10 +6,11 @@ import 'package:flutter/material.dart';
 import 'package:label_printer/core/app.dart';
 import 'package:label_printer/core/lifecycle.dart';
 import 'package:label_printer/data/db_server_connect_info.dart';
-import 'package:label_printer/data/main_database.dart';
+import 'package:label_printer/utils/db_result_utils.dart';
+import 'package:mssql_connection/mssql_connection.dart';
+import 'package:label_printer/data/db_client.dart';
 import 'package:label_printer/utils/on_messages.dart';
 import 'package:label_printer/utils/user_prefs.dart';
-import 'package:label_printer/data/db_connection_monitor.dart';
 import 'package:label_printer/data/db_connection_service.dart';
 import 'package:label_printer/data/db_connection_status.dart';
 import 'package:label_printer/ui_shared/components/connection_status_icon.dart';
@@ -27,32 +28,22 @@ class StartupHomePage extends StatefulWidget {
 
 class _StartupHomePageState extends State<StartupHomePage> {
   // 로그인 폼 상태 (비즈 로직 분리 안함)
-  final _id = TextEditingController(text: '8134');
+  final _id = TextEditingController(text: 'tester01');
   final _company = TextEditingController();
   final _branch = TextEditingController();
   final _user = TextEditingController();
   final _password = TextEditingController();
-  DbConnectionMonitor? _monitor; // 제거 예정(전역 서비스로 대체)
+
   ServerConnectInfo? _lastConnectInfo;
+
   // ValueNotifier 기반 상태 감지를 위한 리스너 보관
   VoidCallback? _upListener;
-  StreamSubscription<bool>? _monitorSub; // 삭제 예정
 
-  // 공지 섹션(내용/버전)을 한 곳에서 관리하여 해시 계산과 UI가 동일한 소스를 사용하도록 함
-  final String _noticeUpdateVersion = '2.7.5.3';
-  final List<String> _noticeLines = const [
-    '라벨매니저 2.7.4',
-    '1. 공용라벨관리- 첨자 기능 추가',
-    '2. tab 메뉴 자동 축소 기능 추가',
-  ];
-
-  String _currentNoticePayload() {
-    final buf = StringBuffer();
-    buf.writeln(_noticeUpdateVersion);
-    for (final line in _noticeLines) {
-      buf.writeln(line);
-    }
-    return buf.toString();
+  // 공지 해시 계산을 위한 페이로드 생성(버전+내용)
+  String _currentNoticePayload({String? content, String? version}) {
+    final v = version ?? '';
+    final c = content ?? '';
+    return '$v\n$c';
   }
 
   // 간단한 FNV-1a 64-bit 해시 구현 (의존성 없이 안정적인 텍스트 해시)
@@ -60,10 +51,12 @@ class _StartupHomePageState extends State<StartupHomePage> {
     const int fnv64Offset = 0xcbf29ce484222325; // 14695981039346656037
     const int fnv64Prime = 0x100000001b3;       // 1099511628211
     int hash = fnv64Offset;
+
     for (int i = 0; i < input.length; i++) {
       hash ^= input.codeUnitAt(i);
       hash = (hash * fnv64Prime) & 0xFFFFFFFFFFFFFFFF; // 64-bit wrap
     }
+
     final hex = hash.toRadixString(16).padLeft(16, '0');
     return hex;
   }
@@ -80,24 +73,36 @@ class _StartupHomePageState extends State<StartupHomePage> {
     bool _errorOverlayShown = false; // 에러 오버레이가 표시되었는지 여부
 
     try {
-      if (MainDatabaseHelper.isConnected) {
+      final dbConnection = MssqlConnection.getInstance();
+
+      if (dbConnection.isConnected) {
         debugPrint('Already connected to the server database.');
         return;
       }
       
       BlockingOverlay.show(context, message: '서버 데이터베이스에 접속 중 입니다...');
-      final currConnectInto = await DbServerConnectInfoHelper.getLastConnectDBInfo();
+      _lastConnectInfo = await DbServerConnectInfoHelper.getLastConnectDBInfo();
 
-      if (currConnectInto != null) {
-        _lastConnectInfo = currConnectInto;
-        await MainDatabaseHelper.connect(currConnectInto);
+      if (_lastConnectInfo != null) {
+        final success = await dbConnection.connect(
+          ip: _lastConnectInfo!.serverIp,
+          port: _lastConnectInfo!.serverPort.toString(),
+          databaseName: _lastConnectInfo!.databaseName,
+          username: _lastConnectInfo!.userId,
+          password: _lastConnectInfo!.password,
+          timeoutInSeconds: 15,
+        );
+
+        if (!success) {
+          throw Exception('failed to connect');
+        }
 
         LifecycleManager.instance.addObserver(LifecycleCallbacks(
-          onDetached: () { MainDatabaseHelper.disconnect(); },
-          onExitRequested: () { MainDatabaseHelper.disconnect(); }
+          onDetached: () { MssqlConnection.getInstance().disconnect(); },
+          onExitRequested: () { MssqlConnection.getInstance().disconnect(); }
         ));
 
-        _startMonitor();
+        _startDatabaseMonitor();
 
         // 로그아웃 유입이면 자동 표시하지 않음, 사용자 요청 시(앱바 로그인 아이콘) 열도록 함
         if (!widget.fromLogout) {
@@ -131,7 +136,7 @@ class _StartupHomePageState extends State<StartupHomePage> {
     }
   }
 
-  void _startMonitor() {
+  void _startDatabaseMonitor() {
     // 전역 서비스로 모니터 연결 및 상태 반영
     final info = _lastConnectInfo;
 
@@ -153,8 +158,12 @@ class _StartupHomePageState extends State<StartupHomePage> {
     // 저장된 버전과 현재 버전이 같으면 공지 섹션을 숨기고 체크박스를 기본 체크로 둔다.
     final suppressedVer = await UserPrefs.getString('suppressNoticeVersion');
     final suppressedHash = await UserPrefs.getString('suppressNoticeHash');
-    final currHash = _fnv1a64Hex(_currentNoticePayload());
-    final isSuppressed = (suppressedVer == appVersion) && (suppressedHash == currHash);
+
+		// 앱 버전을 공지 버전으로 사용
+		final effectiveVersion = appVersion;
+		String effectiveContent = expandTabs('');
+    final initialHash = _fnv1a64Hex(_currentNoticePayload(content: effectiveContent, version: effectiveVersion));
+    final isSuppressed = (suppressedVer == appVersion) && (suppressedHash == initialHash);
     bool noticeClosed = forceNoticeClosed || isSuppressed; // 로그아웃 유입시 공지 섹션 생략
     bool dontShowUntilNextUpdate = isSuppressed; // 로그아웃 유입으로 noticeClosed가 true여도 사용자 설정은 건드리지 않음
 
@@ -174,14 +183,23 @@ class _StartupHomePageState extends State<StartupHomePage> {
               user: _user,
               password: _password,
               dontShow: dontShowUntilNextUpdate,
+              noticeVersion: effectiveVersion,
+              noticeContent: effectiveContent,
+              serverName: _lastConnectInfo?.serverName,
+              onNoticeUpdate: (newContent) {
+                setState(() {
+                  effectiveContent = expandTabs(newContent);
+                });
+              },
               onToggleDontShow: (v) async {
                 setState(() => dontShowUntilNextUpdate = v);
                 if (v) {
                   // 현재 버전에 대해 공지 숨김 유지
-                  await UserPrefs.setString(
-                      'suppressNoticeVersion', appVersion);
-                  await UserPrefs.setString(
-                      'suppressNoticeHash', currHash);
+                  final currHashNow = _fnv1a64Hex(
+                    _currentNoticePayload(content: effectiveContent, version: effectiveVersion),
+                  );
+                  await UserPrefs.setString('suppressNoticeVersion', appVersion);
+                  await UserPrefs.setString('suppressNoticeHash', currHashNow);
                 } else {
                   // 체크 해제 시 즉시 표시되도록 제거
                   await UserPrefs.setString('suppressNoticeVersion', null);
@@ -230,9 +248,6 @@ class _StartupHomePageState extends State<StartupHomePage> {
 
   @override
   void dispose() {
-    _monitor?.dispose();
-    _monitorSub?.cancel();
-
     if (_upListener != null) {
       DbConnectionService.instance.status.up.removeListener(_upListener!);
       _upListener = null;
@@ -275,6 +290,10 @@ class _DialogBody extends StatelessWidget {
   final TextEditingController id, company, branch, user, password;
   final bool dontShow;
   final ValueChanged<bool> onToggleDontShow;
+  final String noticeVersion;
+  final String noticeContent;
+  final ValueChanged<String> onNoticeUpdate;
+  final String? serverName;
 
   const _DialogBody({
     required this.noticeClosed,
@@ -286,7 +305,11 @@ class _DialogBody extends StatelessWidget {
     required this.user,
     required this.password,
     required this.dontShow,
+    required this.noticeVersion,
+    required this.noticeContent,
+    required this.onNoticeUpdate,
     required this.onToggleDontShow,
+    this.serverName,
   });
 
   @override
@@ -300,6 +323,8 @@ class _DialogBody extends StatelessWidget {
       dontShow: dontShow,
       onToggleDontShow: onToggleDontShow,
       onLogin: onLogin,
+      onIdCommit: onNoticeUpdate,
+      serverName: serverName,
     );
     if (noticeClosed) {
       return loginPanel;
@@ -320,7 +345,7 @@ class _DialogBody extends StatelessWidget {
                     flex: 1,
                     child: _LabeledField(
                       label: '업데이트 버전',
-                      child: const Text('2.7.5.3'),
+                      child: Text(noticeVersion),
                     ),
                   ),
                   const Expanded(flex: 2, child: SizedBox.shrink()),
@@ -341,11 +366,15 @@ class _DialogBody extends StatelessWidget {
                         ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
-                          children: const [
-                            Text('라벨매니저 2.7.4'),
-                            SizedBox(height: 6),
-                            Text('1. 공용라벨관리- 첨자 기능 추가'),
-                            Text('2. tab 메뉴 자동 축소 기능 추가'),
+                          children: [
+                            // 공지 내용을 줄바꿈 및 탭(공백 확장) 그대로 표시
+                            DefaultTextStyle.merge(
+                              style: const TextStyle(
+                                fontFamily: 'monospace',
+                                fontSize: 13,
+                              ),
+                              child: Text(noticeContent),
+                            ),
                           ],
                         ),
                       ),
@@ -355,14 +384,12 @@ class _DialogBody extends StatelessWidget {
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(6),
                         child: Image.asset(
-                          'assets/images/ad_banner.png',
+                          '',//'assets/images/ad_banner.png',
                           fit: BoxFit.cover,
                           errorBuilder: (c, e, s) => Container(
                             color: const Color(0xFFEFEFEF),
                             alignment: Alignment.center,
-                            child: const Text(
-                              '광고 배너 이미지(assets/images/ad_banner.png)',
-                            ),
+                            child: const Text('광고 배너 이미지'),
                           ),
                         ),
                       ),
@@ -398,7 +425,12 @@ class _LoginPanel extends StatelessWidget {
   final bool dontShow;
   final ValueChanged<bool> onToggleDontShow;
   final VoidCallback onLogin;
-
+  final ValueChanged<String>? onIdCommit;
+  final String? serverName;
+  
+  // 중복 실행 방지 플래그
+  static bool _noticeFetchInFlight = false;
+  
   const _LoginPanel({
     required this.id,
     required this.company,
@@ -408,7 +440,53 @@ class _LoginPanel extends StatelessWidget {
     required this.dontShow,
     required this.onToggleDontShow,
     required this.onLogin,
+    this.onIdCommit,
+    this.serverName,
   });
+
+  // 아이디 필드에서 포커스를 잃거나 엔터(제출) 시 호출되는 빈 함수
+  // ignore: avoid_unused_parameters
+  void _onIdFieldCommit(String idText) async {
+    // 중복 실행 방지
+    if (_noticeFetchInFlight) return;
+    _noticeFetchInFlight = true;
+
+    try {
+			final userId = idText.trim();
+      final sql = '''
+        SELECT
+          CONVERT(VARBINARY(6000),
+          CONVERT(NVARCHAR(3000), UN_MSG COLLATE Korean_Wansung_CI_AS)) AS UN_MSG_U16LE
+        FROM BM_UPDATE_NOTICE WITH (NOLOCK)
+        WHERE LTRIM(RTRIM(CONVERT(NVARCHAR(30), UN_USER_ID COLLATE Korean_Wansung_CI_AS)))
+          = LTRIM(RTRIM(CONVERT(NVARCHAR(30), @userId)));
+      ''';
+
+			final res = await DbClient.instance.getDataWithParams(
+				sql, { 'userId': userId },
+				timeout: const Duration(seconds: 5),
+				onTimeout: () {
+					debugPrint('UserID commit query timeout');
+					return '{"error":"timeout"}';
+				},
+			);
+
+      final base64Str = extractJsonDBResult('UN_MSG_U16LE', res);
+      String decodedText = base64Str.isNotEmpty ? decodeUtf16LeFromBase64String(base64Str) : '';
+
+      if (decodedText.isNotEmpty) {
+        // 결과를 상위 다이얼로그로 전달하여 공지 내용을 갱신
+        onIdCommit?.call(decodedText);
+      }
+    }
+    catch (e) {
+      debugPrint('UserID commit fetch error: $e');
+    }
+    finally {
+      // 중복 실행 방지 플래그 해제
+      _noticeFetchInFlight = false;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -445,13 +523,13 @@ class _LoginPanel extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   const Text(
-                    '사용자 인증',
-                    style: TextStyle(fontWeight: FontWeight.bold),
+                    '사용자 인증', style: TextStyle(fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 8),
                   _LabeledField(
                     label: '접속 서버',
-                    child: const Text('라벨매니저 서버(서울 - 일반거래처)'),
+                    child: Text(serverName == null || serverName!.isEmpty
+                        ? '라벨매니저' : serverName!, style: TextStyle(fontWeight: FontWeight.bold))
                   ),
                   const SizedBox(height: 6),
                   _LabeledField(
@@ -465,7 +543,7 @@ class _LoginPanel extends StatelessWidget {
                             final String statusText = up == null
                                 ? '확인 중'
                                 : (up ? '연결 양호' : (reconnecting ? '끊김 - 재연결 중' : '끊김'));
-                            return Text(statusText);
+                            return Text(statusText, style: TextStyle(fontWeight: FontWeight.bold));
                           },
                         );
                       },
@@ -477,9 +555,15 @@ class _LoginPanel extends StatelessWidget {
                       _kLabel('아이디'),
                       const SizedBox(width: 8),
                       Expanded(
-                        child: TextField(
-                          controller: id,
-                          decoration: _dec('아이디'),
+                        child: Focus(
+                          onFocusChange: (hasFocus) { if (!hasFocus) _onIdFieldCommit(id.text); },
+                          child: TextField(
+                            controller: id,
+                            autofocus: true,
+                            decoration: _dec('아이디'),
+                            textInputAction: TextInputAction.done,
+                            onSubmitted: (value) => _onIdFieldCommit(value),
+                          ),
                         ),
                       ),
                     ],
@@ -490,10 +574,7 @@ class _LoginPanel extends StatelessWidget {
                       _kLabel('업체명'),
                       const SizedBox(width: 8),
                       Expanded(
-                        child: TextField(
-                          controller: company,
-                          decoration: _dec('업체명'),
-                        ),
+                        child: TextField(controller: company, decoration: _dec('업체명')),
                       ),
                     ],
                   ),
@@ -503,10 +584,7 @@ class _LoginPanel extends StatelessWidget {
                       _kLabel('지점명'),
                       const SizedBox(width: 8),
                       Expanded(
-                        child: TextField(
-                          controller: branch,
-                          decoration: _dec('지점명'),
-                        ),
+                        child: TextField(controller: branch, decoration: _dec('지점명')),
                       ),
                     ],
                   ),
@@ -516,10 +594,7 @@ class _LoginPanel extends StatelessWidget {
                       _kLabel('사용자 이름'),
                       const SizedBox(width: 8),
                       Expanded(
-                        child: TextField(
-                          controller: user,
-                          decoration: _dec('사용자 이름'),
-                        ),
+                        child: TextField(controller: user, decoration: _dec('사용자 이름')),
                       ),
                     ],
                   ),
@@ -529,11 +604,7 @@ class _LoginPanel extends StatelessWidget {
                       _kLabel('비밀번호'),
                       const SizedBox(width: 8),
                       Expanded(
-                        child: TextField(
-                          controller: password,
-                          obscureText: true,
-                          decoration: _dec('비밀번호'),
-                        ),
+                        child: TextField(controller: password, obscureText: true, decoration: _dec('비밀번호')),
                       ),
                     ],
                   ),
@@ -546,15 +617,9 @@ class _LoginPanel extends StatelessWidget {
                   Row(
                     children: [
                       const Spacer(),
-                      ElevatedButton(
-                        onPressed: onLogin,
-                        child: const Text('로그인'),
-                      ),
+                      ElevatedButton(onPressed: onLogin, child: const Text('로그인')),
                       const SizedBox(width: 8),
-                      OutlinedButton(
-                        onPressed: () => Navigator.of(context).pop(),
-                        child: const Text('취소'),
-                      ),
+                      OutlinedButton(onPressed: () => Navigator.of(context).pop(), child: const Text('취소')),
                     ],
                   ),
                 ],
