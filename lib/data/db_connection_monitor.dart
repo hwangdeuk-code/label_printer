@@ -14,6 +14,7 @@ class DbConnectionMonitor {
   Timer? _timer;
   bool? _isUp;
   final StreamController<bool> _statusCtrl = StreamController<bool>.broadcast();
+  bool _checking = false;
 
   Stream<bool> get statusStream => _statusCtrl.stream; // true: up, false: down
   bool? get lastStatus => _isUp;
@@ -25,10 +26,12 @@ class DbConnectionMonitor {
     this.onRestored,
   });
 
-  void start() {
+  void start({bool immediate = true}) {
     _timer?.cancel();
-    // 즉시 1회 점검 후 주기 시작
-    _check();
+    // 옵션에 따라 즉시 1회 점검 후 주기 시작
+    if (immediate) {
+      _check();
+    }
     _timer = Timer.periodic(interval, (_) => _check());
   }
 
@@ -38,10 +41,14 @@ class DbConnectionMonitor {
   }
 
   Future<void> _check() async {
+    if (_checking) return; // 재진입 방지
+    _checking = true;
     final ok = await _pingSafe();
+    
     if (_isUp == null) {
       _isUp = ok;
       _statusCtrl.add(ok);
+      _checking = false;
       return;
     }
     if (_isUp != ok) {
@@ -53,6 +60,7 @@ class DbConnectionMonitor {
         onLost?.call();
       }
     }
+    _checking = false;
   }
 
   Future<bool> _pingSafe() async {

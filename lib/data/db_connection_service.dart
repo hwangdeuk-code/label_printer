@@ -62,7 +62,7 @@ class DbConnectionService {
     if (_monitor == null) return;
     if (_pollingPauseDepth > 0) _pollingPauseDepth--;
     if (_pollingPauseDepth == 0) {
-      _monitor!.start();
+      _monitor!.start(immediate: false);
     }
   }
 
