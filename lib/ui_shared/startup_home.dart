@@ -666,14 +666,23 @@ class _LabeledField extends StatelessWidget {
           child: Container(
             height: height,
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-            decoration: BoxDecoration(
-              color: const Color(0xFFFFFFFF),
-              border: Border.all(color: Color(0x22000000)),
-              borderRadius: BorderRadius.circular(6),
-              boxShadow: const [
-                BoxShadow(color: Color(0x08000000), blurRadius: 4, offset: Offset(0, 1)),
-              ],
-            ),
+            decoration: () {
+              final isAndroid = Theme.of(context).platform == TargetPlatform.android;
+              return isAndroid
+                  ? BoxDecoration(
+                      color: const Color(0xFFFDFDFD),
+                      border: Border.all(color: const Color(0x11000000)),
+                      borderRadius: BorderRadius.circular(4),
+                    )
+                  : BoxDecoration(
+                      color: const Color(0xFFFFFFFF),
+                      border: Border.all(color: const Color(0x22000000)),
+                      borderRadius: BorderRadius.circular(6),
+                      boxShadow: const [
+                        BoxShadow(color: Color(0x08000000), blurRadius: 4, offset: Offset(0, 1)),
+                      ],
+                    );
+            }(),
             child: DefaultTextStyle.merge(
               style: const TextStyle(color: Color(0xFF1F1F1F)),
               child: child,
@@ -693,18 +702,26 @@ class _InlayPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isAndroid = Theme.of(context).platform == TargetPlatform.android;
+    final BoxDecoration deco = isAndroid
+        ? BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(6),
+            border: Border.all(color: const Color(0x11000000)),
+          )
+        : BoxDecoration(
+            color: const Color(0xFFFAFAFC),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: const Color(0x22000000)),
+            boxShadow: const [
+              BoxShadow(color: Color(0x14000000), blurRadius: 10, offset: Offset(0, 3)),
+              BoxShadow(color: Color(0x08000000), blurRadius: 3, offset: Offset(0, 0)),
+            ],
+          );
     return Container(
       margin: margin,
-      decoration: BoxDecoration(
-        color: const Color(0xFFFAFAFC),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: const Color(0x22000000)),
-        boxShadow: const [
-          BoxShadow(color: Color(0x14000000), blurRadius: 10, offset: Offset(0, 3)),
-          BoxShadow(color: Color(0x08000000), blurRadius: 3, offset: Offset(0, 0)),
-        ],
-      ),
-      padding: const EdgeInsets.all(14),
+      decoration: deco,
+      padding: EdgeInsets.all(isAndroid ? 12 : 14),
       child: child,
     );
   }
