@@ -6,15 +6,27 @@
 			"type": "shell",
 			"command": "flutter pub get",
 			"args": [],
-			"problemMatcher": [
-				"$dart-cli"
-			],
+			"problemMatcher": [],
 			"group": "build"
 		},
 		{
 			"label": "Install Flutter packages",
 			"type": "shell",
 			"command": "flutter pub get"
+		}
+		,
+		{
+			"label": "ADB: Silence MESA log",
+			"type": "shell",
+			"command": "powershell",
+			"args": [
+				"-NoProfile",
+				"-ExecutionPolicy",
+				"Bypass",
+				"-File",
+				"${workspaceFolder}/.vscode/adb_silence_mesa.ps1"
+			],
+			"problemMatcher": []
 		}
 	]
 }

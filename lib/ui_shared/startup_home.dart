@@ -4,6 +4,10 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import 'package:label_printer/core/app.dart';
+import 'dart:typed_data';
+import 'package:http/http.dart' as http;
+import 'package:flutter/services.dart' show rootBundle;
+import 'package:url_launcher/url_launcher.dart';
 import 'package:label_printer/core/lifecycle.dart';
 import 'package:label_printer/data/db_server_connect_info.dart';
 import 'package:label_printer/utils/db_result_utils.dart';
@@ -386,18 +390,7 @@ class _DialogBody extends StatelessWidget {
                     ),
                     const SizedBox(width: 12),
                     Expanded(
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(6),
-                        child: Image.asset(
-                          '',//'assets/images/ad_banner.png',
-                          fit: BoxFit.cover,
-                          errorBuilder: (c, e, s) => Container(
-                            color: const Color(0xFFEFEFEF),
-                            alignment: Alignment.center,
-                            child: const Text('광고 배너 이미지'),
-                          ),
-                        ),
-                      ),
+                      child: _AdBanner(),
                     ),
                   ],
                 ),
@@ -502,12 +495,27 @@ class _LoginPanel extends StatelessWidget {
       contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
     );
 
+    // 한 글자 너비를 측정해서 라벨 영역을 그만큼 줄이고 값 영역을 늘립니다.
+    double _measureCharWidth(TextStyle style, {String sample = '가'}) {
+      final painter = TextPainter(
+        text: TextSpan(text: sample, style: style),
+        maxLines: 1,
+        textDirection: TextDirection.ltr,
+      )..layout();
+      return painter.size.width;
+    }
+
+    final TextStyle _inlineLabelStyle = const TextStyle(color: Color(0xFF333333));
+    final double _oneChar = _measureCharWidth(_inlineLabelStyle);
+    final double _inlineLabelWidth = (88.0 - _oneChar).clamp(50.0, 88.0);
+    final double _fieldLabelWidth = (90.0 - _oneChar).clamp(50.0, 90.0);
+
     Widget _kLabel(String t) => SizedBox(
-      width: 88,
+      width: _inlineLabelWidth,
       child: Text(
         t,
         textAlign: TextAlign.right,
-        style: const TextStyle(color: Color(0xFF333333)),
+        style: _inlineLabelStyle,
       ),
     );
 
@@ -533,12 +541,14 @@ class _LoginPanel extends StatelessWidget {
                   const SizedBox(height: 8),
                   _LabeledField(
                     label: '접속 서버',
+                    labelWidth: _fieldLabelWidth,
                     child: Text(serverName == null || serverName!.isEmpty
                       ? '라벨매니저' : serverName!, style: const TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF1A1A1A)))
                   ),
                   const SizedBox(height: 6),
                   _LabeledField(
                     label: '접속 상태',
+                    labelWidth: _fieldLabelWidth,
                     child: ValueListenableBuilder<bool?>(
                       valueListenable: DbConnectionStatus.instance.up,
                       builder: (context, up, _) {
@@ -579,7 +589,14 @@ class _LoginPanel extends StatelessWidget {
                       _kLabel('업체명'),
                       const SizedBox(width: 8),
                       Expanded(
-                        child: TextField(controller: company, decoration: _dec('업체명')),
+                        child: ExcludeFocus(
+                          excluding: true,
+                          child: TextField(
+                            controller: company,
+                            readOnly: true,
+                            decoration: _dec('업체명'),
+                          ),
+                        ),
                       ),
                     ],
                   ),
@@ -589,7 +606,14 @@ class _LoginPanel extends StatelessWidget {
                       _kLabel('지점명'),
                       const SizedBox(width: 8),
                       Expanded(
-                        child: TextField(controller: branch, decoration: _dec('지점명')),
+                        child: ExcludeFocus(
+                          excluding: true,
+                          child: TextField(
+                            controller: branch,
+                            readOnly: true,
+                            decoration: _dec('지점명'),
+                          ),
+                        ),
                       ),
                     ],
                   ),
@@ -599,7 +623,14 @@ class _LoginPanel extends StatelessWidget {
                       _kLabel('사용자 이름'),
                       const SizedBox(width: 8),
                       Expanded(
-                        child: TextField(controller: user, decoration: _dec('사용자 이름')),
+                        child: ExcludeFocus(
+                          excluding: true,
+                          child: TextField(
+                            controller: user,
+                            readOnly: true,
+                            decoration: _dec('사용자 이름'),
+                          ),
+                        ),
                       ),
                     ],
                   ),
@@ -615,7 +646,7 @@ class _LoginPanel extends StatelessWidget {
                   ),
                   const SizedBox(height: 12),
                   _LabeledField(
-                    height: 200,
+                    height: 170,
                     child: const Text('테스트용 로그인입니다. 아이디: 8134, 비밀번호: 12345678'),
                   ),
                   const SizedBox(height: 12),
@@ -641,7 +672,8 @@ class _LabeledField extends StatelessWidget {
   final String? label;
   final Widget child;
   final double? height;
-  const _LabeledField({this.label, required this.child, this.height});
+  final double? labelWidth;
+  const _LabeledField({this.label, required this.child, this.height, this.labelWidth});
 
   @override
   Widget build(BuildContext context) {
@@ -650,7 +682,7 @@ class _LabeledField extends StatelessWidget {
       children: [
         if (label != null) ...[
           SizedBox(
-            width: 90,
+            width: labelWidth ?? 90,
             child: Text(
               label!,
               textAlign: TextAlign.right,
@@ -723,6 +755,101 @@ class _InlayPanel extends StatelessWidget {
       decoration: deco,
       padding: EdgeInsets.all(isAndroid ? 12 : 14),
       child: child,
+    );
+  }
+}
+
+// 서버에서 광고 이미지를 내려받아 표시하는 배너 위젯
+class _AdBanner extends StatefulWidget {
+  const _AdBanner();
+
+  @override
+  State<_AdBanner> createState() => _AdBannerState();
+}
+
+class _AdBannerState extends State<_AdBanner> {
+  Uint8List? _bytes;
+  bool _loading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadAd();
+  }
+
+  Future<void> _loadAd() async {
+    setState(() => _loading = true);
+    const url = 'https://itsng.co.kr/LabelManager/LabelManager_ITSad.bmp';
+
+    try {
+      final bust = DateTime.now().millisecondsSinceEpoch.toString();
+      final uri = Uri.parse(url).replace(queryParameters: {'_ts': bust});
+      final resp = await http
+          .get(uri, headers: {'Cache-Control': 'no-cache', 'Pragma': 'no-cache'})
+          .timeout(const Duration(seconds: 10));
+
+      if (resp.statusCode == 200 && resp.bodyBytes.isNotEmpty) {
+        if (!mounted) return;
+        setState(() => _bytes = resp.bodyBytes);
+      } else {
+        throw Exception('HTTP ${resp.statusCode}');
+      }
+    }
+		catch (_) {
+      // 실패 시 앱 내 기본 이미지 사용(있을 경우)
+      try {
+        final fb = await rootBundle.load('assets/images/LabelManager_ITSad.bmp');
+        if (!mounted) return;
+        setState(() => _bytes = fb.buffer.asUint8List());
+      } catch (_) {
+        // 폴백 자산이 없으면 빈 상태 유지
+      }
+    }
+		finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final Widget content;
+    if (_bytes != null) {
+      // 단일 이미지로만 표시 (중첩/이중 표시 제거)
+      content = ClipRRect(
+        borderRadius: BorderRadius.circular(6),
+        child: Image.memory(
+          _bytes!,
+          fit: BoxFit.fill, // 한 장의 이미지로 영역을 꽉 채움(왜곡 가능, 크롭/여백 없음)
+          alignment: Alignment.center,
+        ),
+      );
+    } else {
+      // 다운로드 중 혹은 실패 시 힌트 표시
+      content = Container(
+        decoration: BoxDecoration(
+          color: const Color(0xFFEFEFEF),
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(color: const Color(0x11000000)),
+        ),
+        alignment: Alignment.center,
+        child: Text(
+          _loading ? '다운로드 중...' : '광고 배너 이미지',
+          style: const TextStyle(color: Color(0xFF666666)),
+        ),
+      );
+    }
+
+    return InkWell(
+      onTap: _loading
+          ? null
+          : () async {
+              final url = Uri.parse('https://itsngshop.com/index.html');
+              if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
+                // 무시: 브라우저 실행 실패 시 별도 처리 없음
+              }
+            },
+      borderRadius: BorderRadius.circular(6),
+      child: content,
     );
   }
 }

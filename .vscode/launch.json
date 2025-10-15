@@ -1,0 +1,26 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Flutter (Android) Debug",
+      "type": "dart",
+      "request": "launch",
+      "flutterMode": "debug",
+      "preLaunchTask": "ADB: Silence MESA log"
+    },
+    {
+      "name": "Flutter (Windows) Debug",
+      "type": "dart",
+      "request": "launch",
+      "flutterMode": "debug",
+      "deviceId": "windows"
+    },
+    {
+      "name": "Flutter (iOS) Debug",
+      "type": "dart",
+      "request": "launch",
+      "flutterMode": "debug",
+      "deviceId": "ios"
+    }
+  ]
+}
