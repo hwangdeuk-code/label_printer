@@ -480,7 +480,11 @@ class _LoginPanelState extends State<_LoginPanel> {
 
     try {
       final inputId = userIdText.trim();
-      if (inputId.isEmpty) return;
+
+      if (inputId.isEmpty) {
+				if (mounted) FocusScope.of(context).requestFocus(_userIdFocus);
+				return;
+			}
 
       // 결과를 상위 다이얼로그로 전달하여 공지 내용을 갱신
       final noticeMsg = await NoticeDAO.getByUserId(inputId);
@@ -494,22 +498,28 @@ class _LoginPanelState extends State<_LoginPanel> {
         widget.customerName.text = gUserInfo!.customerName;
         widget.marketName.text = gUserInfo!.marketName;
         widget.userName.text = gUserInfo!.name;
-        setState(() { _infoText = ''; });
-        if (mounted) FocusScope.of(context).requestFocus(_passwordFocus);
+        if (mounted) {
+          setState(() { _infoText = ''; });
+          FocusScope.of(context).requestFocus(_passwordFocus);
+        }
       } else {
         // 조회 실패/없음: 값을 비워둠 + 안내 문구 변경
         widget.customerName.text = '';
         widget.marketName.text = '';
         widget.userName.text = '';
-        setState(() { _infoText = '아이디가 존재하지 않습니다!'; });
-        if (mounted) FocusScope.of(context).requestFocus(_userIdFocus);
+        if (mounted) {
+          setState(() { _infoText = '아이디가 존재하지 않습니다!'; });
+          FocusScope.of(context).requestFocus(_userIdFocus);
+        }
       }
     }
     catch (e) {
 			final errmsg = e.toString();
       debugPrint('${_LoginPanel.cn}.$fn, ${DAO.exception}: $errmsg');
-      setState(() { _infoText = stripLeadingBracketTags(errmsg); });
-			if (mounted) FocusScope.of(context).requestFocus(_userIdFocus);
+      if (mounted) {
+        setState(() { _infoText = stripLeadingBracketTags(errmsg); });
+        FocusScope.of(context).requestFocus(_userIdFocus);
+      }
     }
     finally {
       // 중복 실행 방지 플래그 해제
