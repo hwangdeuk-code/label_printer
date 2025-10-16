@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
-import 'package:label_printer/data/db_client.dart';
+import 'package:label_printer/database/db_client.dart';
 
 /// MSSQL 연결 상태를 주기적으로 점검하는 간단한 모니터.
 /// - 기본은 SELECT 1 핑으로 연결 끊김을 감지

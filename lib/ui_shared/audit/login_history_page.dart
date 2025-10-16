@@ -39,8 +39,8 @@ class _LoginHistoryPageState extends State<LoginHistoryPage> {
     _from = _to.subtract(const Duration(days: 27)); // 최근 4주
 
     // 세션에서 기본 회사명/협력업체 힌트 (없으면 null)
-    _selectedCompany = gUserSession?.companyName;
-    _selectedPartner = gUserSession?.branchName;
+    _selectedCompany = ''; //gUserSession?.companyName;
+    _selectedPartner = ''; //gUserSession?.branchName;
 
     _initIntlAndQuery();
   }

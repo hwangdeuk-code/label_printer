@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:label_printer/data/db_connection_status.dart';
+import 'package:label_printer/database/db_connection_status.dart';
 
 /// AppBar 액션 영역에서 사용할 원형 상태 아이콘
 class DbConnectionStatusIcon extends StatelessWidget {

@@ -7,17 +7,19 @@ import 'package:label_printer/core/app.dart';
 import 'dart:typed_data';
 import 'package:http/http.dart' as http;
 import 'package:flutter/services.dart' show rootBundle;
+import 'package:label_printer/models/user.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:label_printer/core/lifecycle.dart';
-import 'package:label_printer/data/db_server_connect_info.dart';
+import 'package:label_printer/database/db_client.dart';
+import 'package:label_printer/database/db_connection_service.dart';
+import 'package:label_printer/database/db_connection_status.dart';
+import 'package:label_printer/database/db_server_connect_info.dart';
+import 'package:label_printer/models/dao.dart';
+import 'package:label_printer/models/notice.dart';
+import 'package:label_printer/ui_shared/components/connection_status_icon.dart';
 import 'package:label_printer/utils/db_result_utils.dart';
-// import 'package:mssql_connection/mssql_connection.dart';
-import 'package:label_printer/data/db_client.dart';
 import 'package:label_printer/utils/on_messages.dart';
 import 'package:label_printer/utils/user_prefs.dart';
-import 'package:label_printer/data/db_connection_service.dart';
-import 'package:label_printer/data/db_connection_status.dart';
-import 'package:label_printer/ui_shared/components/connection_status_icon.dart';
 import 'package:label_printer/utils/net_diag.dart';
 import '../ui_desktop/screens/home_desktop.dart' as desktop;
 import '../ui_tablet/screens/home_tablet.dart' as tablet;
@@ -33,10 +35,10 @@ class StartupHomePage extends StatefulWidget {
 
 class _StartupHomePageState extends State<StartupHomePage> {
   // 로그인 폼 상태 (비즈 로직 분리 안함)
-  final _id = TextEditingController(text: 'tester01');
-  final _company = TextEditingController();
-  final _branch = TextEditingController();
-  final _user = TextEditingController();
+  final _userId = TextEditingController(text: 'tester01');
+  final _customerName = TextEditingController();
+  final _marketName = TextEditingController();
+  final _userName = TextEditingController();
   final _password = TextEditingController();
 
   ServerConnectInfo? _lastConnectInfo;
@@ -190,10 +192,10 @@ class _StartupHomePageState extends State<StartupHomePage> {
               noticeClosed: noticeClosed,
               onCloseNotice: () => setState(() => noticeClosed = true),
               onLogin: _goNext,
-              id: _id,
-              company: _company,
-              branch: _branch,
-              user: _user,
+              userId: _userId,
+              customerName: _customerName,
+              marketName: _marketName,
+              userName: _userName,
               password: _password,
               dontShow: dontShowUntilNextUpdate,
               noticeVersion: effectiveVersion,
@@ -300,7 +302,7 @@ class _DialogBody extends StatelessWidget {
   final bool noticeClosed;
   final VoidCallback onCloseNotice;
   final VoidCallback onLogin;
-  final TextEditingController id, company, branch, user, password;
+  final TextEditingController userId, customerName, marketName, userName, password;
   final bool dontShow;
   final ValueChanged<bool> onToggleDontShow;
   final String noticeVersion;
@@ -312,10 +314,10 @@ class _DialogBody extends StatelessWidget {
     required this.noticeClosed,
     required this.onCloseNotice,
     required this.onLogin,
-    required this.id,
-    required this.company,
-    required this.branch,
-    required this.user,
+    required this.userId,
+    required this.customerName,
+    required this.marketName,
+    required this.userName,
     required this.password,
     required this.dontShow,
     required this.noticeVersion,
@@ -328,15 +330,15 @@ class _DialogBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final loginPanel = _LoginPanel(
-      id: id,
-      company: company,
-      branch: branch,
-      user: user,
+      userId: userId,
+      customerName: customerName,
+      marketName: marketName,
+      userName: userName,
       password: password,
       dontShow: dontShow,
       onToggleDontShow: onToggleDontShow,
       onLogin: onLogin,
-      onIdCommit: onNoticeUpdate,
+      onUserIdCommit: onNoticeUpdate,
       serverName: serverName,
     );
     if (noticeClosed) {
@@ -349,68 +351,83 @@ class _DialogBody extends StatelessWidget {
         const SizedBox(width: 12),
         Expanded(
           flex: 7,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    flex: 1,
-                    child: _LabeledField(
-                      label: '업데이트 버전',
-                      child: Text(noticeVersion),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final keyboardOpen = MediaQuery.of(context).viewInsets.bottom > 0;
+              return CustomScrollView(
+                physics: const ClampingScrollPhysics(),
+                slivers: [
+                  SliverToBoxAdapter(
+                    child: Row(
+                      children: [
+                        Expanded(
+                          flex: 1,
+                          child: _LabeledField(
+                            label: '업데이트 버전',
+                            child: Text(noticeVersion),
+                          ),
+                        ),
+                        const Expanded(flex: 2, child: SizedBox.shrink()),
+                      ],
                     ),
                   ),
-                  const Expanded(flex: 2, child: SizedBox.shrink()),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Expanded(
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Expanded(
-                      child: _InlayPanel(
-                        margin: const EdgeInsets.only(top: 2),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            // 공지 내용을 줄바꿈 및 탭(공백 확장) 그대로 표시
-                            DefaultTextStyle.merge(
-                              style: const TextStyle(
-                                fontFamily: 'monospace',
-                                fontSize: 13,
-                                color: Color(0xFF1F1F1F),
+                  const SliverToBoxAdapter(child: SizedBox(height: 12)),
+                  SliverFillRemaining(
+                    hasScrollBody: keyboardOpen,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Expanded(
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              Expanded(
+                                child: _InlayPanel(
+                                  margin: const EdgeInsets.only(top: 2),
+                                  child: ScrollConfiguration(
+                                    behavior: ScrollConfiguration.of(context).copyWith(scrollbars: true),
+                                    child: SingleChildScrollView(
+                                      physics: const ClampingScrollPhysics(),
+                                      child: DefaultTextStyle.merge(
+                                        style: const TextStyle(
+                                          fontFamily: 'monospace',
+                                          fontSize: 13,
+                                          color: Color(0xFF1F1F1F),
+                                        ),
+                                        child: Text(noticeContent),
+                                      ),
+                                    ),
+                                  ),
+                                ),
                               ),
-                              child: Text(noticeContent),
+                              const SizedBox(width: 12),
+                              const Expanded(
+                                child: _AdBanner(),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        Row(
+                          children: [
+                            Checkbox(
+                              value: dontShow,
+                              onChanged: (v) => onToggleDontShow(v ?? false),
+                            ),
+                            const Text('다음 업데이트까지 이 창 보지 않음'),
+                            const Spacer(),
+                            ElevatedButton(
+                              onPressed: onCloseNotice,
+                              child: const Text('확인'),
                             ),
                           ],
                         ),
-                      ),
+                      ],
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: _AdBanner(),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Checkbox(
-                    value: dontShow,
-                    onChanged: (v) => onToggleDontShow(v ?? false),
-                  ),
-                  const Text('다음 업데이트까지 이 창 보지 않음'),
-                  const Spacer(),
-                  ElevatedButton(
-                    onPressed: onCloseNotice,
-                    child: const Text('확인'),
                   ),
                 ],
-              ),
-            ],
+              );
+            },
           ),
         ),
       ],
@@ -418,73 +435,94 @@ class _DialogBody extends StatelessWidget {
   }
 }
 
-class _LoginPanel extends StatelessWidget {
-  final TextEditingController id, company, branch, user, password;
+class _LoginPanel extends StatefulWidget {
+  static const String cn = '_LoginPanel';
+  final TextEditingController userId, customerName, marketName, userName, password;
   final bool dontShow;
   final ValueChanged<bool> onToggleDontShow;
   final VoidCallback onLogin;
-  final ValueChanged<String>? onIdCommit;
+  final ValueChanged<String>? onUserIdCommit;
   final String? serverName;
-  
+
   // 중복 실행 방지 플래그
   static bool _noticeFetchInFlight = false;
-  
+
   const _LoginPanel({
-    required this.id,
-    required this.company,
-    required this.branch,
-    required this.user,
+    required this.userId,
+    required this.customerName,
+    required this.marketName,
+    required this.userName,
     required this.password,
     required this.dontShow,
     required this.onToggleDontShow,
     required this.onLogin,
-    this.onIdCommit,
+    this.onUserIdCommit,
     this.serverName,
   });
 
-  // 아이디 필드에서 포커스를 잃거나 엔터(제출) 시 호출되는 빈 함수
-  // ignore: avoid_unused_parameters
-  void _onIdFieldCommit(String idText) async {
+  @override
+  State<_LoginPanel> createState() => _LoginPanelState();
+}
+
+class _LoginPanelState extends State<_LoginPanel> {
+  String _infoText = '';
+  final FocusNode _userIdFocus = FocusNode();
+  final FocusNode _passwordFocus = FocusNode();
+	final FocusNode _loginButtonFocus = FocusNode();
+
+  // 아이디 필드에서 포커스를 잃거나 엔터(제출) 시 호출되는 함수
+  Future<void> _onUserIdFieldCommit(String userIdText) async {
+    const String fn = '_onUserIdFieldCommit';
+
     // 중복 실행 방지
-    if (_noticeFetchInFlight) return;
-    _noticeFetchInFlight = true;
+    if (_LoginPanel._noticeFetchInFlight) return;
+    _LoginPanel._noticeFetchInFlight = true;
 
     try {
-			final userId = idText.trim();
-      final sql = '''
-        SELECT
-          CONVERT(VARBINARY(6000),
-          CONVERT(NVARCHAR(3000), UN_MSG COLLATE Korean_Wansung_CI_AS)) AS UN_MSG_U16LE
-        FROM BM_UPDATE_NOTICE WITH (NOLOCK)
-        WHERE LTRIM(RTRIM(CONVERT(NVARCHAR(30), UN_USER_ID COLLATE Korean_Wansung_CI_AS)))
-          = LTRIM(RTRIM(CONVERT(NVARCHAR(30), @userId)));
-      ''';
+      final inputId = userIdText.trim();
+      if (inputId.isEmpty) return;
 
-			final res = await DbClient.instance.getDataWithParams(
-				sql, { 'userId': userId },
-				timeout: const Duration(seconds: 5),
-				onTimeout: () {
-					debugPrint('UserID commit query timeout');
-					return '{"error":"timeout"}';
-				},
-			);
+      // 결과를 상위 다이얼로그로 전달하여 공지 내용을 갱신
+      final noticeMsg = await NoticeDAO.getByUserId(inputId);
+      if (noticeMsg.isNotEmpty) { widget.onUserIdCommit?.call(noticeMsg); }
 
-      final base64Str = extractJsonDBResult('UN_MSG_U16LE', res);
-      String decodedText = base64Str.isNotEmpty ? decodeUtf16LeFromBase64String(base64Str) : '';
+      // 사용자 정보 조회 후 로그인 섹션 필드에 반영
+      gUserInfo = await UserDAO.getByUserId(inputId);
 
-      if (decodedText.isNotEmpty) {
-        // 결과를 상위 다이얼로그로 전달하여 공지 내용을 갱신
-        onIdCommit?.call(decodedText);
+      if (gUserInfo != null) {
+        // 업체명/지점명/사용자 이름 값을 컨트롤러에 채움
+        widget.customerName.text = gUserInfo!.customerName;
+        widget.marketName.text = gUserInfo!.marketName;
+        widget.userName.text = gUserInfo!.name;
+        setState(() { _infoText = ''; });
+        if (mounted) FocusScope.of(context).requestFocus(_passwordFocus);
+      } else {
+        // 조회 실패/없음: 값을 비워둠 + 안내 문구 변경
+        widget.customerName.text = '';
+        widget.marketName.text = '';
+        widget.userName.text = '';
+        setState(() { _infoText = '아이디가 존재하지 않습니다!'; });
+        if (mounted) FocusScope.of(context).requestFocus(_userIdFocus);
       }
     }
     catch (e) {
-      debugPrint('UserID commit fetch error: $e');
+			final errmsg = e.toString();
+      debugPrint('${_LoginPanel.cn}.$fn, ${DAO.exception}: $errmsg');
+      setState(() { _infoText = stripLeadingBracketTags(errmsg); });
+			if (mounted) FocusScope.of(context).requestFocus(_userIdFocus);
     }
     finally {
       // 중복 실행 방지 플래그 해제
-      _noticeFetchInFlight = false;
+      _LoginPanel._noticeFetchInFlight = false;
     }
   }
+
+  // 패스워드 필드에서 엔터(제출) 시 호출되는 함수
+  Future<void> _onPasswordFieldCommit(String passwordText) async {
+		if (passwordText.isNotEmpty) {
+			if (mounted) FocusScope.of(context).requestFocus(_loginButtonFocus);
+		}
+	}
 
   @override
   Widget build(BuildContext context) {
@@ -542,8 +580,10 @@ class _LoginPanel extends StatelessWidget {
                   _LabeledField(
                     label: '접속 서버',
                     labelWidth: _fieldLabelWidth,
-                    child: Text(serverName == null || serverName!.isEmpty
-                      ? '라벨매니저' : serverName!, style: const TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF1A1A1A)))
+                    child: Text(
+                      widget.serverName == null || widget.serverName!.isEmpty ? '라벨매니저' : widget.serverName!,
+                      style: const TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF1A1A1A))
+                    ),
                   ),
                   const SizedBox(height: 6),
                   _LabeledField(
@@ -571,13 +611,14 @@ class _LoginPanel extends StatelessWidget {
                       const SizedBox(width: 8),
                       Expanded(
                         child: Focus(
-                          onFocusChange: (hasFocus) { if (!hasFocus) _onIdFieldCommit(id.text); },
+                          onFocusChange: (hasFocus) { if (!hasFocus) _onUserIdFieldCommit(widget.userId.text); },
                           child: TextField(
-                            controller: id,
+                            controller: widget.userId,
+                            focusNode: _userIdFocus,
                             autofocus: true,
                             decoration: _dec('아이디'),
                             textInputAction: TextInputAction.done,
-                            onSubmitted: (value) => _onIdFieldCommit(value),
+                            onSubmitted: (value) => _onUserIdFieldCommit(value),
                           ),
                         ),
                       ),
@@ -592,7 +633,7 @@ class _LoginPanel extends StatelessWidget {
                         child: ExcludeFocus(
                           excluding: true,
                           child: TextField(
-                            controller: company,
+                            controller: widget.customerName,
                             readOnly: true,
                             decoration: _dec('업체명'),
                           ),
@@ -609,7 +650,7 @@ class _LoginPanel extends StatelessWidget {
                         child: ExcludeFocus(
                           excluding: true,
                           child: TextField(
-                            controller: branch,
+                            controller: widget.marketName,
                             readOnly: true,
                             decoration: _dec('지점명'),
                           ),
@@ -626,7 +667,7 @@ class _LoginPanel extends StatelessWidget {
                         child: ExcludeFocus(
                           excluding: true,
                           child: TextField(
-                            controller: user,
+                            controller: widget.userName,
                             readOnly: true,
                             decoration: _dec('사용자 이름'),
                           ),
@@ -640,20 +681,30 @@ class _LoginPanel extends StatelessWidget {
                       _kLabel('비밀번호'),
                       const SizedBox(width: 8),
                       Expanded(
-                        child: TextField(controller: password, obscureText: true, decoration: _dec('비밀번호')),
+                        child: TextField(
+													controller: widget.password,
+													focusNode: _passwordFocus,
+													obscureText: true,
+													decoration: _dec('비밀번호'),
+													onSubmitted: (value) => _onPasswordFieldCommit(value),
+												),
                       ),
                     ],
                   ),
                   const SizedBox(height: 12),
                   _LabeledField(
                     height: 170,
-                    child: const Text('테스트용 로그인입니다. 아이디: 8134, 비밀번호: 12345678'),
+                    child: Text(_infoText),
                   ),
                   const SizedBox(height: 12),
                   Row(
                     children: [
                       const Spacer(),
-                      ElevatedButton(onPressed: onLogin, child: const Text('로그인')),
+                      ElevatedButton(
+												onPressed: widget.onLogin,
+												focusNode: _loginButtonFocus,
+												child: const Text('로그인')
+											),
                       const SizedBox(width: 8),
                       OutlinedButton(onPressed: () => Navigator.of(context).pop(), child: const Text('취소')),
                     ],
@@ -665,6 +716,14 @@ class _LoginPanel extends StatelessWidget {
         );
       },
     );
+  }
+
+  @override
+  void dispose() {
+    _userIdFocus.dispose();
+		_passwordFocus.dispose();
+		_loginButtonFocus.dispose();
+    super.dispose();
   }
 }
 
@@ -687,9 +746,9 @@ class _LabeledField extends StatelessWidget {
               label!,
               textAlign: TextAlign.right,
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: const Color(0xFF2A2A2A),
-                    fontWeight: FontWeight.w600,
-                  ),
+								color: const Color(0xFF2A2A2A),
+								fontWeight: FontWeight.w600,
+							),
             ),
           ),
           const SizedBox(width: 8),
@@ -701,19 +760,19 @@ class _LabeledField extends StatelessWidget {
             decoration: () {
               final isAndroid = Theme.of(context).platform == TargetPlatform.android;
               return isAndroid
-                  ? BoxDecoration(
-                      color: const Color(0xFFFDFDFD),
-                      border: Border.all(color: const Color(0x11000000)),
-                      borderRadius: BorderRadius.circular(4),
-                    )
-                  : BoxDecoration(
-                      color: const Color(0xFFFFFFFF),
-                      border: Border.all(color: const Color(0x22000000)),
-                      borderRadius: BorderRadius.circular(6),
-                      boxShadow: const [
-                        BoxShadow(color: Color(0x08000000), blurRadius: 4, offset: Offset(0, 1)),
-                      ],
-                    );
+								? BoxDecoration(
+										color: const Color(0xFFFDFDFD),
+										border: Border.all(color: const Color(0x11000000)),
+										borderRadius: BorderRadius.circular(4),
+									)
+								: BoxDecoration(
+										color: const Color(0xFFFFFFFF),
+										border: Border.all(color: const Color(0x22000000)),
+										borderRadius: BorderRadius.circular(6),
+										boxShadow: const [
+											BoxShadow(color: Color(0x08000000), blurRadius: 4, offset: Offset(0, 1)),
+										],
+									);
             }(),
             child: DefaultTextStyle.merge(
               style: const TextStyle(color: Color(0xFF1F1F1F)),

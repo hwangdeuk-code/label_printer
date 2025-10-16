@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:label_printer/data/db_connection_status.dart';
-import 'package:label_printer/data/db_connection_service.dart';
+import 'package:label_printer/database/db_connection_status.dart';
+import 'package:label_printer/database/db_connection_service.dart';
 
 /// 앱 전역에 재연결 모달을 표시하는 오버레이 래퍼
 /// - MaterialApp.builder에서 child를 감싸 사용

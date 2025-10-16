@@ -1,9 +1,9 @@
 import 'dart:async';
 
-import 'package:label_printer/data/db_connection_status.dart';
-import 'package:label_printer/data/db_connection_monitor.dart';
-import 'package:label_printer/data/db_server_connect_info.dart';
-import 'package:label_printer/data/db_client.dart';
+import 'package:label_printer/database/db_connection_status.dart';
+import 'package:label_printer/database/db_connection_monitor.dart';
+import 'package:label_printer/database/db_server_connect_info.dart';
+import 'package:label_printer/database/db_client.dart';
 
 /// DB 연결 상태 모니터링과 재연결을 담당하는 전역 서비스
 class DbConnectionService {
