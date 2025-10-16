@@ -599,17 +599,21 @@ class _TableToolButtonState extends State<_TableToolButton> {
     setState(() => _active = true);
   }
 
-  void _hideOverlay() {
+  void _hideOverlay({bool updateState = true}) {
     _overlay?.remove();
     _overlay = null;
-    if (mounted) {
+    if (updateState && mounted) {
       setState(() => _active = false);
+    } else {
+      // setState를 호출할 수 없는 시점(예: dispose)에서는 플래그만 직접 변경
+      _active = false;
     }
   }
 
   @override
   void dispose() {
-    _hideOverlay();
+    // dispose 중에는 setState를 호출하지 않도록 한다
+    _hideOverlay(updateState: false);
     super.dispose();
   }
 

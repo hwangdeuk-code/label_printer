@@ -20,13 +20,19 @@
 			"type": "shell",
 			"command": "powershell",
 			"args": [
-				"-NoProfile",
-				"-ExecutionPolicy",
-				"Bypass",
-				"-File",
-				"${workspaceFolder}/.vscode/adb_silence_mesa.ps1"
+				"-NoProfile","-ExecutionPolicy","Bypass",
+				"-File","${workspaceFolder}/.vscode/adb_silence_mesa.ps1"
 			],
-			"problemMatcher": []
+			"problemMatcher": [],
+			"presentation": {
+				"reveal": "never",          // 터미널 패널 자동 표시 금지
+				"echo": false,              // 실행 커맨드 라인 표시 안 함
+				"focus": false,
+				"panel": "dedicated",
+				"showReuseMessage": false,
+				"clear": false,
+				"revealProblems": "never"
+			}
 		}
 	]
 }

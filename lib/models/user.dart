@@ -18,6 +18,8 @@ enum UserGrade {
 }
 
 class User {
+  static const String SYSTEM = 'SYSTEM';
+  
 	final String userId;
 	final int marketId;
 	final String name;

@@ -71,8 +71,7 @@ class _StartupHomePageState extends State<StartupHomePage> {
   void _goNext() {
     final next = isDesktop ? const desktop.HomeDesktop() : const tablet.HomeTablet();
     Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(builder: (_) => next),
-      (route) => false,
+      MaterialPageRoute(builder: (_) => next), (route) => false,
     );
   }
 
@@ -80,7 +79,7 @@ class _StartupHomePageState extends State<StartupHomePage> {
     bool _errorOverlayShown = false; // 에러 오버레이가 표시되었는지 여부
 
     try {
-  final dbConnection = DbClient.instance;
+  		final dbConnection = DbClient.instance;
 
       if (dbConnection.isConnected) {
         debugPrint('Already connected to the server database.');
@@ -95,10 +94,12 @@ class _StartupHomePageState extends State<StartupHomePage> {
         final host = _lastConnectInfo!.serverIp;
         final port = _lastConnectInfo!.serverPort;
         final reachable = await NetDiag.probeTcp(host, port, timeout: const Duration(seconds: 3));
+
         if (!reachable) {
           debugPrint('TCP not reachable to $host:$port (Android에서 방화벽/라우팅/SSL 문제 가능)');
         }
         debugPrint('Connecting to MSSQL {host:$host, port:$port, db:${_lastConnectInfo!.databaseName}, user:${_lastConnectInfo!.userId}}');
+
         final success = await dbConnection.connect(
           ip: _lastConnectInfo!.serverIp,
           port: _lastConnectInfo!.serverPort.toString(),
@@ -202,6 +203,7 @@ class _StartupHomePageState extends State<StartupHomePage> {
               noticeContent: effectiveContent,
               serverName: _lastConnectInfo?.serverName,
               onNoticeUpdate: (newContent) {
+                if (!context.mounted) return;
                 setState(() {
                   effectiveContent = expandTabs(newContent);
                 });
@@ -255,9 +257,7 @@ class _StartupHomePageState extends State<StartupHomePage> {
     super.initState();
 
     WidgetsBinding.instance.addPostFrameCallback((_) async {
-      if (mounted) {
-        await _loginToServerDB();
-      }
+      if (mounted) await _loginToServerDB();
     });
   }
 
@@ -493,20 +493,26 @@ class _LoginPanelState extends State<_LoginPanel> {
       // 사용자 정보 조회 후 로그인 섹션 필드에 반영
       gUserInfo = await UserDAO.getByUserId(inputId);
 
+		  // 다이얼로그가 닫혔거나 위젯이 dispose된 경우 추가 UI 작업 중단
+  		if (!mounted) return;
+
       if (gUserInfo != null) {
         // 업체명/지점명/사용자 이름 값을 컨트롤러에 채움
         widget.customerName.text = gUserInfo!.customerName;
         widget.marketName.text = gUserInfo!.marketName;
         widget.userName.text = gUserInfo!.name;
+
         if (mounted) {
           setState(() { _infoText = ''; });
           FocusScope.of(context).requestFocus(_passwordFocus);
         }
-      } else {
+      }
+			else {
         // 조회 실패/없음: 값을 비워둠 + 안내 문구 변경
         widget.customerName.text = '';
         widget.marketName.text = '';
         widget.userName.text = '';
+
         if (mounted) {
           setState(() { _infoText = '아이디가 존재하지 않습니다!'; });
           FocusScope.of(context).requestFocus(_userIdFocus);
@@ -516,6 +522,7 @@ class _LoginPanelState extends State<_LoginPanel> {
     catch (e) {
 			final errmsg = e.toString();
       debugPrint('${_LoginPanel.cn}.$fn, ${DAO.exception}: $errmsg');
+
       if (mounted) {
         setState(() { _infoText = stripLeadingBracketTags(errmsg); });
         FocusScope.of(context).requestFocus(_userIdFocus);
@@ -533,6 +540,53 @@ class _LoginPanelState extends State<_LoginPanel> {
 			if (mounted) FocusScope.of(context).requestFocus(_loginButtonFocus);
 		}
 	}
+
+	String _getDirectPassword([DateTime? now]) {
+		final t = now ?? DateTime.now();
+		final int nMonth = t.month;
+		final int nDay = t.day;
+		final int nPwd = (nMonth * 3) + nDay;
+
+		if (nDay <= 9) {
+			final dayStr = '0$nDay';
+			final pwdStr = nPwd <= 9 ? '0$nPwd' : '$nPwd';
+			return '$dayStr$pwdStr';
+		} else {
+			return '$nDay$nPwd';
+		}
+	}
+	
+	String _getSystemPassword([DateTime? now]) {
+		final t = now ?? DateTime.now();               // 현지 시간
+		final int value = t.month * 3 + t.day;         // 월*3 + 일
+		return value.toString().padLeft(4, '0');       // 4자리 0패딩
+	}
+
+  // 로그인 버튼 클릭 시 호출되는 함수
+  Future<void> _onLoginButtonPressed(String inputPwd) async {
+    // 로그인 검증 및 포커스 안내 처리
+
+		// 시스템 계정은 특정 패스워드로만 로그인 가능
+		if (equalsIgnoreCase(gUserInfo!.userId, User.SYSTEM)) {
+			if (inputPwd != _getDirectPassword() && inputPwd != _getSystemPassword()) {
+				if (mounted) {
+					setState(() { _infoText = '시스템 계정 패스워드가 올바르지 않습니다!'; });
+					FocusScope.of(context).requestFocus(_passwordFocus);
+				}
+				return;
+			}
+		}
+		// 일반 계정은 DB에 저장된 패스워드와 비교
+		else if (gUserInfo!.pwd != inputPwd) {
+			if (mounted) {
+				setState(() { _infoText = '패스워드가 올바르지 않습니다!'; });
+				FocusScope.of(context).requestFocus(_passwordFocus);
+			}
+			return;
+		}
+
+    widget.onLogin();
+  }
 
   // 취소 버튼 클릭 시 호출되는 함수
   Future<void> _onCancelButtonPressed() async {
@@ -569,10 +623,10 @@ class _LoginPanelState extends State<_LoginPanel> {
     final double _inlineLabelWidth = (88.0 - _oneChar).clamp(50.0, 88.0);
     final double _fieldLabelWidth = (90.0 - _oneChar).clamp(50.0, 90.0);
 
-    Widget _kLabel(String t) => SizedBox(
+    Widget _kLabel(String text) => SizedBox(
       width: _inlineLabelWidth,
       child: Text(
-        t,
+        text,
         textAlign: TextAlign.right,
         style: _inlineLabelStyle,
       ),
@@ -707,6 +761,7 @@ class _LoginPanelState extends State<_LoginPanel> {
 													focusNode: _passwordFocus,
 													obscureText: true,
 													decoration: _dec('비밀번호'),
+													onChanged: (value) => setState(() { _infoText = ''; }),
 													onSubmitted: (value) => _onPasswordFieldCommit(value),
 												),
                       ),
@@ -722,7 +777,7 @@ class _LoginPanelState extends State<_LoginPanel> {
                     children: [
                       const Spacer(),
                       ElevatedButton(
-												onPressed: widget.onLogin,
+												onPressed: () => _onLoginButtonPressed(widget.password.text),
 												focusNode: _loginButtonFocus,
 												child: const Text('로그인')
 											),

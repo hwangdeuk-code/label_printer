@@ -32,6 +32,9 @@ String decodeUtf16Le(Uint8List bytes) {
   return String.fromCharCodes(codeUnits);
 }
 
+// 대소문자 구분 없이 문자열 비교
+bool equalsIgnoreCase(String? a, String? b) => a?.toLowerCase() == b?.toLowerCase();
+
 // 탭을 공백으로 확장하는 유틸 (고정 탭폭: 4)
 String expandTabs(String s, {int tabSize = 4}) {
   final sb = StringBuffer();
