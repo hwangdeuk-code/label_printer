@@ -524,6 +524,17 @@ class _LoginPanelState extends State<_LoginPanel> {
 		}
 	}
 
+  // 취소 버튼 클릭 시 호출되는 함수
+  Future<void> _onCancelButtonPressed() async {
+    widget.userId.clear();
+    widget.customerName.clear();
+    widget.marketName.clear();
+    widget.userName.clear();
+    widget.password.clear();
+    _infoText = '';
+    if (mounted) Navigator.of(context).pop();
+  }
+
   @override
   Widget build(BuildContext context) {
     InputDecoration _dec(String hint) => InputDecoration(
@@ -706,7 +717,7 @@ class _LoginPanelState extends State<_LoginPanel> {
 												child: const Text('로그인')
 											),
                       const SizedBox(width: 8),
-                      OutlinedButton(onPressed: () => Navigator.of(context).pop(), child: const Text('취소')),
+                      OutlinedButton(onPressed: () => _onCancelButtonPressed(), child: const Text('취소')),
                     ],
                   ),
                 ],
