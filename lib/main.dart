@@ -41,6 +41,9 @@ Future<void> main(List<String> args) async {
       debugShowCheckedModeBanner: false,
       builder: (context, child) => GlobalReconnectOverlay(child: child),
       home: const StartupHomePage(),
+      theme: ThemeData(
+        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
+      ),
     ),
   );
 }

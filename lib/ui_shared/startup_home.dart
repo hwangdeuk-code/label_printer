@@ -284,7 +284,7 @@ class _StartupHomePageState extends State<StartupHomePage> {
           IconButton(
             icon: const Icon(Icons.login),
             tooltip: '로그인',
-            onPressed: _showStartupDialog,
+            onPressed: () => DbClient.instance.isConnected ? _showStartupDialog() : _loginToServerDB()
           ),
           // IconButton(
           //   icon: const Icon(Icons.exit_to_app),

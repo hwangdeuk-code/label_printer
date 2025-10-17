@@ -1,3 +1,24 @@
 {
-	"editor.tabSize": 2
+	"editor.tabSize": 2,
+	// PowerShell 확장이 PowerShell 7 세션을 기본으로 사용하도록 지정
+	"powershell.defaultVersion": "PowerShell 7 (x64)",
+	// 일부 버전의 확장 로그에서 참조하는 설정 키도 함께 지정해 경고 제거
+	"powershell.powerShellDefaultVersion": "PowerShell 7 (x64)",
+	// 필요 시 pwsh 경로 직접 지정 (확장이 세션 메뉴에 표시하도록 힌트)
+	"powershell.powerShellAdditionalExePaths": {
+		"PowerShell 7 (x64)": "C:/Program Files/PowerShell/7/pwsh.exe"
+	},
+	// VS Code 통합 터미널의 기본 프로필을 PowerShell 7로 설정
+	"terminal.integrated.defaultProfile.windows": "PowerShell 7",
+	"terminal.integrated.profiles.windows": {
+		"PowerShell 7": {
+			"path": "C:/Program Files/PowerShell/7/pwsh.exe",
+			"icon": "terminal-powershell"
+		}
+	}
+,
+	// 프로필 스크립트 충돌 회피 (필요 시 사용자 설정에서도 동일하게 권장)
+	"powershell.enableProfileLoading": false,
+	// PSES 상세 로그 수집
+	"powershell.developer.editorServicesLogLevel": "Trace"
 }

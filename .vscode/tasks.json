@@ -18,7 +18,7 @@
 		{
 			"label": "ADB: Silence MESA log",
 			"type": "shell",
-			"command": "powershell",
+			"command": "C:/Program Files/PowerShell/7/pwsh.exe",
 			"args": [
 				"-NoProfile","-ExecutionPolicy","Bypass",
 				"-File","${workspaceFolder}/.vscode/adb_silence_mesa.ps1"

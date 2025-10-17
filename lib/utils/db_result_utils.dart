@@ -127,27 +127,17 @@ String extractJsonDBResult(String columnName, String jsonStr) {
 /// - 괄호가 없거나 포맷이 다르면 원본 문자열을 그대로 반환합니다.
 String stripLeadingBracketTags(String s) {
   if (s.isEmpty) return s;
-
-  var i = 0;
-  final len = s.length;
-
-  while (i < len && s.codeUnitAt(i) == 0x5B /* '[' */) {
-    // 태그의 닫는 대괄호 위치를 찾는다
-    final close = s.indexOf(']', i + 1);
-    if (close == -1) break; // 잘못된 포맷 => 중단
-    i = close + 1; // 닫는 괄호 다음으로 이동
-
-    // 닫는 괄호 뒤에 하나의 공백을 선택적으로 허용 (여러 공백/탭도 스킵)
-    while (i < len) {
-      final c = s.codeUnitAt(i);
-      if (c == 0x20 /* space */ || c == 0x09 /* tab */) {
-        i++;
-      } else {
-        break;
-      }
-    }
-  }
-
-  // 앞에 태그가 하나 이상 있었으면 i가 0보다 큼
-  return i > 0 ? s.substring(i) : s;
+  // 시작 부분에서 연속된 노이즈 토큰들을 제거:
+  // - 대괄호 태그들: [INFO], [A][B], [msgno=...]
+  // - 예외/에러 토큰: Exception, *Exception(FormatException, SocketException 등), SQLException, Error
+  // - 각 토큰 뒤의 공백/탭/개행 및 흔한 구분자(:, -, –(2013), —(2014), ·(00B7), |)를 허용하며 연속해서 제거
+  // 예) "Exception: [NoticeDAO.getByUserId] SQLException: [msgno=...] Incorrect syntax near 'xSELECT'."
+  //   → "Incorrect syntax near 'xSELECT'."
+  final pattern = RegExp(
+    r'^\s*(?:'
+      r'(?:(?:\[[^\]]*\])|(?:[A-Za-z]*Exception|SQLException|Error)\b)'
+      r'(?:\s*(?:[:\-\u2013\u2014\|\u00B7])?\s*)*'
+    r')+'
+  );
+  return s.replaceFirst(pattern, '');
 }
