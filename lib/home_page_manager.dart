@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:label_printer/core/app.dart';
 import 'package:tabbed_view/tabbed_view.dart';
+import 'package:dropdown_button2/dropdown_button2.dart';
 
 /// 로그인 이후 표시되는 본문 UI를 별도 파일로 분리한 위젯
 class HomePageManager extends StatefulWidget {
@@ -308,12 +309,48 @@ class _DropdownField extends StatelessWidget {
         const SizedBox(width: 6),
         SizedBox(
           width: width,
-          child: DropdownButtonFormField<String>(
-            value: value,
-            isDense: true,
+          child: DropdownButtonFormField2<String>(
+            value: value.isNotEmpty ? value : null,
             items: items,
             onChanged: onChanged,
-            style: const TextStyle(fontSize: 13),
+            style: const TextStyle(fontSize: 13, color: Colors.black),
+            isExpanded: true,
+            buttonStyleData: const ButtonStyleData(
+              height: 28,
+              padding: EdgeInsets.symmetric(horizontal:2),
+            ),
+            dropdownStyleData: DropdownStyleData(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(4),
+                boxShadow: const [
+                  BoxShadow(
+                    color: Color(0x14000000),
+                    blurRadius: 8,
+                    offset: Offset(0, 2),
+                  ),
+                ],
+              ),
+            ),
+            menuItemStyleData: const MenuItemStyleData(
+              height: 28,
+            ),
+            decoration: InputDecoration(
+              isDense: true,
+              contentPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 10),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(4),
+                borderSide: const BorderSide(color: Color(0xFFCED4DA)),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(4),
+                borderSide: const BorderSide(color: Color(0xFFCED4DA)),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(4),
+                borderSide: const BorderSide(color: Color(0xFF3B82F6)),
+              ),
+            ),
           ),
         ),
       ],
@@ -448,7 +485,5 @@ class _PlaceholderTab extends StatelessWidget {
 		);
 	}
 }
-
-
 
 
