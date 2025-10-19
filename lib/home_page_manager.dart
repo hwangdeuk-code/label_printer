@@ -24,6 +24,7 @@ class HomePageManager extends StatefulWidget {
 
 class _HomePageManagerState extends State<HomePageManager> {
 	late final TabbedViewController _tabController;
+	final TextEditingController _tabSearchController = TextEditingController();
 
 	@override
 	void initState() {
@@ -112,9 +113,89 @@ class _HomePageManagerState extends State<HomePageManager> {
 	@override
 	void dispose() {
 		_tabController.dispose();
+		_tabSearchController.dispose();
 		super.dispose();
 	}
 
+	void _onTabSearch() {
+		final query = _tabSearchController.text.trim();
+		if (query.isEmpty) {
+			return;
+		}
+		// TODO(hwang): 연동 시점에 맞춰 검색 로직을 주입합니다.
+	}
+
+Widget _buildTabTrailing(BuildContext context) {
+	final double fieldWidth = isDesktop ? 260.0 : 200.0;
+	const double fieldHeight = 38.0;
+	final theme = Theme.of(context);
+	final Color buttonColor = theme.colorScheme.secondaryFixed;
+	final Color onButtonColor = theme.colorScheme.onSecondaryFixed;
+
+	return SizedBox(
+		height: fieldHeight,
+		child: Row(
+			mainAxisSize: MainAxisSize.min,
+			crossAxisAlignment: CrossAxisAlignment.center,
+			children: [
+				SizedBox(
+					width: fieldWidth,
+					child: TextField(
+						controller: _tabSearchController,
+						style: const TextStyle(fontSize: 12),
+						textAlignVertical: TextAlignVertical.center,
+						textInputAction: TextInputAction.search,
+						onSubmitted: (_) => _onTabSearch(),
+						decoration: InputDecoration(
+							isDense: true,
+							hintText: '검색어 입력',
+							contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: isDesktop ? 8 : 4),
+							border: OutlineInputBorder(
+								borderRadius: BorderRadius.circular(6),
+								borderSide: const BorderSide(color: Color(0xFFCED4DA)),
+							),
+							enabledBorder: OutlineInputBorder(
+								borderRadius: BorderRadius.circular(6),
+								borderSide: const BorderSide(color: Color(0xFFCED4DA)),
+							),
+							focusedBorder: OutlineInputBorder(
+								borderRadius: BorderRadius.circular(6),
+								borderSide: const BorderSide(color: Color(0xFF3B82F6)),
+							),
+						),
+					),
+				),
+				const SizedBox(width: 8),
+				SizedBox(
+					height: fieldHeight-10,
+					child: FilledButton.icon(
+						onPressed: _onTabSearch,
+						icon: Icon(Icons.search, size: 14, color: onButtonColor),
+						label: Text(
+							'검색',
+							style: TextStyle(
+								fontSize: 12,
+								fontWeight: FontWeight.w600,
+								color: onButtonColor,
+							),
+						),
+						style: FilledButton.styleFrom(
+							backgroundColor: buttonColor,
+							padding: const EdgeInsets.symmetric(horizontal: 10),
+							minimumSize: const Size(0, fieldHeight-10),
+							maximumSize: const Size(double.infinity, fieldHeight-10),
+							tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+							shape: RoundedRectangleBorder(
+								borderRadius: BorderRadius.circular(6),
+							),
+						),
+					),
+				),
+				const SizedBox(width: 8),
+			],
+		),
+	);
+}
 	@override
 	Widget build(BuildContext context) {
 		final tabbedView = TabbedViewTheme(
@@ -122,6 +203,7 @@ class _HomePageManagerState extends State<HomePageManager> {
 			child: TabbedView(
 				controller: _tabController,
 				tabReorderEnabled: false,
+				trailing: _buildTabTrailing(context),
 			),
 		);
 
@@ -304,7 +386,7 @@ class _DropdownField extends StatelessWidget {
       children: [
         SizedBox(
           width: labelWidth,
-          child: Text('$label:', textAlign: TextAlign.right, style: const TextStyle(fontSize: 13)),
+          child: Text('$label:', textAlign: TextAlign.right, style: const TextStyle(fontSize: 12)),
         ),
         const SizedBox(width: 6),
         SizedBox(
@@ -485,5 +567,9 @@ class _PlaceholderTab extends StatelessWidget {
 		);
 	}
 }
+
+
+
+
 
 
