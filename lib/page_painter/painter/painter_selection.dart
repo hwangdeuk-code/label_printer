@@ -198,7 +198,7 @@ void handlePointerDownSelect(
       pressed.contains(LogicalKeyboardKey.shiftLeft) ||
       pressed.contains(LogicalKeyboardKey.shiftRight);
   if (state._isShiftPressed != shiftNow) {
-    state.setState(() {
+    state.safeSetState(() {
       state._isShiftPressed = shiftNow;
     });
   }
@@ -213,7 +213,7 @@ void handlePointerDownSelect(
 
   final isMultiSelectingTable = state._isShiftPressed && hit is TableDrawable;
   if (hit != null && hit != state.selectedDrawable && !isMultiSelectingTable) {
-    state.setState(() => state.selectedDrawable = hit);
+    state.safeSetState(() => state.selectedDrawable = hit);
   }
   if (hit is! TableDrawable && !isMultiSelectingTable) {
     state._clearCellSelection();
@@ -313,7 +313,7 @@ void handleOverlayPanStart(_PainterPageState state, DragStartDetails details) {
     if (action == DragAction.none && !rect.inflate(4).contains(localScene)) {
       final hit = state._pickTopAt(localScene);
       if (hit is ObjectDrawable && hit != current) {
-        state.setState(() => state.selectedDrawable = hit);
+        state.safeSetState(() => state.selectedDrawable = hit);
         final r2 = state._boundsOf(hit);
         final a2 = state._hitHandle(r2, localScene);
         prime(hit, r2, a2);
@@ -323,7 +323,7 @@ void handleOverlayPanStart(_PainterPageState state, DragStartDetails details) {
   } else {
     final hit = state._pickTopAt(localScene);
     if (hit is ObjectDrawable) {
-      state.setState(() => state.selectedDrawable = hit);
+      state.safeSetState(() => state.selectedDrawable = hit);
       final r2 = state._boundsOf(hit);
       final a2 = state._hitHandle(r2, localScene);
       prime(hit, r2, a2);
@@ -338,7 +338,7 @@ void handleOverlayPanStart(_PainterPageState state, DragStartDetails details) {
     }
   }
 
-  state.setState(() {});
+  state.safeSetState(() {});
 }
 
 void handleOverlayPanUpdate(
@@ -736,7 +736,7 @@ void handleOverlayPanUpdate(
     state.controller.replaceDrawable(original, replaced);
     // ignore: invalid_use_of_protected_member, invalid_use_of_visible_for_testing_member
     state.controller.notifyListeners();
-    state.setState(() => state.selectedDrawable = replaced);
+    state.safeSetState(() => state.selectedDrawable = replaced);
   }
 }
 
@@ -786,7 +786,7 @@ void handleCanvasTap(_PainterPageState state) {
   final hadHit = state._downHitDrawable != null;
 
   if (!hadHit && !state._pressOnSelection && !state._movedSinceDown) {
-    state.setState(() {
+    state.safeSetState(() {
       state.selectedDrawable = null;
       state.dragAction = DragAction.none;
       state._clearCellSelection();
@@ -857,7 +857,7 @@ void handleCanvasTap(_PainterPageState state) {
         range = state._expandRangeForMerges(table, range);
       }
 
-      state.setState(() {
+      state.safeSetState(() {
         state._selectionAnchorCell = (range.topRow, range.leftCol);
         state._selectionFocusCell = (range.bottomRow, range.rightCol);
       });
@@ -872,7 +872,7 @@ void handleCanvasTap(_PainterPageState state) {
 
 void clearCellSelection(_PainterPageState state) {
   if (state._selectionAnchorCell != null || state._selectionFocusCell != null) {
-    state.setState(() {
+    state.safeSetState(() {
       state._selectionAnchorCell = null;
       state._selectionFocusCell = null;
     });
@@ -931,7 +931,7 @@ void applyInspector(
   state.controller.replaceDrawable(drawable, replaced);
   // ignore: invalid_use_of_protected_member, invalid_use_of_visible_for_testing_member
   state.controller.notifyListeners();
-  state.setState(() {
+  state.safeSetState(() {
     state.selectedDrawable = replaced;
     if (newStrokeColor != null) state.strokeColor = newStrokeColor;
     if (newStrokeWidth != null) state.strokeWidth = newStrokeWidth;
@@ -1120,7 +1120,7 @@ Future<void> createTextAt(_PainterPageState state, Offset scenePoint) async {
   );
 
   state.controller.addDrawables([drawable]);
-  state.setState(() {
+  state.safeSetState(() {
     state.selectedDrawable = drawable;
     state.currentTool = tool.Tool.select;
     state.controller.freeStyleMode = FreeStyleMode.none;
@@ -1176,7 +1176,7 @@ void createTableDrawable(_PainterPageState state, int rows, int columns) {
   state.controller.addDrawables([table]);
   // ignore: invalid_use_of_protected_member, invalid_use_of_visible_for_testing_member
   state.controller.notifyListeners();
-  state.setState(() {
+  state.safeSetState(() {
     state.selectedDrawable = table;
   });
   state._setTool(tool.Tool.select);

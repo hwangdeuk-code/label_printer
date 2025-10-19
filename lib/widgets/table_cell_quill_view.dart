@@ -25,9 +25,9 @@ class TableCellQuillView extends StatelessWidget {
     if (deltaJson == null || deltaJson!.isEmpty) return quill.Document();
     final decoded = json.decode(deltaJson!);
     if (decoded is List) {
-      return quill.Document.fromJson(decoded as List);
+      return quill.Document.fromJson(decoded);
     } else if (decoded is Map && decoded['ops'] is List) {
-      return quill.Document.fromJson(decoded['ops'] as List);
+      return quill.Document.fromJson(decoded['ops']);
     }
     return quill.Document();
   }

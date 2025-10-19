@@ -225,7 +225,7 @@ bool isPainterGestureTool(_PainterPageState state) =>
     state.currentTool == tool.Tool.select;
 
 void setTool(_PainterPageState state, tool.Tool value) {
-  state.setState(() {
+  state.safeSetState(() {
     state.currentTool = value;
     switch (value) {
       case tool.Tool.pen:
@@ -256,7 +256,7 @@ void setTool(_PainterPageState state, tool.Tool value) {
     unawaited(
       state._pickImageAndAdd().then((_) {
         if (!state.mounted) return;
-        state.setState(() {
+        state.safeSetState(() {
           state.currentTool = tool.Tool.select;
           state.controller.freeStyleMode = FreeStyleMode.none;
           state.controller.scalingEnabled = true;

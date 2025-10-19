@@ -7,12 +7,12 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:label_printer/main.dart';
+import 'package:label_printer/home_page.dart';
 
 void main() {
   testWidgets('App smoke test', (WidgetTester tester) async {
     // 앱이 최소한 오류 없이 빌드되는지만 확인
-    await tester.pumpWidget(const MaterialApp(home: StartupHomePage()));
-    expect(find.byType(StartupHomePage), findsOneWidget);
+    await tester.pumpWidget(const MaterialApp(home: HomePage()));
+    expect(find.byType(HomePage), findsOneWidget);
   });
 }

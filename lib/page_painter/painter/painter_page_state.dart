@@ -183,6 +183,12 @@ class _PainterPageState extends State<PainterPage> {
   @override
   Widget build(BuildContext context) => buildPainterScaffold(this, context);
 
+  // Safe wrapper for setState to be used by external helper functions.
+  void safeSetState(VoidCallback fn) {
+    if (!mounted) return;
+    setState(fn);
+  }
+
   Widget? _buildInlineEditor() => buildInlineEditor(this);
 
   void _persistInlineDelta() => persistInlineDelta(this);
@@ -471,7 +477,7 @@ class _PainterPageState extends State<PainterPage> {
 
   void _goStartup(BuildContext context) {
     Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(builder: (_) => const StartupHomePage(fromLogout: true)),
+      MaterialPageRoute(builder: (_) => const HomePage(fromLogout: true)),
       (route) => false,
     );
   }

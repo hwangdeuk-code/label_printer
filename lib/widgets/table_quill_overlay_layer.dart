@@ -34,7 +34,7 @@ class TableQuillOverlayLayer extends StatelessWidget {
 
     for (final d in controller.drawables) {
       if (d is! TableDrawable) continue;
-      final table = d as TableDrawable;
+      final table = d;
 
       final rect = Rect.fromCenter(
         center: table.position,

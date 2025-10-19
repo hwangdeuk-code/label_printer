@@ -4,15 +4,15 @@ import 'package:label_printer/database/db_connection_service.dart';
 
 /// 앱 전역에 재연결 모달을 표시하는 오버레이 래퍼
 /// - MaterialApp.builder에서 child를 감싸 사용
-class GlobalReconnectOverlay extends StatefulWidget {
+class DbReconnectOverlay extends StatefulWidget {
   final Widget? child;
-  const GlobalReconnectOverlay({super.key, required this.child});
+  const DbReconnectOverlay({super.key, required this.child});
 
   @override
-  State<GlobalReconnectOverlay> createState() => _GlobalReconnectOverlayState();
+  State<DbReconnectOverlay> createState() => _DbReconnectOverlayState();
 }
 
-class _GlobalReconnectOverlayState extends State<GlobalReconnectOverlay> {
+class _DbReconnectOverlayState extends State<DbReconnectOverlay> {
   final hub = DbConnectionStatus.instance;
 
   bool _cancelledUntilRestored = false;

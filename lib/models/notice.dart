@@ -4,7 +4,7 @@
 import 'package:flutter/material.dart';
 import 'package:label_printer/models/dao.dart';
 import 'package:label_printer/database/db_client.dart';
-import 'package:label_printer/utils/db_result_utils.dart';
+import 'package:label_printer/database/db_result_utils.dart';
 
 class NoticeDAO extends DAO {
   static const String cn = 'NoticeDAO';

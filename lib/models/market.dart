@@ -2,8 +2,8 @@
 // ignore_for_file: constant_identifier_names, non_constant_identifier_names
 
 import 'package:flutter/material.dart';
-import 'package:label_printer/utils/db_result_utils.dart';
 import 'package:label_printer/database/db_client.dart';
+import 'package:label_printer/database/db_result_utils.dart';
 import 'dao.dart';
 
 class Market {
@@ -55,6 +55,7 @@ class MarketDAO extends DAO {
     FROM BM_MARKET
   ''';
 
+  // WHERE 절: 마켓 ID로 조회 (Integer)
   static const String WhereSqlMarketId = '''
 	  WHERE RICH_MARKET_ID=@marketId
   ''';

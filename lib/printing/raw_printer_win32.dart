@@ -13,8 +13,9 @@ class RawPrinterWin32 {
     if (!Platform.isWindows) {
       throw UnsupportedError('Raw printing is only supported on Windows.');
     }
-    final String? printerName = printer.name ?? printer.url;
-    if (printerName == null || printerName.isEmpty) {
+    // printing.Printer.name is non-nullable; avoid dead null-aware checks
+    final String printerName = printer.name;
+    if (printerName.isEmpty) {
       throw ArgumentError('Printer name is not available.');
     }
     if (data.isEmpty) {
@@ -86,8 +87,8 @@ class RawPrinterWin32 {
 
   static Future<int?> queryPrinterDpi(Printer printer) async {
     if (!Platform.isWindows) return null;
-    final String? printerName = printer.name ?? printer.url;
-    if (printerName == null || printerName.isEmpty) {
+    final String printerName = printer.name;
+    if (printerName.isEmpty) {
       return null;
     }
 

@@ -3,9 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:intl/date_symbol_data_local.dart';
 
-import 'package:label_printer/core/app.dart';
-import 'package:label_printer/models/login_event.dart';
-import 'package:label_printer/ui_shared/components/connection_status_icon.dart';
+import '../models/login_event.dart';
+import '../database/db_connection_status_icon.dart';
 
 /// 공통(데스크톱/태블릿) 로그인 이력 조회 페이지
 class LoginHistoryPage extends StatefulWidget {

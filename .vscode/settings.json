@@ -20,5 +20,6 @@
 	// 프로필 스크립트 충돌 회피 (필요 시 사용자 설정에서도 동일하게 권장)
 	"powershell.enableProfileLoading": false,
 	// PSES 상세 로그 수집
-	"powershell.developer.editorServicesLogLevel": "Trace"
+	//"powershell.developer.editorServicesLogLevel": "Trace"
+	"powershell.developer.editorServicesLogLevel": "Warning"
 }

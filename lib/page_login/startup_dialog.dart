@@ -4,14 +4,15 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter/services.dart' show rootBundle;
+import 'package:label_printer/core/bootstrap.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import 'package:label_printer/core/app.dart';
 import 'package:label_printer/database/db_connection_status.dart';
+import 'package:label_printer/database/db_result_utils.dart';
 import 'package:label_printer/models/dao.dart';
 import 'package:label_printer/models/notice.dart';
 import 'package:label_printer/models/user.dart';
-import 'package:label_printer/utils/db_result_utils.dart';
 import 'package:label_printer/utils/user_prefs.dart';
 
 /// 독립적으로 호출 가능한 시작 다이얼로그
@@ -445,6 +446,8 @@ class _LoginPanelState extends State<_LoginPanel> {
       return;
     }
 
+    setWindowTitle('$WINDOW_TITLE_PREFIX - ${widget.serverName}');
+    if (mounted) Navigator.of(context).pop(null);
     widget.onLogin();
   }
 
@@ -460,6 +463,10 @@ class _LoginPanelState extends State<_LoginPanel> {
 
   @override
   Widget build(BuildContext context) {
+    // 로그인 버튼 활성화 조건
+    final bool canLogin =
+        widget.userId.text.trim().isNotEmpty && gUserInfo != null && widget.password.text.isNotEmpty;
+
     InputDecoration _dec(String hint) => InputDecoration(
           isDense: true,
           hintText: hint,
@@ -478,7 +485,7 @@ class _LoginPanelState extends State<_LoginPanel> {
 
     final TextStyle _inlineLabelStyle = const TextStyle(color: Color(0xFF333333));
     final double _oneChar = _measureCharWidth(_inlineLabelStyle);
-    final double _inlineLabelWidth = (88.0 - _oneChar).clamp(50.0, 88.0);
+    final double _inlineLabelWidth = (90.0 - _oneChar).clamp(50.0, 90.0);
     final double _fieldLabelWidth = (90.0 - _oneChar).clamp(50.0, 90.0);
 
     Widget _kLabel(String text) => SizedBox(
@@ -557,6 +564,7 @@ class _LoginPanelState extends State<_LoginPanel> {
                             autofocus: true,
                             decoration: _dec('아이디'),
                             textInputAction: TextInputAction.done,
+                            onChanged: (value) => setState(() {}),
                             onSubmitted: (value) => _onUserIdFieldCommit(value),
                           ),
                         ),
@@ -638,7 +646,7 @@ class _LoginPanelState extends State<_LoginPanel> {
                     children: [
                       const Spacer(),
                       ElevatedButton(
-                        onPressed: () => _onLoginButtonPressed(widget.password.text),
+                        onPressed: canLogin ? () => _onLoginButtonPressed(widget.password.text) : null,
                         focusNode: _loginButtonFocus,
                         child: const Text('로그인'),
                       ),
@@ -697,19 +705,19 @@ class _LabeledField extends StatelessWidget {
             decoration: () {
               final isAndroid = Theme.of(context).platform == TargetPlatform.android;
               return isAndroid
-                  ? BoxDecoration(
-                      color: const Color(0xFFFDFDFD),
-                      border: Border.all(color: const Color(0x11000000)),
-                      borderRadius: BorderRadius.circular(4),
-                    )
-                  : BoxDecoration(
-                      color: const Color(0xFFFFFFFF),
-                      border: Border.all(color: const Color(0x22000000)),
-                      borderRadius: BorderRadius.circular(6),
-                      boxShadow: const [
-                        BoxShadow(color: Color(0x08000000), blurRadius: 4, offset: Offset(0, 1)),
-                      ],
-                    );
+                ? BoxDecoration(
+                    color: const Color(0xFFFDFDFD),
+                    border: Border.all(color: const Color(0x11000000)),
+                    borderRadius: BorderRadius.circular(4),
+                  )
+                : BoxDecoration(
+                    color: const Color(0xFFFFFFFF),
+                    border: Border.all(color: const Color(0x22000000)),
+                    borderRadius: BorderRadius.circular(6),
+                    boxShadow: const [
+                      BoxShadow(color: Color(0x08000000), blurRadius: 4, offset: Offset(0, 1)),
+                    ],
+                  );
             }(),
             child: DefaultTextStyle.merge(
               style: const TextStyle(color: Color(0xFF1F1F1F)),
@@ -830,13 +838,13 @@ class _AdBannerState extends State<_AdBanner> {
 
     return InkWell(
       onTap: _loading
-          ? null
-          : () async {
-              final url = Uri.parse('https://itsngshop.com/index.html');
-              if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
-                // 무시
-              }
-            },
+        ? null
+        : () async {
+            final url = Uri.parse('https://itsngshop.com/index.html');
+            if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
+              // 무시
+            }
+          },
       borderRadius: BorderRadius.circular(6),
       child: content,
     );

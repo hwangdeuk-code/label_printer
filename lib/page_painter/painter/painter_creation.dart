@@ -84,7 +84,7 @@ void handlePanEndCreate(_PainterPageState state) {
       state.currentTool == tool.Tool.barcode;
 
   if (shouldSwitchToSelect && createdDrawable != null) {
-    state.setState(() => state.selectedDrawable = createdDrawable);
+    state.safeSetState(() => state.selectedDrawable = createdDrawable);
   }
   if (shouldSwitchToSelect) {
     state._setTool(tool.Tool.select);

@@ -1,3 +1,4 @@
+// ignore_for_file: unused_element_parameter
 part of 'flutter_painter.dart';
 
 /// Flutter widget to move, scale and rotate [ObjectDrawable]s.

@@ -7,9 +7,8 @@ import 'package:window_manager/window_manager.dart';
 import 'core/app.dart';
 import 'core/bootstrap.dart';
 import 'core/lifecycle.dart';
-import 'ui_shared/startup_home.dart';
-import 'ui_shared/global_reconnect_overlay.dart';
-export 'ui_shared/startup_home.dart';
+import 'database/db_reconnect_overlay.dart';
+import 'home_page.dart';
 
 Future<void> main(List<String> args) async {
   // Widgets 초기화는 모든 플랫폼 공통으로 필요하다.
@@ -39,8 +38,8 @@ Future<void> main(List<String> args) async {
   runApp(
     MaterialApp(
       debugShowCheckedModeBanner: false,
-      builder: (context, child) => GlobalReconnectOverlay(child: child),
-      home: const StartupHomePage(),
+      builder: (context, child) => DbReconnectOverlay(child: child),
+      home: const HomePage(),
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
       ),

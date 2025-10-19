@@ -2,8 +2,8 @@
 // ignore_for_file: constant_Identifier_names, non_constant_Identifier_names
 
 import 'package:flutter/material.dart';
-import 'package:label_printer/utils/db_result_utils.dart';
 import 'package:label_printer/database/db_client.dart';
+import 'package:label_printer/database/db_result_utils.dart';
 import 'dao.dart';
 
 enum UserGrade {

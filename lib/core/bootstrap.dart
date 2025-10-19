@@ -1,11 +1,21 @@
 // 데스크톱(Windows/macOS) 런타임 초기화를 위한 유틸리티.
 // 다중 모니터 환경에서 시작 위치와 창 상태를 제어한다.
 
+// ignore_for_file: constant_identifier_names
+
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:screen_retriever/screen_retriever.dart';
 import 'package:window_manager/window_manager.dart';
 
-import '../core/app.dart';
+const String WINDOW_TITLE_PREFIX = '라벨매니저 - (주)아이티에스엔지 [TEL: 02)3274-1776]';
+
+void setWindowTitle(String title) async {
+  if (Platform.isWindows) {
+    await windowManager.setTitle(title);
+  }
+}
 
 Future<void> initDesktopWindow({int targetIndex = 0}) async {
   await windowManager.ensureInitialized();
@@ -18,7 +28,7 @@ Future<void> initDesktopWindow({int targetIndex = 0}) async {
   final safeIndex = targetIndex.clamp(0, displays.length - 1).toInt();
 
   const windowOptions = WindowOptions(
-    title: appTitle,
+    title: WINDOW_TITLE_PREFIX,
     size: Size(1200, 800),
     backgroundColor: Colors.transparent,
   );
