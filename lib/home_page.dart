@@ -99,6 +99,7 @@ class _HomePageState extends State<HomePage> {
           //   tooltip: '종료',
           //   onPressed: _exitApp,
           // ),
+          const SizedBox(width: 10),
         ],
       ),
       body: _loggedIn

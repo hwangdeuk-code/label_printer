@@ -10,6 +10,7 @@ import 'package:sql_connection/sql_connection.dart' as sqlconn;
 /// - 선택적 타임아웃 처리를 지원한다.
 abstract class _DbBackend {
   bool get isConnected;
+
   Future<bool> connect({
     required String ip,
     required String port,
@@ -18,6 +19,7 @@ abstract class _DbBackend {
     required String password,
     int timeoutInSeconds = 15,
   });
+
   Future<String> getData(String sql);
   Future<String> getDataWithParams(String sql, Map<String, dynamic> params);
   Future<String> writeData(String sql);
@@ -26,8 +28,10 @@ abstract class _DbBackend {
 
 class _MssqlBackend implements _DbBackend {
   mssql.MssqlConnection get _db => mssql.MssqlConnection.getInstance();
+
   @override
   bool get isConnected => _db.isConnected;
+
   @override
   Future<bool> connect({
     required String ip,
@@ -44,30 +48,36 @@ class _MssqlBackend implements _DbBackend {
         password: password,
         timeoutInSeconds: timeoutInSeconds,
       );
+
   @override
   Future<String> getData(String sql) {
     // mssql_connection 사용 시에는 NOCOUNT를 주입해 불필요한 rowcount 결과셋을 제거한다.
     final wrapped = _withNoCount(sql);
     return _db.getData(wrapped);
   }
+
   @override
   Future<String> getDataWithParams(String sql, Map<String, dynamic> params) {
     final wrapped = _withNoCount(sql);
     return _db.getDataWithParams(wrapped, params);
   }
+
   @override
   Future<String> writeData(String sql) {
     final wrapped = _withNoCount(sql);
     return _db.writeData(wrapped);
   }
+
   @override
   Future<bool> disconnect() => _db.disconnect();
 }
 
 class _SqlConnBackend implements _DbBackend {
   final sqlconn.SqlConnection _db = sqlconn.SqlConnection.getInstance();
+
   @override
   bool get isConnected => _db.isConnected;
+
   @override
   Future<bool> connect({
     required String ip,
@@ -84,22 +94,28 @@ class _SqlConnBackend implements _DbBackend {
         password: password,
         timeoutInSeconds: timeoutInSeconds,
       );
+
   @override
   Future<String> getData(String sql) => _db.queryDatabase(sql);
+
   @override
   Future<String> getDataWithParams(String sql, Map<String, dynamic> params) {
     // Android(sql_connection)에서는 sp_executesql 사용 시 일부 드라이버가 프로시저 호출로 처리하며 실패할 수 있다.
     // 따라서 파라미터 토큰(@name)을 안전한 리터럴로 치환해 단일 SELECT 문으로 실행한다.
     // 주의: 쿼리 문자열 내부의 따옴표 안에서의 @토큰 치환은 지원하지 않는다(현재 쿼리 패턴에선 필요 없음).
     var inlined = sql;
+
     params.forEach((key, value) {
       final pattern = RegExp('@' + RegExp.escape(key) + r'\b');
       inlined = inlined.replaceAll(pattern, _escapeValue(value));
     });
+
     return _db.queryDatabase(inlined);
   }
+
   @override
   Future<String> writeData(String sql) => _db.updateData(sql);
+  
   @override
   Future<bool> disconnect() => _db.disconnect();
 

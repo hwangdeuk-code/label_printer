@@ -19,7 +19,8 @@ enum UserGrade {
 
 class User {
   static const String SYSTEM = 'SYSTEM';
-  
+  static User? instance;
+ 
 	final String userId;
 	final int marketId;
 	final String name;
@@ -37,6 +38,10 @@ class User {
     required this.marketName,
     required this.customerName,
   });
+
+  static void setInstance(User? user) {
+    instance = user;
+  }
 
   factory User.fromPipe(String line) {
     final parts = line.split(DAO.SPLITTER);

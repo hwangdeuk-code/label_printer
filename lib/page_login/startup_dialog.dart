@@ -358,14 +358,14 @@ class _LoginPanelState extends State<_LoginPanel> {
         widget.onUserIdCommit?.call(noticeMsg);
       }
 
-      gUserInfo = await UserDAO.getByUserId(inputId);
+      User.setInstance(await UserDAO.getByUserId(inputId));
 
       if (!mounted) return;
 
-      if (gUserInfo != null) {
-        widget.customerName.text = gUserInfo!.customerName;
-        widget.marketName.text = gUserInfo!.marketName;
-        widget.userName.text = gUserInfo!.name;
+      if (User.instance != null) {
+        widget.customerName.text = User.instance!.customerName;
+        widget.marketName.text = User.instance!.marketName;
+        widget.userName.text = User.instance!.name;
 
         if (mounted) {
           setState(() => _infoText = '');
@@ -425,30 +425,49 @@ class _LoginPanelState extends State<_LoginPanel> {
   }
 
   Future<void> _onLoginButtonPressed(String inputPwd) async {
-    if (gUserInfo == null) {
-      if (mounted) setState(() => _infoText = '아이디를 먼저 조회해주세요.');
-      return;
-    }
+    const String fn = '_onLoginButtonPressed';
 
-    if (equalsIgnoreCase(gUserInfo!.userId, User.SYSTEM)) {
-      if (inputPwd != _getDirectPassword() && inputPwd != _getSystemPassword()) {
+    try {
+      if (User.instance == null) {
         if (mounted) {
-          setState(() => _infoText = '시스템 계정 패스워드가 올바르지 않습니다!');
+          setState(() => _infoText = '아이디를 먼저 조회해주세요.');
+          FocusScope.of(context).requestFocus(_userIdFocus);
+        }
+        return;
+      }
+
+      if (equalsIgnoreCase(User.instance!.userId, User.SYSTEM)) {
+        if (inputPwd != _getDirectPassword() && inputPwd != _getSystemPassword()) {
+          if (mounted) {
+            setState(() => _infoText = '시스템 계정 패스워드가 올바르지 않습니다!');
+            FocusScope.of(context).requestFocus(_passwordFocus);
+          }
+          return;
+        }
+      }
+      else if (User.instance!.pwd != inputPwd) {
+        if (mounted) {
+          setState(() => _infoText = '패스워드가 올바르지 않습니다!');
           FocusScope.of(context).requestFocus(_passwordFocus);
         }
         return;
       }
-    } else if (gUserInfo!.pwd != inputPwd) {
-      if (mounted) {
-        setState(() => _infoText = '패스워드가 올바르지 않습니다!');
-        FocusScope.of(context).requestFocus(_passwordFocus);
-      }
-      return;
-    }
 
-    setWindowTitle('$WINDOW_TITLE_PREFIX - ${widget.serverName}');
-    if (mounted) Navigator.of(context).pop(null);
-    widget.onLogin();
+      // Get Market,Customer,Cooperator info after login...
+
+      setWindowTitle('$WINDOW_TITLE_PREFIX - ${widget.serverName}');
+      if (mounted) Navigator.of(context).pop(null);
+      widget.onLogin();
+    }
+    catch (e) {
+      final errmsg = e.toString();
+      _infoText = stripLeadingBracketTags(errmsg);
+      debugPrint('${_LoginPanel.cn}.$fn, ${DAO.exception}: $errmsg');
+
+      if (mounted) {
+        setState(() => _infoText = stripLeadingBracketTags(errmsg));
+      }
+    }
   }
 
   Future<void> _onCancelButtonPressed() async {
@@ -465,7 +484,7 @@ class _LoginPanelState extends State<_LoginPanel> {
   Widget build(BuildContext context) {
     // 로그인 버튼 활성화 조건
     final bool canLogin =
-        widget.userId.text.trim().isNotEmpty && gUserInfo != null && widget.password.text.isNotEmpty;
+        widget.userId.text.trim().isNotEmpty && User.instance != null && widget.password.text.isNotEmpty;
 
     InputDecoration _dec(String hint) => InputDecoration(
           isDense: true,
