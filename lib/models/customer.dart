@@ -7,15 +7,21 @@ import 'package:label_printer/database/db_result_utils.dart';
 import 'dao.dart';
 
 class Customer {
+  static Customer? instance;
+
   final int customerId;
-  final String coopId;
+  final String cooperatorId;
 	final String name;
 
   const Customer({
     required this.customerId,
-    required this.coopId,
+    required this.cooperatorId,
     required this.name,
   });
+
+  static void setInstance(Customer? customer) {
+    instance = customer;
+  }
 
   factory Customer.fromPipe(String line) {
     final parts = line.split(DAO.SPLITTER);
@@ -25,19 +31,19 @@ class Customer {
     }
 
     final customerId = int.tryParse(parts[0].trim()) ?? 0;
-    final coopId = parts[1].trim();
+    final cooperatorId = parts[1].trim();
     final name = parts[2].trim();
 
     return Customer(
       customerId: customerId,
-      coopId: coopId,
+      cooperatorId: cooperatorId,
       name: name,
     );
   }
 
   @override
   String toString() =>
-    'CustomerId: $customerId, CoopId: $coopId, Name: $name';
+    'CustomerId: $customerId, CoopId: $cooperatorId, Name: $name';
 }
 
 class CustomerDAO extends DAO {

@@ -343,7 +343,7 @@ class _TopControlArea extends StatelessWidget {
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(6),
                   color: Theme.of(context).cardColor,
-                  image: DecorationImage(
+                  image: isShowLogo ? DecorationImage(
                     image: const AssetImage('assets/images/LogoPhone.webp'),
                     fit: BoxFit.fill,
                     alignment: Alignment.center,
@@ -351,7 +351,7 @@ class _TopControlArea extends StatelessWidget {
                       Theme.of(context).cardColor,
                       BlendMode.multiply,
                     ),
-                  ),
+                  ) : null,
                 ),
               ),
             ),

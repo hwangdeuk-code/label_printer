@@ -25,6 +25,8 @@ enum CooperatorGrade {
 }
 
 class Cooperator {
+  static Cooperator? instance;
+
 	final String id;
 	final String name;
 
@@ -32,6 +34,10 @@ class Cooperator {
     required this.id,
     required this.name,
   });
+
+  static void setInstance(Cooperator? cooperator) {
+    instance = cooperator;
+  }
 
   factory Cooperator.fromPipe(String line) {
     final parts = line.split(DAO.SPLITTER);
@@ -71,7 +77,7 @@ class CooperatorDAO extends DAO {
           LTRIM(RTRIM(CONVERT(NVARCHAR(30),@cooperatorId)))
   ''';
 
-  static Future<Cooperator?> getByCooperatorId(int cooperatorId) async {
+  static Future<Cooperator?> getByCooperatorId(String cooperatorId) async {
     const String fn = 'getByCooperatorId';
 
     try {

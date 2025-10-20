@@ -7,3 +7,4 @@ const String appTitle = 'ITS&G Label Printer';
 String appPackageName = '';
 String appVersion = '';
 bool isDesktop = false;
+bool isShowLogo = false;

@@ -12,6 +12,9 @@ import 'package:label_printer/database/db_connection_status.dart';
 import 'package:label_printer/database/db_result_utils.dart';
 import 'package:label_printer/models/dao.dart';
 import 'package:label_printer/models/notice.dart';
+import 'package:label_printer/models/customer.dart';
+import 'package:label_printer/models/cooperator.dart';
+import 'package:label_printer/models/market.dart';
 import 'package:label_printer/models/user.dart';
 import 'package:label_printer/utils/user_prefs.dart';
 
@@ -454,6 +457,9 @@ class _LoginPanelState extends State<_LoginPanel> {
       }
 
       // Get Market,Customer,Cooperator info after login...
+      Market.setInstance(await MarketDAO.getByMarketId(User.instance!.marketId));
+      Customer.setInstance(await CustomerDAO.getByCustomerId(Market.instance!.customerId));
+      Cooperator.setInstance(await CooperatorDAO.getByCooperatorId(Customer.instance!.cooperatorId));
 
       setWindowTitle('$WINDOW_TITLE_PREFIX - ${widget.serverName}');
       if (mounted) Navigator.of(context).pop(null);
@@ -795,7 +801,7 @@ class _AdBannerState extends State<_AdBanner> {
   @override
   void initState() {
     super.initState();
-    _loadAd();
+    if (isShowLogo) _loadAd();
   }
 
   Future<void> _loadAd() async {

@@ -7,7 +7,9 @@ import 'package:label_printer/database/db_result_utils.dart';
 import 'dao.dart';
 
 class Market {
-	final int marketId;
+  static Market? instance;
+
+ 	final int marketId;
   final int customerId;
 	final String name;
 
@@ -16,6 +18,10 @@ class Market {
     required this.customerId,
     required this.name,
   });
+
+  static void setInstance(Market? market) {
+    instance = market;
+  }
 
   factory Market.fromPipe(String line) {
     final parts = line.split(DAO.SPLITTER);

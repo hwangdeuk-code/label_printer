@@ -5,6 +5,10 @@ import 'package:flutter/material.dart';
 
 import 'package:label_printer/core/app.dart';
 import 'package:label_printer/database/db_client.dart';
+import 'package:label_printer/models/user.dart';
+import 'package:label_printer/models/market.dart';
+import 'package:label_printer/models/customer.dart';
+import 'package:label_printer/models/cooperator.dart';
 import 'database/db_connection_status_icon.dart';
 import 'home_page_manager.dart';
 import 'page_login/startup_dialog.dart';
@@ -35,21 +39,6 @@ class _HomePageState extends State<HomePage> {
     });
   }
 
-  void _onLogin() {
-    if (!mounted) return;
-    setState(() {
-      _loggedIn = true;
-    });
-  }
-
-  Future<void> _onLogout() async {
-    DbClient.instance.disconnect();
-    if (!mounted) return;
-    setState(() {
-      _loggedIn = false;
-    });
-  }
-
   // 로그아웃 유입이면 자동 표시하지 않음, 사용자 요청 시(앱바 로그인 아이콘) 열도록 함
   Future<void> _loginToServerDB() async {
     if (!(await _db.connectToServerDB(context))) return;
@@ -63,6 +52,21 @@ class _HomePageState extends State<HomePage> {
       serverName: _db.lastConnectInfo?.serverName,
       forceNoticeClosed: forceNoticeClosed,
     );
+  }
+
+  void _onLogin() {
+    if (!mounted) return;
+    setState(() { _loggedIn = true; });
+  }
+
+  Future<void> _onLogout() async {
+    DbClient.instance.disconnect();
+    User.instance = null;
+    Market.instance = null;
+    Customer.instance = null;
+    Cooperator.instance = null;
+    if (!mounted) return;
+    setState(() { _loggedIn = false; });
   }
 
   @override
@@ -115,13 +119,13 @@ class _HomePageState extends State<HomePage> {
 
   Widget _buildLoggedOutBackground() {
     return Container(
-      decoration: const BoxDecoration(
-        color: Color(0xFFF4F4F4),
-        image: DecorationImage(
+      decoration: BoxDecoration(
+        color: const Color(0xFFF4F4F4),
+        image: isShowLogo ? const DecorationImage(
           image: AssetImage('assets/images/MainLogo.webp'),
           fit: BoxFit.none,
           colorFilter: ColorFilter.mode(Color(0xFFF4F4F4), BlendMode.multiply),
-        ),
+        ) : null,
       ),
     );
   }
