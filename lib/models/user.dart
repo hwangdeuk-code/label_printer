@@ -15,6 +15,19 @@ enum UserGrade {
   final int code;
   const UserGrade(this.code);
   static UserGrade fromCode(int code) => UserGrade.values.firstWhere((e) => e.code == code);
+
+  String get label {
+    switch (this) {
+      case UserGrade.SYSTEM_ADMIN_USER:
+        return '시스템 관리자';
+      case UserGrade.COOP_ADMIN_USER:
+        return '협력업체 관리자';
+      case UserGrade.MANAGER_USER:
+        return '책임자';
+      case UserGrade.CLIENT_USER:
+        return '일반 사용자';
+    }
+  }  
 }
 
 class User {

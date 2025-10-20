@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:label_printer/core/bootstrap.dart';
+import 'package:label_printer/models/login_log.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import 'package:label_printer/core/app.dart';
@@ -460,6 +461,15 @@ class _LoginPanelState extends State<_LoginPanel> {
       Market.setInstance(await MarketDAO.getByMarketId(User.instance!.marketId));
       Customer.setInstance(await CustomerDAO.getByCustomerId(Market.instance!.customerId));
       Cooperator.setInstance(await CooperatorDAO.getByCooperatorId(Customer.instance!.cooperatorId));
+
+      // 로그인 정보를 저장한다.
+      //if (!CLoginUser::IsLoginMasterKey()) {
+        LoginLogDAO.insertLoginLog(
+          userId: User.instance!.userId, userGrade: User.instance!.grade,
+          customerId: Customer.instance!.customerId, customerName: Customer.instance!.name,
+          loginCondition: LoginCondition.LOGIN,
+        );
+      //}
 
       setWindowTitle('$WINDOW_TITLE_PREFIX - ${widget.serverName}');
       if (mounted) Navigator.of(context).pop(null);

@@ -4,6 +4,7 @@
 const String appTitle = 'ITS&G Label Printer';
 
 // StartupHomePage.initState()에서 설정됨.
+String appLocale = 'ko_KR';
 String appPackageName = '';
 String appVersion = '';
 bool isDesktop = false;

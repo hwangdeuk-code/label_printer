@@ -23,6 +23,7 @@ abstract class _DbBackend {
   Future<String> getData(String sql);
   Future<String> getDataWithParams(String sql, Map<String, dynamic> params);
   Future<String> writeData(String sql);
+  Future<String> writeDataWithParams(String sql, Map<String, dynamic> params);
   Future<bool> disconnect();
 }
 
@@ -66,6 +67,12 @@ class _MssqlBackend implements _DbBackend {
   Future<String> writeData(String sql) {
     final wrapped = _withNoCount(sql);
     return _db.writeData(wrapped);
+  }
+
+  @override
+  Future<String> writeDataWithParams(String sql, Map<String, dynamic> params) {
+    final wrapped = _withNoCount(sql);
+    return _db.writeDataWithParams(wrapped, params);
   }
 
   @override
@@ -115,6 +122,18 @@ class _SqlConnBackend implements _DbBackend {
 
   @override
   Future<String> writeData(String sql) => _db.updateData(sql);
+
+  @override
+  Future<String> writeDataWithParams(String sql, Map<String, dynamic> params) {
+    var inlined = sql;
+
+    params.forEach((key, value) {
+      final pattern = RegExp('@' + RegExp.escape(key) + r'\b');
+      inlined = inlined.replaceAll(pattern, _escapeValue(value));
+    });
+
+    return _db.updateData(inlined);
+  }
   
   @override
   Future<bool> disconnect() => _db.disconnect();
@@ -160,6 +179,12 @@ class DbClient {
   Future<String> getDataWithParams(String sql, Map<String, dynamic> params, {Duration? timeout, String Function()? onTimeout}) async {
     return DbConnectionService.instance.runUserDbAction<String>((db) async {
       return await _backend.getDataWithParams(sql, params);
+    }, timeout: timeout, onTimeout: onTimeout);
+  }
+
+  Future<String> writeDataWithParams(String sql, Map<String, dynamic> params, {Duration? timeout, String Function()? onTimeout}) async {
+    return DbConnectionService.instance.runUserDbAction<String>((db) async {
+      return await _backend.writeDataWithParams(sql, params);
     }, timeout: timeout, onTimeout: onTimeout);
   }
 

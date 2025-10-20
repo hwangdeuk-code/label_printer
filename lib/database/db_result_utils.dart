@@ -2,7 +2,9 @@
 // SQL 결과(JSON 문자열)에서 특정 컬럼의 값을 행 단위로 모아 하나의 문자열로 합치는 유틸리티
 
 import 'dart:convert';
+import 'dart:io';
 import 'dart:typed_data';
+import 'package:charset_converter/charset_converter.dart';
 
 // Base64 문자열을 UTF-16LE로 디코드 (드라이버가 VARBINARY를 Base64로 직렬화한 경우 대비)
 String decodeUtf16LeFromBase64String(String b64) {
@@ -140,4 +142,35 @@ String stripLeadingBracketTags(String s) {
     r')+'
   );
   return s.replaceFirst(pattern, '');
+}
+
+/// 플랫폼별로 CP949/MS949/EUC-KR/x-windows-949 순차 시도하여
+/// 완성형(완성형/Wansung) 바이트를 얻는다.
+Future<List<int>> _encodeKoreanWansung(String text) async {
+  final candidates = Platform.isAndroid
+      ? ['MS949', 'x-windows-949', 'EUC-KR', 'CP949']
+      : ['CP949', 'EUC-KR', 'MS949', 'x-windows-949'];
+
+  for (final name in candidates) {
+    try {
+      return await CharsetConverter.encode(name, text);
+    } catch (_) {
+      // 다음 후보 시도
+    }
+  }
+  throw Exception('Korean Wansung charset not available. Tried: $candidates');
+}
+
+/// 바이트 → HEX 문자열
+String _bytesToHex(List<int> bytes, {bool with0x = true, bool upper = true}) {
+  final hex = bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
+  final h = upper ? hex.toUpperCase() : hex;
+  return with0x ? '0x$h' : h;
+}
+
+/// 기존 함수에 '문자셋 폴백'을 적용한 버전 (드롭인 교체)
+Future<String> stringToHexCp949(String input,
+    {bool with0x = true, bool upper = true}) async {
+  final bytes = await _encodeKoreanWansung(input);  // ← 여기서 다중 문자셋 시도
+  return _bytesToHex(bytes, with0x: with0x, upper: upper);
 }

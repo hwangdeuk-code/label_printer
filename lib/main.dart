@@ -1,6 +1,7 @@
 ﻿import 'dart:io' show Platform;
 
 import 'package:flutter/material.dart';
+import 'package:intl/date_symbol_data_local.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:window_manager/window_manager.dart';
 
@@ -16,6 +17,9 @@ Future<void> main(List<String> args) async {
 
   // 앱 시작 시 라이프사이클 옵저버를 1회 등록
   LifecycleManager.instance.ensureInitialized();
+
+  // 한국어 로케일용 날짜/시간 포맷터 초기화
+  await initializeDateFormatting('ko_KR');
 
   // 데스크톱 환경에서는 지정한 디스플레이로 이동 후 최대화.
   if (Platform.isWindows || Platform.isMacOS) {
