@@ -1,6 +1,7 @@
 part of 'painter_page.dart';
 
 class _PainterPageState extends State<PainterPage> {
+  static const _lastProjectPathKey = 'last_project_path';
   String appVersion = '';
   double scalePercent = 100.0;
   late final PainterController controller;
@@ -161,7 +162,8 @@ class _PainterPageState extends State<PainterPage> {
       }
       // 최근 경로 로드
       try {
-        _lastProjectPath = await UserPrefs.getLastProjectPath();
+        final prefs = await SharedPreferences.getInstance();
+        _lastProjectPath = prefs.getString(_lastProjectPathKey);
       } catch (_) {}
       // 초기 시그니처 계산(빈 장면 포함)으로 초기 dirty=false 보장
       await _recomputeSignature();
@@ -353,7 +355,8 @@ class _PainterPageState extends State<PainterPage> {
       await file.writeAsString(encoder.convert(bundle));
       _lastProjectPath = file.path;
       // 최근 경로 저장
-      try { await UserPrefs.setLastProjectPath(_lastProjectPath!); } catch (_) {}
+      try { final prefs = await SharedPreferences.getInstance();
+        await prefs.setString(_lastProjectPathKey, _lastProjectPath!); } catch (_) {}
       // 저장 후 시그니처 최신화
       _lastSavedSignature = await _computeSceneSignature();
       _isDirty = false;
@@ -420,7 +423,8 @@ class _PainterPageState extends State<PainterPage> {
         showSnackBar(context, '불러온 객체가 없습니다.');
       }
       _lastProjectPath = file.path;
-      try { await UserPrefs.setLastProjectPath(_lastProjectPath!); } catch (_) {}
+      try { final prefs = await SharedPreferences.getInstance();
+        await prefs.setString(_lastProjectPathKey, _lastProjectPath!); } catch (_) {}
       // 불러오기 후 시그니처 최신화
       _lastSavedSignature = await _computeSceneSignature();
       _isDirty = false; // 새로 로드된 상태를 기준으로 깨끗함

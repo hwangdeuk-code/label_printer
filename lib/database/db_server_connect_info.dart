@@ -4,14 +4,18 @@
 
 // ignore_for_file: constant_identifier_names
 
+import 'dart:async';
 import 'dart:io';
 
+import 'package:device_info_plus/device_info_plus.dart';
+import 'package:file_selector/file_selector.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:label_printer/core/app.dart';
 import 'package:path/path.dart' as p;
 import 'package:permission_handler/permission_handler.dart' as ph;
 import 'package:path_provider/path_provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart' as ffi;
 
@@ -68,18 +72,24 @@ class ServerConnectInfo {
 
 /// DB 헬퍼: 생성/오픈/조회/업데이트
 class DbServerConnectInfoHelper {
+  static const cn = 'DbServerConnectInfoHelper';
   static const _dbName = 'labelmanager_server_connect_info.db';
   static const _table = 'BM_DB_SERVER_CONNECT_INFO';
   static const _lastTable = 'BM_LAST_CONNECT_DB_SERVER';
   static const _dbVersion = 2;
 
   static Database? _db;
+  static final DeviceInfoPlugin _deviceInfo = DeviceInfoPlugin();
+  static Completer<void>? _androidPermissionLock;
+  static int? _cachedAndroidSdkInt;
+  static String? _cachedAndroidDocumentsDir;
+  static const String _prefsAndroidDocumentsDirKey = 'db_server_connect_info_android_documents_dir';
 
   /// 데스크톱(Windows/macOS/Linux)에서 sqflite_ffi 초기화
   static void _ensureDesktopInit() {
     if (!kIsWeb && (Platform.isWindows || Platform.isLinux || Platform.isMacOS)) {
-      // 데스크톱 환경에서는 sqflite_common_ffi를 초기화하고 팩토리를 교체합니다.
-      // 여러 번 호출되어도 안전합니다.
+      // 데스크톱 환경에서 sqflite_common_ffi를 초기화한다.
+      // 이 초기화는 데이터베이스 작업을 가능하게 한다.
       ffi.sqfliteFfiInit();
       databaseFactory = ffi.databaseFactoryFfi;
     }
@@ -87,17 +97,16 @@ class DbServerConnectInfoHelper {
 
   /// 앱의 쓰기 가능한 디렉터리 하위에 assets/data 경로 보장
   static Future<String> _dbPath() async {
-    // 주의: 실제 앱 번들의 assets 폴더는 read-only이므로, 쓰기 가능한 앱 데이터 폴더에
-    // 동일한 하위 경로(assets/data)를 만들어 DB를 저장합니다.
+    // 앱의 쓰기 가능한 디렉터리 하위에 assets/data 경로를 생성하고,
+    // 해당 경로에 DB 파일을 복사한다.
     Directory baseDir;
     if (kIsWeb) {
       // Web은 sqflite 미지원. 여기선 예외를 던집니다.
       throw UnsupportedError('sqflite is not supported on Web');
     }
     else if (Platform.isAndroid) {
-      // 안드로이드: 공개 Documents 하위 폴더에 저장(요청 권한 필요)
-      await _ensureStoragePermission();
-      final docs = await _getAndroidPublicDocumentsDir();
+      // Android: SAF/Legacy 권한을 처리한 뒤 선택된 Documents 하위 경로를 사용한다.
+      final docs = await _ensureAndroidDocumentsDirectory();
       baseDir = Directory(p.join(docs, appPackageName));
     }
     else if (Platform.isIOS) {
@@ -128,7 +137,7 @@ class DbServerConnectInfoHelper {
       final noMediaFile = File(p.join(dir.path, '.nomedia'));
       if (!await noMediaFile.exists()) { await noMediaFile.create(); }
 
-      // labelmanager_server_connect_info.db 파일이 없으면 assets에서 복사해 넣는 다.
+      // labelmanager_server_connect_info.db 파일을 assets/data 경로에 복사합니다.
       final dbFile = File(p.join(dir.path, _dbName));
       if (!await dbFile.exists()) {
         final dbAssetPath = p.join('assets', 'data', _dbName);
@@ -143,10 +152,125 @@ class DbServerConnectInfoHelper {
 
   static const MethodChannel _filesChannel = MethodChannel('com.itsng.label_printer/files');
 
-  static Future<void> _ensureStoragePermission() async {
-    // Android 13+: READ_MEDIA_*는 이미지/동영상/오디오에 해당. Documents에는 SAF 권장이나, 여기서는 best-effort로 READ/WRITE 권한 요청(33 이하 대상).
-    if (await ph.Permission.storage.isGranted) return;
-    await ph.Permission.storage.request();
+  static Future<String> _ensureAndroidDocumentsDirectory() async {
+    final sdkInt = await _getAndroidSdkInt();
+    if (sdkInt >= 33) {
+      await _ensureAndroidSafDirectory();
+      final path = _cachedAndroidDocumentsDir;
+      if (path == null || path.isEmpty) {
+        throw StateError('SAF Documents 경로 확보에 실패했습니다.');
+      }
+      if (!path.startsWith('content://')) {
+        await _ensureDirectoryExists(path);
+      } else {
+        debugPrint('$cn._ensureAndroidDocumentsDirectory, content uri result: $path');
+      }
+      return path;
+    }
+
+    await _ensureAndroidLegacyPermission();
+    final docs = await _getAndroidPublicDocumentsDir();
+    await _ensureDirectoryExists(docs);
+    return docs;
+  }
+
+  static Future<void> _ensureAndroidLegacyPermission() async {
+    await _runAndroidPermissionLock(() async {
+      final status = await ph.Permission.storage.status;
+      if (status.isGranted || status.isLimited) {
+        return;
+      }
+
+      final result = await ph.Permission.storage.request();
+      if (result.isGranted || result.isLimited) {
+        return;
+      }
+
+      throw Exception('공용 Documents 폴더 접근을 위한 저장소 권한이 거부되었습니다.');
+    });
+  }
+
+  static Future<void> _ensureAndroidSafDirectory() async {
+    if (_cachedAndroidDocumentsDir != null && _cachedAndroidDocumentsDir!.isNotEmpty) {
+      return;
+    }
+
+    await _runAndroidPermissionLock(() async {
+      if (_cachedAndroidDocumentsDir != null && _cachedAndroidDocumentsDir!.isNotEmpty) {
+        return;
+      }
+
+      final prefs = await SharedPreferences.getInstance();
+      final saved = prefs.getString(_prefsAndroidDocumentsDirKey);
+      if (saved != null && saved.isNotEmpty) {
+        _cachedAndroidDocumentsDir = saved;
+        return;
+      }
+
+      final initialDir = await _getAndroidPublicDocumentsDir();
+      final selected = await getDirectoryPath(
+        initialDirectory: initialDir.isEmpty ? null : initialDir,
+        confirmButtonText: '선택',
+      );
+
+      if (selected == null || selected.isEmpty) {
+        throw Exception('공용 Documents 폴더의 하위 경로를 선택해야 합니다.');
+      }
+
+      if (!selected.startsWith('content://')) {
+        await _ensureDirectoryExists(selected);
+      } else {
+        debugPrint('$cn._ensureAndroidSafDirectory, content uri selected: $selected');
+      }
+
+      _cachedAndroidDocumentsDir = selected;
+      await prefs.setString(_prefsAndroidDocumentsDirKey, selected);
+    });
+  }
+
+  static Future<void> _ensureDirectoryExists(String path) async {
+    final dir = Directory(path);
+    if (!await dir.exists()) {
+      await dir.create(recursive: true);
+    }
+  }
+
+  static Future<void> _runAndroidPermissionLock(Future<void> Function() action) {
+    final existing = _androidPermissionLock;
+    if (existing != null) {
+      return existing.future;
+    }
+
+    final completer = Completer<void>();
+    _androidPermissionLock = completer;
+
+    () async {
+      try {
+        await action();
+        if (!completer.isCompleted) {
+          completer.complete();
+        }
+      } catch (error, stackTrace) {
+        if (!completer.isCompleted) {
+          completer.completeError(error, stackTrace);
+        }
+      } finally {
+        if (identical(_androidPermissionLock, completer)) {
+          _androidPermissionLock = null;
+        }
+      }
+    }();
+
+    return completer.future;
+  }
+
+  static Future<int> _getAndroidSdkInt() async {
+    if (_cachedAndroidSdkInt != null) {
+      return _cachedAndroidSdkInt!;
+    }
+    final info = await _deviceInfo.androidInfo;
+    _cachedAndroidSdkInt = info.version.sdkInt;
+    return _cachedAndroidSdkInt!;
   }
 
   static Future<String> _getAndroidPublicDocumentsDir() async {

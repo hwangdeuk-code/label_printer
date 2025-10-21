@@ -6,7 +6,7 @@ import 'package:intl/intl.dart';
 import 'package:label_printer/core/app.dart';
 import 'package:label_printer/database/db_client.dart';
 import 'package:label_printer/database/db_result_utils.dart';
-import 'package:label_printer/utils/net_diag.dart';
+import 'package:r_get_ip/r_get_ip.dart';
 import 'dao.dart';
 import 'user.dart';
 
@@ -137,13 +137,14 @@ class LoginLogDAO extends DAO {
 
     try {
       final now = DateTime.now();
+      final localIp = await RGetIp.internalIP;
       final hexUserId = await stringToHexCp949(userId);
       final hexUserGrade = await stringToHexCp949(userGrade.label);
       final hexProgramVersion = await stringToHexCp949(appVersion);
       final hexCustomerName = await stringToHexCp949(customerName); 
       final loginDate = DateFormat('yyyy-MM-dd HH:mm:ss', appLocale).format(now);
       final hexLoginDateYYYYMMDD = await stringToHexCp949(DateFormat('yyyyMMdd', appLocale).format(now));
-      final hexLoginIP = await stringToHexCp949(await NetDiag.getIp());
+      final hexLoginIP = await stringToHexCp949(localIp!);
 
       await DbClient.instance.writeDataWithParams(
         InsertSql,

@@ -2,6 +2,7 @@
 
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:label_printer/core/bootstrap.dart';
@@ -17,7 +18,6 @@ import 'package:label_printer/models/customer.dart';
 import 'package:label_printer/models/cooperator.dart';
 import 'package:label_printer/models/market.dart';
 import 'package:label_printer/models/user.dart';
-import 'package:label_printer/utils/user_prefs.dart';
 
 /// 독립적으로 호출 가능한 시작 다이얼로그
 class StartupDialog extends StatefulWidget {
@@ -81,8 +81,9 @@ class _StartupDialogState extends State<StartupDialog> {
   Future<void> _initNoticeState() async {
     // 초기 notice 표시 여부 계산 (저장된 해시/버전과 비교)
     try {
-      final suppressedVer = await UserPrefs.getString('suppressNoticeVersion');
-      final suppressedHash = await UserPrefs.getString('suppressNoticeHash');
+      final prefs = await SharedPreferences.getInstance();
+      final suppressedVer = prefs.getString('suppressNoticeVersion');
+      final suppressedHash = prefs.getString('suppressNoticeHash');
       final initialHash = _fnv1a64Hex(_currentNoticePayload(content: _effectiveContent, version: _effectiveVersion));
       final isSuppressed = (suppressedVer == appVersion) && (suppressedHash == initialHash);
       if (!mounted) return;
@@ -106,12 +107,14 @@ class _StartupDialogState extends State<StartupDialog> {
       onToggleDontShow: (v) async {
         setState(() => _dontShowUntilNextUpdate = v);
         if (v) {
+          final prefs = await SharedPreferences.getInstance();
           final currHashNow = _fnv1a64Hex(_currentNoticePayload(content: _effectiveContent, version: _effectiveVersion));
-          await UserPrefs.setString('suppressNoticeVersion', appVersion);
-          await UserPrefs.setString('suppressNoticeHash', currHashNow);
+          await prefs.setString('suppressNoticeVersion', appVersion);
+          await prefs.setString('suppressNoticeHash', currHashNow);
         } else {
-          await UserPrefs.setString('suppressNoticeVersion', null);
-          await UserPrefs.setString('suppressNoticeHash', null);
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.remove('suppressNoticeVersion');
+          await prefs.remove('suppressNoticeHash');
         }
       },
       noticeVersion: _effectiveVersion,
@@ -342,6 +345,28 @@ class _LoginPanelState extends State<_LoginPanel> {
   final FocusNode _userIdFocus = FocusNode();
   final FocusNode _passwordFocus = FocusNode();
   final FocusNode _loginButtonFocus = FocusNode();
+  bool _saveId = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPreferences();
+  }
+
+  Future<void> _loadPreferences() async {
+    final prefs = await SharedPreferences.getInstance();
+    final userId = prefs.getString('user_id') ?? '';
+    final saveId = prefs.getBool('save_id') ?? false;
+
+    if (mounted) {
+      setState(() {
+        widget.userId.text = userId;
+        _saveId = saveId;
+      });
+      // 저장된 ID가 있으면 바로 공지사항을 가져옵니다.
+      if (userId.isNotEmpty) _onUserIdFieldCommit(userId);
+    }
+  }
 
   Future<void> _onUserIdFieldCommit(String userIdText) async {
     const String fn = '_onUserIdFieldCommit';
@@ -679,6 +704,17 @@ class _LoginPanelState extends State<_LoginPanel> {
                   const SizedBox(height: 12),
                   Row(
                     children: [
+                      Checkbox(
+                        value: _saveId,
+                        onChanged: (v) => setState(() => _saveId = v ?? false),
+                      ),
+                      const Text('아이디 저장'),
+                      const Spacer(),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
                       const Spacer(),
                       ElevatedButton(
                         onPressed: canLogin ? () => _onLoginButtonPressed(widget.password.text) : null,
@@ -703,7 +739,14 @@ class _LoginPanelState extends State<_LoginPanel> {
     _userIdFocus.dispose();
     _passwordFocus.dispose();
     _loginButtonFocus.dispose();
+    _savePreferences();
     super.dispose();
+  }
+
+  Future<void> _savePreferences() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('save_id', _saveId);
+    await prefs.setString('user_id', _saveId ? widget.userId.text : '');
   }
 }
 

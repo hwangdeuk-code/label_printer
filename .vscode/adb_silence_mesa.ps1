@@ -20,7 +20,12 @@ foreach ($line in $list) {
 
 if ($serials.Count -eq 0) { exit 0 }
 
-$target = if ($serials -contains 'emulator-5554') { 'emulator-5554' } else { $serials[0] }
+# emulator-5554가 연결되어 있지 않으면 스크립트를 종료합니다.
+if (-not ($serials -contains 'emulator-5554')) {
+  exit 0
+}
+
+$target = 'emulator-5554'
 
 # Wait for device to be fully ready (avoid 'device not found')
 function Wait-ForDeviceReady {
