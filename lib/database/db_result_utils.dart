@@ -123,10 +123,64 @@ String extractJsonDBResult(String columnName, String jsonStr) {
   }
 }
 
-/// 문자열이 "[태그] 메시지" 형태일 때, 앞쪽의 대괄호로 감싼 태그(들)과 뒤따르는 공백을 제거하고 본문만 돌려줍니다.
-/// - 예) "[INFO] TEST msg" -> "TEST msg"
-/// - 예) "[A][B]   메시지" -> "메시지"
-/// - 괄호가 없거나 포맷이 다르면 원본 문자열을 그대로 반환합니다.
+List<String> extractJsonDBResults(String columnName, String jsonStr) {
+  final results = <String>[];
+  try {
+    final trimmed = jsonStr.trim();
+    if (trimmed.isEmpty) return results;
+    final decoded = jsonDecode(trimmed);
+
+    if (decoded is List) {
+      for (final row in decoded) {
+        if (row is Map<String, dynamic>) {
+          final v = row[columnName];
+          results.add(v?.toString() ?? '');
+        }
+      }
+      return results;
+    }
+
+    if (decoded is Map<String, dynamic>) {
+      final rows = decoded['rows'];
+      if (rows is List && rows.isNotEmpty) {
+        int? idx;
+        final columns = decoded['columns'];
+
+        if (columns is List && columns.isNotEmpty) {
+          if (columns.first is Map) {
+            for (var i = 0; i < columns.length; i++) {
+              final c = columns[i];
+              if (c is Map && c['name']?.toString() == columnName) {
+                idx = i;
+                break;
+              }
+            }
+          } else if (columns.first is String) {
+            final index = columns.indexOf(columnName);
+            if (index >= 0) {
+              idx = index;
+            }
+          }
+        }
+
+        for (final row in rows) {
+          if (row is Map<String, dynamic>) {
+            final v = row[columnName];
+            results.add(v?.toString() ?? '');
+          } else if (row is List) {
+            if (idx != null && idx < row.length) {
+              final v = row[idx];
+              results.add(v?.toString() ?? '');
+            }
+          }
+        }
+      }
+    }
+  } catch (_) {
+    // ignore parse errors and return collected results
+  }
+  return results;
+}
 String stripLeadingBracketTags(String s) {
   if (s.isEmpty) return s;
   // 시작 부분에서 연속된 노이즈 토큰들을 제거:
@@ -174,3 +228,6 @@ Future<String> stringToHexCp949(String input,
   final bytes = await _encodeKoreanWansung(input);  // ← 여기서 다중 문자셋 시도
   return _bytesToHex(bytes, with0x: with0x, upper: upper);
 }
+
+
+

@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:label_printer/core/app.dart';
+import 'package:label_printer/models/brand.dart';
+import 'package:label_printer/models/customer.dart';
+import 'package:label_printer/models/user.dart';
 import 'package:label_printer/utils/on_messages.dart';
 import 'package:tabbed_view/tabbed_view.dart';
 import 'package:dropdown_button2/dropdown_button2.dart';
@@ -45,7 +48,11 @@ class _HomePageManagerState extends State<HomePageManager> {
       debugPrint('$cn.$fn: $START');
       BlockingOverlay.show(context, message: '사용자 데이터를 불러오고 있습니다...');
     
+      final rows = await BrandDAO.getByCustomerIdByBrandOrder(Customer.instance!.customerId);
 
+      if (rows != null && rows.isNotEmpty)  {
+        Brand.setBrands(rows);
+      }
     }
     finally {
       BlockingOverlay.hide();

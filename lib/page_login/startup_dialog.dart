@@ -189,7 +189,7 @@ class _DialogBodyState extends State<_DialogBody> {
   @override
   void initState() {
     super.initState();
-    userId = TextEditingController(text: 'tester01');
+    userId = TextEditingController();
     customerName = TextEditingController();
     marketName = TextEditingController();
     userName = TextEditingController();
@@ -355,7 +355,7 @@ class _LoginPanelState extends State<_LoginPanel> {
 
   Future<void> _loadPreferences() async {
     final prefs = await SharedPreferences.getInstance();
-    final userId = prefs.getString('user_id') ?? '';
+    final userId = prefs.getString('user_id') ?? 'tester01';
     final saveId = prefs.getBool('save_id') ?? false;
 
     if (mounted) {
@@ -496,8 +496,11 @@ class _LoginPanelState extends State<_LoginPanel> {
         );
       //}
 
+      if (!mounted) return;
+
       setWindowTitle('$WINDOW_TITLE_PREFIX - ${widget.serverName}');
-      if (mounted) Navigator.of(context).pop(null);
+      final navigator = Navigator.of(context, rootNavigator: true);
+      if (navigator.canPop()) { navigator.pop(true);}
       widget.onLogin();
     }
     catch (e) {

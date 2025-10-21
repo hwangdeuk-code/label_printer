@@ -7,7 +7,7 @@ import 'package:label_printer/database/db_result_utils.dart';
 import 'dao.dart';
 
 class Brand {
-  static Brand? instance;
+  static List<Brand>? array;
 
  	final int brandId;
   final int customerId;
@@ -19,14 +19,14 @@ class Brand {
     required this.brandName,
   });
 
-  static void setInstance(Brand? brand) {
-    instance = brand;
+  static void setBrands(List<Brand>? values) {
+    array = values;
   }
 
   factory Brand.fromPipe(String line) {
     final parts = line.split(DAO.SPLITTER);
 
-    if (parts.length < 2) {
+    if (parts.length < 3) {
       throw FormatException('${DAO.incorrect_format}: $line');
     }
 
@@ -40,6 +40,9 @@ class Brand {
       brandName: brandName,
     );
   }
+
+  static List<Brand> fromPipeLines(List<String> lines) =>
+      lines.map(Brand.fromPipe).toList();
 
   @override
   String toString() =>
@@ -65,23 +68,37 @@ class BrandDAO extends DAO {
 	  WHERE RICH_CUSTOMER_ID=@customerId
   ''';
 
-  static Future<Brand?> getByCustomerId(int customerId) async {
-    const String fn = 'getByCustomerId';
+  static const String OrderSqlByBrandrder = '''
+	  ORDER BY RICH_BRAND_ORDER ASC
+  ''';
+
+  static Future<List<Brand>?> getByCustomerIdByBrandOrder(int customerId) async {
+    const String fn = 'getByCustomerIdByBrandOrder';
 
     try {
 			final res = await DbClient.instance.getDataWithParams(
-				'$SelectSql $WhereSqlCustomerId', { 'customerId': customerId },
+				'$SelectSql $WhereSqlCustomerId $OrderSqlByBrandrder', { 'customerId': customerId },
 				timeout: const Duration(seconds: DAO.query_timeouts)
 			);
 
-      final base64Str = extractJsonDBResult(DAO.LINE_U16LE, res);
+      final base64Rows = extractJsonDBResults(DAO.LINE_U16LE, res);
 
-      if (base64Str.isEmpty) {
+      if (base64Rows.isEmpty) {
 			  debugPrint('$cn.$fn: ${DAO.query_no_data}');
         return null;
       }
 
-      return Brand.fromPipe(decodeUtf16LeFromBase64String(base64Str));
+      final lines = base64Rows
+          .map(decodeUtf16LeFromBase64String)
+          .where((line) => line.isNotEmpty)
+          .toList();
+          
+      if (lines.isEmpty) {
+        debugPrint('$cn.$fn: decoded lines empty');
+        return null;
+      }
+
+      return Brand.fromPipeLines(lines);
     }
     catch (e) {
       throw Exception('[$cn.$fn] $e');
