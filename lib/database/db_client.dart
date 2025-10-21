@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:label_printer/database/db_connection_service.dart';
@@ -151,8 +152,32 @@ class DbClient {
   DbClient._();
   static final DbClient instance = DbClient._();
   final _DbBackend _backend = (Platform.isAndroid) ? _SqlConnBackend() : _MssqlBackend();
+  Future<void> _operationSerial = Future<void>.value();
 
   bool get isConnected => _backend.isConnected;
+
+  Future<T> _runLocked<T>(Future<T> Function() action) {
+    final completer = Completer<T>();
+    _operationSerial = _operationSerial.then((_) async {
+      try {
+        final result = await action();
+        if (!completer.isCompleted) {
+          completer.complete(result);
+        }
+      } catch (error, stack) {
+        if (!completer.isCompleted) {
+          completer.completeError(error, stack);
+        }
+        rethrow;
+      }
+    }).catchError((error, stack) {
+      if (!completer.isCompleted) {
+        completer.completeError(error, stack);
+      }
+      return null;
+    });
+    return completer.future;
+  }
 
   Future<bool> connect({
     required String ip,
@@ -170,22 +195,44 @@ class DbClient {
         timeoutInSeconds: timeoutInSeconds,
       );
 
-  Future<String> getData(String sql, {Duration? timeout, String Function()? onTimeout}) async {
-    return DbConnectionService.instance.runUserDbAction<String>((db) async {
-      return await _backend.getData(sql);
-    }, timeout: timeout, onTimeout: onTimeout);
+  Future<String> getData(String sql, {Duration? timeout, String Function()? onTimeout}) {
+    return _runLocked(() {
+      return DbConnectionService.instance.runUserDbAction<String>(
+        (_) => _backend.getData(sql),
+        timeout: timeout,
+        onTimeout: onTimeout,
+      );
+    });
   }
 
-  Future<String> getDataWithParams(String sql, Map<String, dynamic> params, {Duration? timeout, String Function()? onTimeout}) async {
-    return DbConnectionService.instance.runUserDbAction<String>((db) async {
-      return await _backend.getDataWithParams(sql, params);
-    }, timeout: timeout, onTimeout: onTimeout);
+  Future<String> getDataWithParams(String sql, Map<String, dynamic> params, {Duration? timeout, String Function()? onTimeout}) {
+    return _runLocked(() {
+      return DbConnectionService.instance.runUserDbAction<String>(
+        (_) => _backend.getDataWithParams(sql, params),
+        timeout: timeout,
+        onTimeout: onTimeout,
+      );
+    });
   }
 
-  Future<String> writeDataWithParams(String sql, Map<String, dynamic> params, {Duration? timeout, String Function()? onTimeout}) async {
-    return DbConnectionService.instance.runUserDbAction<String>((db) async {
-      return await _backend.writeDataWithParams(sql, params);
-    }, timeout: timeout, onTimeout: onTimeout);
+  Future<String> writeData(String sql, {Duration? timeout, String Function()? onTimeout}) {
+    return _runLocked(() {
+      return DbConnectionService.instance.runUserDbAction<String>(
+        (_) => _backend.writeData(sql),
+        timeout: timeout,
+        onTimeout: onTimeout,
+      );
+    });
+  }
+
+  Future<String> writeDataWithParams(String sql, Map<String, dynamic> params, {Duration? timeout, String Function()? onTimeout}) {
+    return _runLocked(() {
+      return DbConnectionService.instance.runUserDbAction<String>(
+        (_) => _backend.writeDataWithParams(sql, params),
+        timeout: timeout,
+        onTimeout: onTimeout,
+      );
+    });
   }
 
   /// 간단 핑. 성공 시 true. 타임아웃/예외 시 false.
