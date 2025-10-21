@@ -11,12 +11,12 @@ class Customer {
 
   final int customerId;
   final String cooperatorId;
-	final String name;
+	final String customerName;
 
   const Customer({
     required this.customerId,
     required this.cooperatorId,
-    required this.name,
+    required this.customerName,
   });
 
   static void setInstance(Customer? customer) {
@@ -32,18 +32,18 @@ class Customer {
 
     final customerId = int.tryParse(parts[0].trim()) ?? 0;
     final cooperatorId = parts[1].trim();
-    final name = parts[2].trim();
+    final customerName = parts[2].trim();
 
     return Customer(
       customerId: customerId,
       cooperatorId: cooperatorId,
-      name: name,
+      customerName: customerName,
     );
   }
 
   @override
   String toString() =>
-    'CustomerId: $customerId, CoopId: $cooperatorId, Name: $name';
+    'CustomerId: $customerId, CoopId: $cooperatorId, CustomerName: $customerName';
 }
 
 class CustomerDAO extends DAO {

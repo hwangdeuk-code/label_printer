@@ -9,9 +9,9 @@ import 'dao.dart';
 class Brand {
   static List<Brand>? array;
 
- 	final int brandId;
+  final int brandId;
   final int customerId;
-	final String brandName;
+  final String brandName;
 
   const Brand({
     required this.brandId,
@@ -46,13 +46,14 @@ class Brand {
 
   @override
   String toString() =>
-    'BrandId: $brandId, CustomerId: $customerId, BrandName: $brandName';
+      'BrandId: $brandId, CustomerId: $customerId, BrandName: $brandName';
 }
 
 class BrandDAO extends DAO {
   static const String cn = 'BrandDAO';
 
-  static const String SelectSql = '''
+  static const String SelectSql =
+      '''
     SELECT
 			CONVERT(VARBINARY(MAX),
 			CONCAT_WS(N'${DAO.SPLITTER}',
@@ -72,19 +73,22 @@ class BrandDAO extends DAO {
 	  ORDER BY RICH_BRAND_ORDER ASC
   ''';
 
-  static Future<List<Brand>?> getByCustomerIdByBrandOrder(int customerId) async {
+  static Future<List<Brand>?> getByCustomerIdByBrandOrder(
+    int customerId,
+  ) async {
     const String fn = 'getByCustomerIdByBrandOrder';
 
     try {
-			final res = await DbClient.instance.getDataWithParams(
-				'$SelectSql $WhereSqlCustomerId $OrderSqlByBrandrder', { 'customerId': customerId },
-				timeout: const Duration(seconds: DAO.query_timeouts)
-			);
+      final res = await DbClient.instance.getDataWithParams(
+        '$SelectSql $WhereSqlCustomerId $OrderSqlByBrandrder',
+        {'customerId': customerId},
+        timeout: const Duration(seconds: DAO.query_timeouts),
+      );
 
       final base64Rows = extractJsonDBResults(DAO.LINE_U16LE, res);
 
       if (base64Rows.isEmpty) {
-			  debugPrint('$cn.$fn: ${DAO.query_no_data}');
+        debugPrint('$cn.$fn: ${DAO.query_no_data}');
         return null;
       }
 
@@ -92,15 +96,14 @@ class BrandDAO extends DAO {
           .map(decodeUtf16LeFromBase64String)
           .where((line) => line.isNotEmpty)
           .toList();
-          
+
       if (lines.isEmpty) {
         debugPrint('$cn.$fn: decoded lines empty');
         return null;
       }
 
       return Brand.fromPipeLines(lines);
-    }
-    catch (e) {
+    } catch (e) {
       throw Exception('[$cn.$fn] $e');
     }
   }

@@ -67,7 +67,7 @@ class _StartupDialogState extends State<StartupDialog> {
     return hex;
   }
 
-  String _effectiveVersion = appVersion;
+  final String _effectiveVersion = appVersion;
   String _effectiveContent = expandTabs('');
   bool _noticeClosed = false;
   bool _dontShowUntilNextUpdate = false;
@@ -355,7 +355,7 @@ class _LoginPanelState extends State<_LoginPanel> {
 
   Future<void> _loadPreferences() async {
     final prefs = await SharedPreferences.getInstance();
-    final userId = prefs.getString('user_id') ?? 'tester01';
+    final userId = prefs.getString('user_id') ?? '';
     final saveId = prefs.getBool('save_id') ?? false;
 
     if (mounted) {
@@ -400,7 +400,8 @@ class _LoginPanelState extends State<_LoginPanel> {
           setState(() => _infoText = '');
           FocusScope.of(context).requestFocus(_passwordFocus);
         }
-      } else {
+      } 
+      else {
         widget.customerName.text = '';
         widget.marketName.text = '';
         widget.userName.text = '';
@@ -410,7 +411,8 @@ class _LoginPanelState extends State<_LoginPanel> {
           FocusScope.of(context).requestFocus(_userIdFocus);
         }
       }
-    } catch (e) {
+    }
+    catch (e) {
       final errmsg = e.toString();
       _infoText = stripLeadingBracketTags(errmsg);
       debugPrint('${_LoginPanel.cn}.$fn, ${DAO.exception}: $errmsg');
@@ -419,7 +421,8 @@ class _LoginPanelState extends State<_LoginPanel> {
         setState(() => _infoText = stripLeadingBracketTags(errmsg));
         FocusScope.of(context).requestFocus(_userIdFocus);
       }
-    } finally {
+    }
+    finally {
       _LoginPanel._noticeFetchInFlight = false;
     }
   }
@@ -491,7 +494,7 @@ class _LoginPanelState extends State<_LoginPanel> {
       //if (!CLoginUser::IsLoginMasterKey()) {
         LoginLogDAO.insertLoginLog(
           userId: User.instance!.userId, userGrade: User.instance!.grade,
-          customerId: Customer.instance!.customerId, customerName: Customer.instance!.name,
+          customerId: Customer.instance!.customerId, customerName: Customer.instance!.customerName,
           loginCondition: LoginCondition.LOGIN,
         );
       //}
@@ -500,7 +503,7 @@ class _LoginPanelState extends State<_LoginPanel> {
 
       setWindowTitle('$WINDOW_TITLE_PREFIX - ${widget.serverName}');
       final navigator = Navigator.of(context, rootNavigator: true);
-      if (navigator.canPop()) { navigator.pop(true);}
+      if (navigator.canPop()) { navigator.pop(true); }
       widget.onLogin();
     }
     catch (e) {
@@ -552,13 +555,9 @@ class _LoginPanelState extends State<_LoginPanel> {
     final double _fieldLabelWidth = (90.0 - _oneChar).clamp(50.0, 90.0);
 
     Widget _kLabel(String text) => SizedBox(
-          width: _inlineLabelWidth,
-          child: Text(
-            text,
-            textAlign: TextAlign.right,
-            style: _inlineLabelStyle,
-          ),
-        );
+      width: _inlineLabelWidth,
+      child: Text(text, textAlign: TextAlign.right, style: _inlineLabelStyle),
+    );
 
     return LayoutBuilder(
       builder: (context, constraints) {
