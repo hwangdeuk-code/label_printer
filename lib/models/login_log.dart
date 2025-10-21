@@ -115,7 +115,7 @@ class LoginLogDAO extends DAO {
       final base64Str = extractJsonDBResult(DAO.LINE_U16LE, res);
 
       if (base64Str.isEmpty) {
-			  debugPrint('$cn.$fn, ${DAO.query_no_data}');
+			  debugPrint('$cn.$fn: ${DAO.query_no_data}');
         return null;
       }
 

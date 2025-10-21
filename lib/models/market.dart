@@ -61,7 +61,7 @@ class MarketDAO extends DAO {
     FROM BM_MARKET
   ''';
 
-  // WHERE 절: 마켓 ID로 조회 (Integer)
+  // WHERE 절: Market ID로 조회 (Integer)
   static const String WhereSqlMarketId = '''
 	  WHERE RICH_MARKET_ID=@marketId
   ''';
@@ -78,7 +78,7 @@ class MarketDAO extends DAO {
       final base64Str = extractJsonDBResult(DAO.LINE_U16LE, res);
 
       if (base64Str.isEmpty) {
-			  debugPrint('$cn.$fn, ${DAO.query_no_data}');
+			  debugPrint('$cn.$fn: ${DAO.query_no_data}');
         return null;
       }
 

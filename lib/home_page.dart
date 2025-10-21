@@ -80,7 +80,7 @@ class _HomePageState extends State<HomePage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('$appTitle v$appVersion'),
+        title: Text('$APP_TITLE v$appVersion'),
         centerTitle: false,
         actions: [
           const DbConnectionStatusIcon(),
