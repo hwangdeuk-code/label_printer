@@ -97,6 +97,9 @@ class DbServerConnectInfoHelper {
 
   /// 앱의 쓰기 가능한 디렉터리 하위에 assets/data 경로 보장
   static Future<String> _dbPath() async {
+    const fn = '_dbPath';
+    debugPrint('$cn.$fn: $START');
+
     // 앱의 쓰기 가능한 디렉터리 하위에 assets/data 경로를 생성하고,
     // 해당 경로에 DB 파일을 복사한다.
     Directory baseDir;
@@ -126,16 +129,22 @@ class DbServerConnectInfoHelper {
     }
 
     final dir = Directory(p.join(baseDir.path, 'assets', 'data'));
-
-    if (!await dir.exists()) {
-      await dir.create(recursive: true);
-    }
+    if (!await dir.exists()) { await dir.create(recursive: true); }
 
     if (Platform.isAndroid) {
       // Android에서는 공개 문서 디렉터리에 생성된 폴더가 미디어 스캔에서 누락될 수 있으므로,
       // .nomedia 파일을 생성해 다른 미디어 스캔이 이 폴더를 스캔하지 않도록 합니다.
       final noMediaFile = File(p.join(dir.path, '.nomedia'));
-      if (!await noMediaFile.exists()) { await noMediaFile.create(); }
+
+      if (!await noMediaFile.exists()) {
+        try {
+          await noMediaFile.create();
+        } on PathExistsException {
+          // 동시 생성된 경우에는 무시
+        } catch (e) {
+          debugPrint('$cn.$fn: .nomedia 파일 생성 오류: $e');
+        }
+      }
 
       // labelmanager_server_connect_info.db 파일을 assets/data 경로에 복사합니다.
       final dbFile = File(p.join(dir.path, _dbName));
@@ -147,24 +156,21 @@ class DbServerConnectInfoHelper {
       }
     }
 
+    debugPrint('$cn.$fn: $END, path=${dir.path}');
     return p.join(dir.path, _dbName);
   }
+
+  //////////////////////////////////////////////////////////////////////////////
+  /// 안드로이드 전용: 공용 Documents 디렉터리 접근 권한 처리
 
   static const MethodChannel _filesChannel = MethodChannel('com.itsng.label_printer/files');
 
   static Future<String> _ensureAndroidDocumentsDirectory() async {
     final sdkInt = await _getAndroidSdkInt();
+
     if (sdkInt >= 33) {
-      await _ensureAndroidSafDirectory();
-      final path = _cachedAndroidDocumentsDir;
-      if (path == null || path.isEmpty) {
-        throw StateError('SAF Documents 경로 확보에 실패했습니다.');
-      }
-      if (!path.startsWith('content://')) {
-        await _ensureDirectoryExists(path);
-      } else {
-        debugPrint('$cn._ensureAndroidDocumentsDirectory, content uri result: $path');
-      }
+      final path = await _ensureAndroidSafDirectory();
+      await _ensureDirectoryExists(path);
       return path;
     }
 
@@ -190,20 +196,29 @@ class DbServerConnectInfoHelper {
     });
   }
 
-  static Future<void> _ensureAndroidSafDirectory() async {
-    if (_cachedAndroidDocumentsDir != null && _cachedAndroidDocumentsDir!.isNotEmpty) {
-      return;
+  static Future<String> _ensureAndroidSafDirectory() async {
+    if (_cachedAndroidDocumentsDir != null &&
+        _cachedAndroidDocumentsDir!.isNotEmpty) {
+      return _cachedAndroidDocumentsDir!;
     }
 
+    String? resolved;
+
     await _runAndroidPermissionLock(() async {
-      if (_cachedAndroidDocumentsDir != null && _cachedAndroidDocumentsDir!.isNotEmpty) {
+      final prefs = await SharedPreferences.getInstance();
+
+      Future<String> normalizeAndCache(String raw) =>
+          _normalizeAndCacheSafPath(raw, prefs: prefs);
+
+      if (_cachedAndroidDocumentsDir != null &&
+          _cachedAndroidDocumentsDir!.isNotEmpty) {
+        resolved = await normalizeAndCache(_cachedAndroidDocumentsDir!);
         return;
       }
 
-      final prefs = await SharedPreferences.getInstance();
       final saved = prefs.getString(_prefsAndroidDocumentsDirKey);
       if (saved != null && saved.isNotEmpty) {
-        _cachedAndroidDocumentsDir = saved;
+        resolved = await normalizeAndCache(saved);
         return;
       }
 
@@ -217,15 +232,69 @@ class DbServerConnectInfoHelper {
         throw Exception('공용 Documents 폴더의 하위 경로를 선택해야 합니다.');
       }
 
-      if (!selected.startsWith('content://')) {
-        await _ensureDirectoryExists(selected);
+      resolved = await normalizeAndCache(selected);
+    });
+
+    if (resolved != null && resolved!.isNotEmpty) {
+      return resolved!;
+    }
+
+    final cached = _cachedAndroidDocumentsDir;
+    if (cached != null && cached.isNotEmpty) {
+      return cached;
+    }
+
+    throw StateError('SAF Documents 경로 확보에 실패했습니다.');
+  }
+
+  static Future<String> _normalizeAndCacheSafPath(
+    String raw, {
+    SharedPreferences? prefs,
+  }) async {
+    var resolved = raw;
+    if (raw.startsWith('content://')) {
+      final converted = _materializeSafUriToPath(raw);
+      if (converted == null || converted.isEmpty) {
+        throw Exception(
+          '선택한 경로를 파일 시스템 경로로 변환할 수 없습니다. Documents 루트를 선택하거나 다른 폴더를 선택해주세요.',
+        );
+      }
+      resolved = converted;
+    }
+
+    _cachedAndroidDocumentsDir = resolved;
+    final storage = prefs ?? await SharedPreferences.getInstance();
+    await storage.setString(_prefsAndroidDocumentsDirKey, resolved);
+    return resolved;
+  }
+
+  static String? _materializeSafUriToPath(String uri) {
+    try {
+      final parsed = Uri.parse(uri);
+      if (parsed.scheme != 'content') return null;
+      if (parsed.pathSegments.isEmpty) return null;
+
+      String docId;
+      if (parsed.pathSegments.first == 'tree' && parsed.pathSegments.length >= 2) {
+        docId = parsed.pathSegments[1];
       } else {
-        debugPrint('$cn._ensureAndroidSafDirectory, content uri selected: $selected');
+        docId = parsed.pathSegments.last;
       }
 
-      _cachedAndroidDocumentsDir = selected;
-      await prefs.setString(_prefsAndroidDocumentsDirKey, selected);
-    });
+      docId = Uri.decodeComponent(docId);
+
+      const primaryPrefix = 'primary:';
+      if (docId.startsWith(primaryPrefix)) {
+        final relative =
+            docId.substring(primaryPrefix.length).replaceAll(':', '/');
+        final cleaned = relative.isEmpty ? '' : '/$relative';
+        return '/storage/emulated/0$cleaned';
+      }
+
+      return null;
+    } catch (_) {
+      return null;
+    }
   }
 
   static Future<void> _ensureDirectoryExists(String path) async {
@@ -283,7 +352,9 @@ class DbServerConnectInfoHelper {
     return d.path;
   }
 
+  //////////////////////////////////////////////////////////////////////////////
   /// DB 오픈 (필요 시 생성 및 마이그레이션)
+
   static Future<Database> open() async {
     _ensureDesktopInit();
 

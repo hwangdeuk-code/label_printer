@@ -13,3 +13,6 @@ String appPackageName = '';
 String appVersion = '';
 bool isDesktop = false;
 bool isShowLogo = false;
+
+// Android
+int? androidSdkInt;
