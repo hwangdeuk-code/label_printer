@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:label_printer/core/app.dart';
+import 'package:label_printer/utils/on_messages.dart';
 import 'package:tabbed_view/tabbed_view.dart';
 import 'package:dropdown_button2/dropdown_button2.dart';
 
@@ -9,7 +10,6 @@ class HomePageManager extends StatefulWidget {
 	final ValueChanged<String?> onBrandChanged;
 	final String selectedLabelSize;
 	final ValueChanged<String?> onLabelSizeChanged;
-
 
 	const HomePageManager({
 		super.key,
@@ -23,6 +23,7 @@ class HomePageManager extends StatefulWidget {
 }
 
 class _HomePageManagerState extends State<HomePageManager> {
+  static const cn = '_HomePageManagerState';
 	late final TabbedViewController _tabController;
 	final TextEditingController _tabSearchController = TextEditingController();
 
@@ -30,7 +31,27 @@ class _HomePageManagerState extends State<HomePageManager> {
 	void initState() {
 		super.initState();
 		_tabController = TabbedViewController(_buildInitialTabs());
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (mounted) {
+        initBrandAndLabelSize();
+      }
+    });
 	}
+
+  Future<void> initBrandAndLabelSize() async {
+    const String fn = 'initBrandAndLabelSize';
+
+    try {
+      debugPrint('$cn.$fn: $START');
+      BlockingOverlay.show(context, message: '사용자 데이터를 불러오고 있습니다...');
+    
+
+    }
+    finally {
+      BlockingOverlay.hide();
+      debugPrint('$cn.$fn: $END');
+    }
+  } 
 
 	List<TabData> _buildInitialTabs() {
 		return [

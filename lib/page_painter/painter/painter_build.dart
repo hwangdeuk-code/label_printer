@@ -4,7 +4,7 @@ part of 'painter_page.dart';
 Widget buildPainterScaffold(_PainterPageState state, BuildContext context) {
   return Scaffold(
     appBar: AppBar(
-      title: Text('$appTitle v${state.appVersion}'),
+      title: Text('$APP_TITLE v${state.appVersion}'),
       actions: [
         const DbConnectionStatusIcon(),
         IconButton(

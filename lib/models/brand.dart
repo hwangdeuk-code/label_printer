@@ -6,58 +6,58 @@ import 'package:label_printer/database/db_client.dart';
 import 'package:label_printer/database/db_result_utils.dart';
 import 'dao.dart';
 
-class Customer {
-  static Customer? instance;
+class Brand {
+  static Brand? instance;
 
+ 	final int brandId;
   final int customerId;
-  final String cooperatorId;
-	final String name;
+	final String brandName;
 
-  const Customer({
+  const Brand({
+    required this.brandId,
     required this.customerId,
-    required this.cooperatorId,
-    required this.name,
+    required this.brandName,
   });
 
-  static void setInstance(Customer? customer) {
-    instance = customer;
+  static void setInstance(Brand? brand) {
+    instance = brand;
   }
 
-  factory Customer.fromPipe(String line) {
+  factory Brand.fromPipe(String line) {
     final parts = line.split(DAO.SPLITTER);
 
     if (parts.length < 2) {
       throw FormatException('${DAO.incorrect_format}: $line');
     }
 
-    final customerId = int.tryParse(parts[0].trim()) ?? 0;
-    final cooperatorId = parts[1].trim();
-    final name = parts[2].trim();
+    final brandId = int.tryParse(parts[0].trim()) ?? 0;
+    final customerId = int.tryParse(parts[1].trim()) ?? 0;
+    final brandName = parts[2].trim();
 
-    return Customer(
+    return Brand(
+      brandId: brandId,
       customerId: customerId,
-      cooperatorId: cooperatorId,
-      name: name,
+      brandName: brandName,
     );
   }
 
   @override
   String toString() =>
-    'CustomerId: $customerId, CoopId: $cooperatorId, Name: $name';
+    'BrandId: $brandId, CustomerId: $customerId, BrandName: $brandName';
 }
 
-class CustomerDAO extends DAO {
-  static const String cn = 'CustomerDAO';
+class BrandDAO extends DAO {
+  static const String cn = 'BrandDAO';
 
   static const String SelectSql = '''
-		SELECT
-			CONVERT(VARBINARY(300),
+    SELECT
+			CONVERT(VARBINARY(MAX),
 			CONCAT_WS(N'${DAO.SPLITTER}',
+        RICH_BRAND_ID,
         RICH_CUSTOMER_ID,
-        CONVERT(NVARCHAR(30),RICH_COOP_ID COLLATE ${DAO.CP949}),
-        CONVERT(NVARCHAR(50),RICH_NAME COLLATE ${DAO.CP949})
+        CONVERT(NVARCHAR(50),RICH_BRAND_NAME COLLATE ${DAO.CP949})
 			)) AS ${DAO.LINE_U16LE}
-		FROM BM_CUSTOMER
+    FROM BM_RICH_BRAND
   ''';
 
   // WHERE 절: Customer ID로 조회 (Integer)
@@ -65,7 +65,7 @@ class CustomerDAO extends DAO {
 	  WHERE RICH_CUSTOMER_ID=@customerId
   ''';
 
-  static Future<Customer?> getByCustomerId(int customerId) async {
+  static Future<Brand?> getByCustomerId(int customerId) async {
     const String fn = 'getByCustomerId';
 
     try {
@@ -80,8 +80,8 @@ class CustomerDAO extends DAO {
 			  debugPrint('$cn.$fn: ${DAO.query_no_data}');
         return null;
       }
-  
-      return Customer.fromPipe(decodeUtf16LeFromBase64String(base64Str));
+
+      return Brand.fromPipe(decodeUtf16LeFromBase64String(base64Str));
     }
     catch (e) {
       throw Exception('[$cn.$fn] $e');
