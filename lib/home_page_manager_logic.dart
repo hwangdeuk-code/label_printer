@@ -31,8 +31,28 @@ class HomePageManagerLogic {
     brands.isNotEmpty ? brands.first.brandName : null;
 
   Future<List<LabelSize>> fetchLabelSizes(int brandId) async {
-    final rows = await LabelSizeDAO.getByBrandIdByLabelSizeOrder(brandId) ?? <LabelSize>[];
-    LabelSize.setLabelSizes(rows);
-    return rows;
+    return await LabelSizeDAO.getByBrandIdByLabelSizeOrder(brandId) ?? <LabelSize>[];
   }
+
+  List<DropdownMenuItem<String>> toLabelSizeDropdownItems(List<LabelSize> labelSizes) =>
+      labelSizes
+          .map(
+            (label) => DropdownMenuItem<String>(
+              value: label.labelSizeName,
+              child: Text(label.labelSizeName, overflow: TextOverflow.ellipsis),
+            ),
+          )
+          .toList();
+
+  String? resolveSelectedLabelSize(List<LabelSize> labelSizes, String selectedLabelSize) {
+    for (final label in labelSizes) {
+      if (label.labelSizeName == selectedLabelSize) {
+        return label.labelSizeName;
+      }
+    }
+    return null;
+  }
+
+  String? firstLabelSizeName(List<LabelSize> labelSizes) =>
+      labelSizes.isNotEmpty ? labelSizes.first.labelSizeName : null;
 }

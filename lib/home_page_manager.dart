@@ -7,6 +7,7 @@ import 'package:label_printer/models/brand.dart';
 import 'package:label_printer/home_page_manager_logic.dart';
 import 'package:label_printer/models/customer.dart';
 import 'package:label_printer/models/user.dart';
+import 'package:label_printer/models/label_size.dart';
 import 'package:label_printer/utils/on_messages.dart';
 
 /// 로그인 이후 표시되는 본문 UI를 별도 파일로 분리한 위젯
@@ -33,6 +34,8 @@ class _HomePageManagerState extends State<HomePageManager> {
   final HomePageManagerLogic _logic = HomePageManagerLogic();
   late final TabbedViewController _tabController;
   final TextEditingController _tabSearchController = TextEditingController();
+  int? _labelSizesBrandId;
+  int _labelLoadToken = 0;
 
   @override
   void initState() {
@@ -42,6 +45,88 @@ class _HomePageManagerState extends State<HomePageManager> {
       if (mounted) {
         _loadBrands();
       }
+    });
+  }
+
+  @override
+  void didUpdateWidget(covariant HomePageManager oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.selectedBrand != widget.selectedBrand) {
+      _scheduleLabelSizeLoad(widget.selectedBrand);
+    }
+  }
+
+  Brand? _findBrandByName(String? brandName) {
+    if (brandName == null) return null;
+    final brands = Brand.datas ?? const <Brand>[];
+    for (final brand in brands) {
+      if (brand.brandName == brandName) {
+        return brand;
+      }
+    }
+    return null;
+  }
+
+  void _handleBrandChanged(String? brandName) {
+    widget.onBrandChanged(brandName);
+    _scheduleLabelSizeLoad(brandName);
+  }
+
+  void _scheduleLabelSizeLoad(String? brandName) {
+    final target = _findBrandByName(brandName);
+    if (target == null) {
+      _labelSizesBrandId = null;
+      LabelSize.setLabelSizes(<LabelSize>[]);
+      setState(() {});
+      widget.onLabelSizeChanged(null);
+      return;
+    }
+
+    if (_labelSizesBrandId == target.brandId && LabelSize.datas != null) {
+      final current = LabelSize.datas ?? const <LabelSize>[];
+      if (current.isEmpty) {
+        widget.onLabelSizeChanged(null);
+      } else {
+        final resolved = _logic.resolveSelectedLabelSize(
+          current,
+          widget.selectedLabelSize,
+        );
+        final fallback = _logic.firstLabelSizeName(current);
+        if (resolved == null && fallback != null) {
+          widget.onLabelSizeChanged(fallback);
+        }
+      }
+      return;
+    }
+
+    final token = ++_labelLoadToken;
+    _labelSizesBrandId = null;
+    LabelSize.setLabelSizes(<LabelSize>[]);
+    setState(() {});
+
+    _logic.fetchLabelSizes(target.brandId).then((labelSizes) {
+      if (!mounted || token != _labelLoadToken) return;
+      LabelSize.setLabelSizes(labelSizes);
+      _labelSizesBrandId = target.brandId;
+      setState(() {});
+
+      if (labelSizes.isEmpty) {
+        widget.onLabelSizeChanged(null);
+        return;
+      }
+
+      final resolved = _logic.resolveSelectedLabelSize(
+        labelSizes,
+        widget.selectedLabelSize,
+      );
+      final fallback = _logic.firstLabelSizeName(labelSizes);
+      if (resolved == null && fallback != null) {
+        widget.onLabelSizeChanged(fallback);
+      }
+    }).catchError((_) {
+      if (!mounted || token != _labelLoadToken) return;
+      _labelSizesBrandId = null;
+      setState(() {});
     });
   }
 
@@ -69,8 +154,11 @@ class _HomePageManagerState extends State<HomePageManager> {
           widget.onBrandChanged(fallback);
         });
       }
+
+      final targetName = resolved ?? fallback ?? widget.selectedBrand;
+      _scheduleLabelSizeLoad(targetName);
     }
-		finally {
+	finally {
       BlockingOverlay.hide();
       debugPrint('$cn.$fn: $END');
     }
@@ -260,6 +348,12 @@ class _HomePageManagerState extends State<HomePageManager> {
       brands,
       widget.selectedBrand,
     );
+    final labelSizes = LabelSize.datas ?? const <LabelSize>[];
+    final labelItems = _logic.toLabelSizeDropdownItems(labelSizes);
+    final resolvedLabel = _logic.resolveSelectedLabelSize(
+      labelSizes,
+      widget.selectedLabelSize,
+    );
 
     return Column(
       children: [
@@ -274,12 +368,12 @@ class _HomePageManagerState extends State<HomePageManager> {
               side: const BorderSide(color: Color(0xFFE6E6E6)),
             ),
             child: _TopControlArea(
-              selectedBrand: widget.selectedBrand,
-              onBrandChanged: widget.onBrandChanged,
-              selectedLabelSize: widget.selectedLabelSize,
+              onBrandChanged: _handleBrandChanged,
               onLabelSizeChanged: widget.onLabelSizeChanged,
               brandItems: brandItems,
               resolvedBrand: resolvedBrand,
+              labelItems: labelItems,
+              resolvedLabel: resolvedLabel,
             ),
           ),
         ),
@@ -307,20 +401,20 @@ class _HomePageManagerState extends State<HomePageManager> {
 
 /// 상단 컨트롤 영역: 좌(회사/사용자), 우(브랜드 + 라벨크기 한 줄), 맨 우측 배너
 class _TopControlArea extends StatelessWidget {
-  final String selectedBrand;
   final ValueChanged<String?> onBrandChanged;
-  final String selectedLabelSize;
   final ValueChanged<String?> onLabelSizeChanged;
   final List<DropdownMenuItem<String>> brandItems;
   final String? resolvedBrand;
+  final List<DropdownMenuItem<String>> labelItems;
+  final String? resolvedLabel;
 
   const _TopControlArea({
-    required this.selectedBrand,
     required this.onBrandChanged,
-    required this.selectedLabelSize,
     required this.onLabelSizeChanged,
     required this.brandItems,
     required this.resolvedBrand,
+    required this.labelItems,
+    required this.resolvedLabel,
   });
 
   @override
@@ -362,7 +456,7 @@ class _TopControlArea extends StatelessWidget {
                   value: resolvedBrand,
                   items: brandItems,
                   onChanged: brandItems.isEmpty ? null : onBrandChanged,
-                  width: isDesktop ? 220 : 150, // 너비 설정
+                  width: isDesktop ? 220 : 150,
                   labelWidth: 48,
                 ),
                 const SizedBox(width: 6),
@@ -380,12 +474,10 @@ class _TopControlArea extends StatelessWidget {
                 const SizedBox(width: 10),
                 _DropdownField(
                   label: '라벨',
-                  value: selectedLabelSize,
-                  items: const ['바코드 test2']
-                      .map((e) => DropdownMenuItem(value: e, child: Text(e)))
-                      .toList(),
-                  onChanged: onLabelSizeChanged,
-                  width: isDesktop ? 220 : 150, // 너비 설정
+                  value: resolvedLabel,
+                  items: labelItems,
+                  onChanged: labelItems.isEmpty ? null : onLabelSizeChanged,
+                  width: isDesktop ? 220 : 150,
                   labelWidth: 48,
                 ),
                 const SizedBox(width: 6),
