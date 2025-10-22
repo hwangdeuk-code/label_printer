@@ -7,7 +7,7 @@ import 'package:sql_connection/sql_connection.dart' as sqlconn;
 
 /// 앱 전역에서 DB 액세스를 단일 경로로 제공하는 클라이언트.
 /// - 폴링 일시중지/재개를 내부에서 처리하여 세션 충돌을 방지한다.
-/// - 쿼리 앞에 SET NOCOUNT ON; 을 자동 주입한다.
+/// - 연결 성공 직후 SET TEXTSIZE 2147483647;와 SET NOCOUNT ON;을 순차 실행하도록 통합한다.
 /// - 선택적 타임아웃 처리를 지원한다.
 abstract class _DbBackend {
   bool get isConnected;
@@ -42,39 +42,34 @@ class _MssqlBackend implements _DbBackend {
     required String username,
     required String password,
     int timeoutInSeconds = 15,
-  }) => _db.connect(
-        ip: ip,
-        port: port,
-        databaseName: databaseName,
-        username: username,
-        password: password,
-        timeoutInSeconds: timeoutInSeconds,
-      );
-
-  @override
-  Future<String> getData(String sql) {
-    // mssql_connection 사용 시에는 NOCOUNT를 주입해 불필요한 rowcount 결과셋을 제거한다.
-    final wrapped = _withNoCount(sql);
-    return _db.getData(wrapped);
+  }) async {
+    final ok = await _db.connect(
+      ip: ip,
+      port: port,
+      databaseName: databaseName,
+      username: username,
+      password: password,
+      timeoutInSeconds: timeoutInSeconds,
+    );
+    if (!ok) return false;
+    await _db.writeData('SET TEXTSIZE 2147483647;');
+    await _db.writeData('SET NOCOUNT ON;');
+    return true;
   }
 
   @override
-  Future<String> getDataWithParams(String sql, Map<String, dynamic> params) {
-    final wrapped = _withNoCount(sql);
-    return _db.getDataWithParams(wrapped, params);
-  }
+  Future<String> getData(String sql) => _db.getData(sql);
 
   @override
-  Future<String> writeData(String sql) {
-    final wrapped = _withNoCount(sql);
-    return _db.writeData(wrapped);
-  }
+  Future<String> getDataWithParams(String sql, Map<String, dynamic> params) =>
+      _db.getDataWithParams(sql, params);
 
   @override
-  Future<String> writeDataWithParams(String sql, Map<String, dynamic> params) {
-    final wrapped = _withNoCount(sql);
-    return _db.writeDataWithParams(wrapped, params);
-  }
+  Future<String> writeData(String sql) => _db.writeData(sql);
+
+  @override
+  Future<String> writeDataWithParams(String sql, Map<String, dynamic> params) =>
+      _db.writeDataWithParams(sql, params);
 
   @override
   Future<bool> disconnect() => _db.disconnect();
@@ -94,14 +89,20 @@ class _SqlConnBackend implements _DbBackend {
     required String username,
     required String password,
     int timeoutInSeconds = 15,
-  }) => _db.connect(
-        ip: ip,
-        port: port,
-        databaseName: databaseName,
-        username: username,
-        password: password,
-        timeoutInSeconds: timeoutInSeconds,
-      );
+  }) async {
+    final ok = await _db.connect(
+      ip: ip,
+      port: port,
+      databaseName: databaseName,
+      username: username,
+      password: password,
+      timeoutInSeconds: timeoutInSeconds,
+    );
+    if (!ok) return false;
+    await _db.updateData('SET TEXTSIZE 2147483647;');
+    await _db.updateData('SET NOCOUNT ON;');
+    return true;
+  }
 
   @override
   Future<String> getData(String sql) => _db.queryDatabase(sql);
@@ -135,7 +136,7 @@ class _SqlConnBackend implements _DbBackend {
 
     return _db.updateData(inlined);
   }
-  
+
   @override
   Future<bool> disconnect() => _db.disconnect();
 
@@ -251,12 +252,4 @@ class DbClient {
   }
 }
 
-// Backend 공통 사용 유틸: mssql 백엔드에서만 사용되는 NOCOUNT 주입기
-String _withNoCount(String sql) {
-  final s = sql.trimLeft();
-  final lower = s.toLowerCase();
-  if (lower.startsWith('set nocount on;') || lower.startsWith('set nocount on')) {
-    return sql;
-  }
-  return 'SET NOCOUNT ON; $sql';
-}
+

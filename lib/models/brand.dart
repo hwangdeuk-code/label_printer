@@ -7,7 +7,7 @@ import 'package:label_printer/database/db_result_utils.dart';
 import 'dao.dart';
 
 class Brand {
-  static List<Brand>? array;
+  static List<Brand>? datas;
 
   final int brandId;
   final int customerId;
@@ -20,7 +20,7 @@ class Brand {
   });
 
   static void setBrands(List<Brand>? values) {
-    array = values;
+    datas = values;
   }
 
   factory Brand.fromPipe(String line) {
@@ -103,7 +103,8 @@ class BrandDAO extends DAO {
       }
 
       return Brand.fromPipeLines(lines);
-    } catch (e) {
+    }
+    catch (e) {
       throw Exception('[$cn.$fn] $e');
     }
   }

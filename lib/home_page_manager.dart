@@ -254,7 +254,7 @@ class _HomePageManagerState extends State<HomePageManager> {
         trailing: _buildTabTrailing(context),
       ),
     );
-    final brands = Brand.array ?? const <Brand>[];
+    final brands = Brand.datas ?? const <Brand>[];
     final brandItems = _logic.toDropdownItems(brands);
     final resolvedBrand = _logic.resolveSelectedBrand(
       brands,

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:label_printer/models/brand.dart';
+import 'package:label_printer/models/label_size.dart';
 
 class HomePageManagerLogic {
   Future<List<Brand>> fetchBrands(int customerId) async {
@@ -28,4 +29,10 @@ class HomePageManagerLogic {
 
   String? firstBrandName(List<Brand> brands) =>
     brands.isNotEmpty ? brands.first.brandName : null;
+
+  Future<List<LabelSize>> fetchLabelSizes(int brandId) async {
+    final rows = await LabelSizeDAO.getByBrandIdByLabelSizeOrder(brandId) ?? <LabelSize>[];
+    LabelSize.setLabelSizes(rows);
+    return rows;
+  }
 }
