@@ -4,6 +4,7 @@ import 'package:tabbed_view/tabbed_view.dart';
 
 import 'package:label_printer/core/app.dart';
 import 'package:label_printer/models/brand.dart';
+import 'package:label_printer/home_page_manager_logic.dart';
 import 'package:label_printer/models/customer.dart';
 import 'package:label_printer/models/user.dart';
 import 'package:label_printer/utils/on_messages.dart';
@@ -29,6 +30,7 @@ class HomePageManager extends StatefulWidget {
 
 class _HomePageManagerState extends State<HomePageManager> {
   static const cn = '_HomePageManagerState';
+  final HomePageManagerLogic _logic = HomePageManagerLogic();
   late final TabbedViewController _tabController;
   final TextEditingController _tabSearchController = TextEditingController();
 
@@ -38,42 +40,37 @@ class _HomePageManagerState extends State<HomePageManager> {
     _tabController = TabbedViewController(_buildInitialTabs());
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (mounted) {
-        initBrandAndLabelSize();
+        _loadBrands();
       }
     });
   }
 
-  Future<void> initBrandAndLabelSize() async {
-    const String fn = 'initBrandAndLabelSize';
+  Future<void> _loadBrands() async {
+    const String fn = '_loadBrands';
 
     try {
       debugPrint('$cn.$fn: $START');
       BlockingOverlay.show(context, message: '사용자 데이터를 불러오고 있습니다...');
 
-      final rows = await BrandDAO.getByCustomerIdByBrandOrder(
-        Customer.instance!.customerId,
+      final brands = await _logic.fetchBrands(Customer.instance!.customerId);
+
+      if (!mounted) return;
+      setState(() {});
+
+      final resolved = _logic.resolveSelectedBrand(
+        brands,
+        widget.selectedBrand,
       );
 
-      if (rows != null && rows.isNotEmpty) {
-        Brand.setBrands(rows);
-        if (!mounted) return;
-        setState(() {});
+      final fallback = _logic.firstBrandName(brands);
 
-        final hasSelected = rows.any(
-          (brand) => brand.brandName == widget.selectedBrand,
-        );
-
-        if (!hasSelected) {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            widget.onBrandChanged(rows.first.brandName);
-          });
-        }
-      }
-      else if (mounted) {
-        setState(() {});
+      if (resolved == null && fallback != null) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          widget.onBrandChanged(fallback);
+        });
       }
     }
-    finally {
+		finally {
       BlockingOverlay.hide();
       debugPrint('$cn.$fn: $END');
     }
@@ -168,9 +165,7 @@ class _HomePageManagerState extends State<HomePageManager> {
 
   void _onTabSearch() {
     final query = _tabSearchController.text.trim();
-    if (query.isEmpty) {
-      return;
-    }
+    if (query.isEmpty) { return; }
     // TODO(hwang): 연동 시점에 맞춰 검색 로직을 주입합니다.
   }
 
@@ -199,7 +194,8 @@ class _HomePageManagerState extends State<HomePageManager> {
                 isDense: true,
                 hintText: '검색어 입력',
                 contentPadding: EdgeInsets.symmetric(
-                  horizontal: 12, vertical: isDesktop ? 8 : 4,
+                  horizontal: 12,
+                  vertical: isDesktop ? 8 : 4,
                 ),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(6),
@@ -225,7 +221,9 @@ class _HomePageManagerState extends State<HomePageManager> {
               label: Text(
                 '검색',
                 style: TextStyle(
-                  fontSize: 12, fontWeight: FontWeight.w600, color: onButtonColor,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: onButtonColor,
                 ),
               ),
               style: FilledButton.styleFrom(
@@ -256,6 +254,12 @@ class _HomePageManagerState extends State<HomePageManager> {
         trailing: _buildTabTrailing(context),
       ),
     );
+    final brands = Brand.array ?? const <Brand>[];
+    final brandItems = _logic.toDropdownItems(brands);
+    final resolvedBrand = _logic.resolveSelectedBrand(
+      brands,
+      widget.selectedBrand,
+    );
 
     return Column(
       children: [
@@ -274,6 +278,8 @@ class _HomePageManagerState extends State<HomePageManager> {
               onBrandChanged: widget.onBrandChanged,
               selectedLabelSize: widget.selectedLabelSize,
               onLabelSizeChanged: widget.onLabelSizeChanged,
+              brandItems: brandItems,
+              resolvedBrand: resolvedBrand,
             ),
           ),
         ),
@@ -305,28 +311,35 @@ class _TopControlArea extends StatelessWidget {
   final ValueChanged<String?> onBrandChanged;
   final String selectedLabelSize;
   final ValueChanged<String?> onLabelSizeChanged;
+  final List<DropdownMenuItem<String>> brandItems;
+  final String? resolvedBrand;
 
   const _TopControlArea({
     required this.selectedBrand,
     required this.onBrandChanged,
     required this.selectedLabelSize,
     required this.onLabelSizeChanged,
+    required this.brandItems,
+    required this.resolvedBrand,
   });
 
   @override
   Widget build(BuildContext context) {
     return Container(
       color: Colors.transparent,
-      padding: const EdgeInsets.fromLTRB(8, 8, 8, 8), // 패딩 축소
+      padding: const EdgeInsets.fromLTRB(8, 8, 8, 8), // 위젯 여백
       child: IntrinsicHeight(
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // 좌측: 회사/사용자 (고정 너비)
+            // 왼쪽: 회사/사용자 (고정 너비)
             SizedBox(
-              width: isDesktop ? 230 : 200,
+              width: isDesktop ? 250 : 200,
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 8,
+                ),
                 decoration: BoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(4),
@@ -341,15 +354,15 @@ class _TopControlArea extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 12),
-            // 중앙: 브랜드 + 라벨크기 (고정 너비)
+            // 가운데: 브랜드 + 라벨 (가변 너비)
             Row(
               children: [
                 _DropdownField(
                   label: '브랜드',
-                  value: _brandDropdownValue(selectedBrand),
-                  items: _brandDropdownItems(),
-                  onChanged: onBrandChanged,
-                  width: isDesktop ? 220 : 150, // 너비 조정
+                  value: resolvedBrand,
+                  items: brandItems,
+                  onChanged: brandItems.isEmpty ? null : onBrandChanged,
+                  width: isDesktop ? 220 : 150, // 너비 설정
                   labelWidth: 48,
                 ),
                 const SizedBox(width: 6),
@@ -361,7 +374,7 @@ class _TopControlArea extends StatelessWidget {
                       minimumSize: const Size(60, 36),
                       padding: const EdgeInsets.symmetric(horizontal: 8),
                     ),
-                    child: const Text('설정', style: TextStyle(fontSize: 13)),
+                    child: const Text('관리', style: TextStyle(fontSize: 13)),
                   ),
                 ),
                 const SizedBox(width: 10),
@@ -372,7 +385,7 @@ class _TopControlArea extends StatelessWidget {
                       .map((e) => DropdownMenuItem(value: e, child: Text(e)))
                       .toList(),
                   onChanged: onLabelSizeChanged,
-                  width: isDesktop ? 220 : 150, // 너비 조정
+                  width: isDesktop ? 220 : 150, // 너비 설정
                   labelWidth: 48,
                 ),
                 const SizedBox(width: 6),
@@ -384,18 +397,18 @@ class _TopControlArea extends StatelessWidget {
                       minimumSize: const Size(60, 36),
                       padding: const EdgeInsets.symmetric(horizontal: 8),
                     ),
-                    child: const Text('설정', style: TextStyle(fontSize: 13)),
+                    child: const Text('관리', style: TextStyle(fontSize: 13)),
                   ),
                 ),
               ],
             ),
-            // 남은 공간을 모두 차지
+            // 오른쪽: 대시보드 영역
             const Spacer(),
-            // 우측 배너
+            // 미리보기
             ConstrainedBox(
               constraints: BoxConstraints(
                 maxWidth: isDesktop ? 450 : 400,
-              ), // 배너 최대 너비 축소
+              ), // 최대 너비 제한
               child: Container(
                 padding: EdgeInsets.zero,
                 decoration: BoxDecoration(
@@ -428,7 +441,7 @@ class _DropdownField extends StatelessWidget {
   final String label;
   final String? value;
   final List<DropdownMenuItem<String>> items;
-  final ValueChanged<String?> onChanged;
+  final ValueChanged<String?>? onChanged;
   final double width;
   final double labelWidth;
 
@@ -436,7 +449,7 @@ class _DropdownField extends StatelessWidget {
     required this.label,
     required this.value,
     required this.items,
-    required this.onChanged,
+    this.onChanged,
     this.width = 170,
     this.labelWidth = 80,
   });
@@ -460,7 +473,9 @@ class _DropdownField extends StatelessWidget {
           child: DropdownButtonFormField2<String>(
             value: (value != null && value!.isNotEmpty) ? value : null,
             items: items,
-            onChanged: items.isEmpty ? null : onChanged,
+            onChanged: (onChanged != null && items.isNotEmpty)
+                ? onChanged
+                : null,
             style: const TextStyle(fontSize: 13, color: Colors.black),
             isExpanded: true,
             buttonStyleData: const ButtonStyleData(
@@ -501,34 +516,6 @@ class _DropdownField extends StatelessWidget {
               ),
             ),
           ),
-        ),
-      ],
-    );
-  }
-}
-
-class _LabeledBox extends StatelessWidget {
-  final String label;
-  final Widget child;
-  const _LabeledBox({required this.label, required this.child});
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text(label),
-        const SizedBox(height: 4),
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-          decoration: BoxDecoration(
-            border: Border.all(color: const Color(0xFFCED4DA)),
-            borderRadius: BorderRadius.circular(4),
-            color: Colors.white,
-          ),
-          child: child,
         ),
       ],
     );
@@ -629,21 +616,4 @@ class _PlaceholderTab extends StatelessWidget {
   Widget build(BuildContext context) {
     return Center(child: Text('$title (준비 중)'));
   }
-}
-
-List<Brand> _brandListCache() => Brand.array ?? const <Brand>[];
-
-List<DropdownMenuItem<String>> _brandDropdownItems() => _brandListCache()
-    .map(
-      (brand) => DropdownMenuItem<String>(
-        value: brand.brandName,
-        child: Text(brand.brandName, overflow: TextOverflow.ellipsis),
-      ),
-    )
-    .toList();
-
-String? _brandDropdownValue(String current) {
-  final brands = _brandListCache();
-  final exists = brands.any((brand) => brand.brandName == current);
-  return exists ? current : null;
 }
