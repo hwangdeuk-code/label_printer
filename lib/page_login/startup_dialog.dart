@@ -458,33 +458,36 @@ class _LoginPanelState extends State<_LoginPanel> {
 
   Future<void> _onLoginButtonPressed(String inputPwd) async {
     const String fn = '_onLoginButtonPressed';
+    debugPrint('${_LoginPanel.cn}.$fn, $START');
 
-    try {
-      if (User.instance == null) {
-        if (mounted) {
-          setState(() => _infoText = '아이디를 먼저 조회해주세요.');
-          FocusScope.of(context).requestFocus(_userIdFocus);
-        }
-        return;
+    if (User.instance == null) {
+      if (mounted) {
+        setState(() => _infoText = '아이디를 먼저 조회해주세요.');
+        FocusScope.of(context).requestFocus(_userIdFocus);
       }
-
-      if (equalsIgnoreCase(User.instance!.userId, User.SYSTEM)) {
-        if (inputPwd != _getDirectPassword() && inputPwd != _getSystemPassword()) {
-          if (mounted) {
-            setState(() => _infoText = '시스템 계정 패스워드가 올바르지 않습니다!');
-            FocusScope.of(context).requestFocus(_passwordFocus);
-          }
-          return;
-        }
-      }
-      else if (User.instance!.pwd != inputPwd) {
+      debugPrint('${_LoginPanel.cn}.$fn, $END');
+      return;
+    }
+    else if (equalsIgnoreCase(User.instance!.userId, User.SYSTEM)) {
+      if (inputPwd != _getDirectPassword() && inputPwd != _getSystemPassword()) {
         if (mounted) {
-          setState(() => _infoText = '패스워드가 올바르지 않습니다!');
+          setState(() => _infoText = '시스템 계정 패스워드가 올바르지 않습니다!');
           FocusScope.of(context).requestFocus(_passwordFocus);
         }
+        debugPrint('${_LoginPanel.cn}.$fn, $END');
         return;
       }
+    }
+    else if (User.instance!.pwd != inputPwd) {
+      if (mounted) {
+        setState(() => _infoText = '패스워드가 올바르지 않습니다!');
+        FocusScope.of(context).requestFocus(_passwordFocus);
+      }
+      debugPrint('${_LoginPanel.cn}.$fn, $END');
+      return;
+    }
 
+    try {
       // Get Market,Customer,Cooperator info after login...
       Market.setInstance(await MarketDAO.getByMarketId(User.instance!.marketId));
       Customer.setInstance(await CustomerDAO.getByCustomerId(Market.instance!.customerId));
@@ -504,7 +507,11 @@ class _LoginPanelState extends State<_LoginPanel> {
       setWindowTitle('$WINDOW_TITLE_PREFIX - ${widget.serverName}');
       final navigator = Navigator.of(context, rootNavigator: true);
       if (navigator.canPop()) { navigator.pop(true); }
-      widget.onLogin();
+
+      // 다이얼로그가 완전히 닫힌 후 onLogin 콜백을 실행합니다.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        widget.onLogin();
+      });
     }
     catch (e) {
       final errmsg = e.toString();
@@ -514,6 +521,9 @@ class _LoginPanelState extends State<_LoginPanel> {
       if (mounted) {
         setState(() => _infoText = stripLeadingBracketTags(errmsg));
       }
+    }
+    finally {
+      debugPrint('${_LoginPanel.cn}.$fn, $END');
     }
   }
 

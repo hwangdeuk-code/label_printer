@@ -2,6 +2,7 @@
 // ignore_for_file: constant_identifier_names, non_constant_identifier_names
 
 import 'package:flutter/material.dart';
+import 'package:label_printer/core/app.dart';
 import 'package:label_printer/database/db_client.dart';
 import 'package:label_printer/database/db_result_utils.dart';
 import 'dao.dart';
@@ -77,6 +78,7 @@ class BrandDAO extends DAO {
     int customerId,
   ) async {
     const String fn = 'getByCustomerIdByBrandOrder';
+    debugPrint('$cn.$fn: $START, customerId:$customerId');
 
     try {
       final res = await DbClient.instance.getDataWithParams(
@@ -98,13 +100,15 @@ class BrandDAO extends DAO {
           .toList();
 
       if (lines.isEmpty) {
-        debugPrint('$cn.$fn: decoded lines empty');
+        debugPrint('$cn.$fn: $END, decoded lines empty');
         return null;
       }
 
+      debugPrint('$cn.$fn: $END');
       return Brand.fromPipeLines(lines);
     }
     catch (e) {
+      debugPrint('$cn.$fn: $e');
       throw Exception('[$cn.$fn] $e');
     }
   }

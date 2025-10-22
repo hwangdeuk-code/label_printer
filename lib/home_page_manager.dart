@@ -158,7 +158,7 @@ class _HomePageManagerState extends State<HomePageManager> {
       final targetName = resolved ?? fallback ?? widget.selectedBrand;
       _scheduleLabelSizeLoad(targetName);
     }
-	finally {
+	  finally {
       BlockingOverlay.hide();
       debugPrint('$cn.$fn: $END');
     }

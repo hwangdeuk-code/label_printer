@@ -2,6 +2,7 @@
 // ignore_for_file: constant_identifier_names, non_constant_identifier_names
 
 import 'package:flutter/material.dart';
+import 'package:label_printer/core/app.dart';
 import 'package:label_printer/database/db_client.dart';
 import 'package:label_printer/database/db_result_utils.dart';
 import 'dao.dart';
@@ -79,6 +80,7 @@ class CooperatorDAO extends DAO {
 
   static Future<Cooperator?> getByCooperatorId(String cooperatorId) async {
     const String fn = 'getByCooperatorId';
+    debugPrint('$cn.$fn: $START, cooperatorId:$cooperatorId');
 
     try {
 			final res = await DbClient.instance.getDataWithParams(
@@ -89,13 +91,15 @@ class CooperatorDAO extends DAO {
       final base64Str = extractJsonDBResult(DAO.LINE_U16LE, res);
 
       if (base64Str.isEmpty) {
-			  debugPrint('$cn.$fn: ${DAO.query_no_data}');
+			  debugPrint('$cn.$fn: $END, ${DAO.query_no_data}');
         return null;
       }
 
+      debugPrint('$cn.$fn: $END');
       return Cooperator.fromPipe(decodeUtf16LeFromBase64String(base64Str));
     }
     catch (e) {
+      debugPrint('$cn.$fn: $e');
       throw Exception('[$cn.$fn] $e');
     }
   }

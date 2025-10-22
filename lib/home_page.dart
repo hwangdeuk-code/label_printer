@@ -24,6 +24,7 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
+  static const String cn = '_HomePageState';
   final StartupDbHelper _db = StartupDbHelper();
   bool _loggedIn = false;
   // 컨트롤 영역 상태(샘플 값): 실제 데이터 연동 전까지 플레이스홀더로 사용
@@ -41,8 +42,19 @@ class _HomePageState extends State<HomePage> {
 
   // 로그아웃 유입이면 자동 표시하지 않음, 사용자 요청 시(앱바 로그인 아이콘) 열도록 함
   Future<void> _loginToServerDB() async {
-    if (!(await _db.connectToServerDB(context))) return;
-    if (!widget.fromLogout) _showStartupDialog();
+    const String fn = '_loginToServerDB';
+    debugPrint('$cn.$fn: $START');
+
+    if (!(await _db.connectToServerDB(context))) {
+      debugPrint('$cn.$fn: Failed to connect to server DB');
+      return;
+    }
+
+    if (!widget.fromLogout) {
+      _showStartupDialog();
+    }
+    
+    debugPrint('$cn.$fn: $END');
   }
 
   // 재연결 모달은 전역 오버레이(GlobalReconnectOverlay)가 담당하므로 여기서는 처리하지 않음

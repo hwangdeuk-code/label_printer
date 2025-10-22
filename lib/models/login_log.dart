@@ -134,6 +134,7 @@ class LoginLogDAO extends DAO {
     required LoginCondition loginCondition,
   }) async {
     const String fn = 'InsertLoginLog';
+    debugPrint('$cn.$fn: $START');
 
     try {
       final now = DateTime.now();
@@ -161,8 +162,11 @@ class LoginLogDAO extends DAO {
         },
         timeout: const Duration(seconds: DAO.query_timeouts)
       );
+
+      debugPrint('$cn.$fn: $END');
     }
     catch (e) {
+      debugPrint('$cn.$fn: $e');
       throw Exception('[$cn.$fn] $e');
     }
   }
