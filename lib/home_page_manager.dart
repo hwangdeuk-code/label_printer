@@ -270,58 +270,64 @@ class _HomePageManagerState extends State<HomePageManager> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          SizedBox(
-            width: fieldWidth,
-            child: TextField(
-              controller: _tabSearchController,
-              style: const TextStyle(fontSize: 13),
-              textAlignVertical: TextAlignVertical.center,
-              textInputAction: TextInputAction.search,
-              onSubmitted: (_) => _onTabSearch(),
-              decoration: InputDecoration(
-                isDense: true,
-                hintText: '검색어 입력',
-                contentPadding: EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: isDesktop ? 8 : 4,
-                ),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(6),
-                  borderSide: const BorderSide(color: Color(0xFFCED4DA)),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(6),
-                  borderSide: const BorderSide(color: Color(0xFFCED4DA)),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(6),
-                  borderSide: const BorderSide(color: Color(0xFF3B82F6)),
+          Transform.translate(
+            offset: const Offset(0, -1),
+            child: SizedBox(
+              width: fieldWidth,
+              child: TextField(
+                controller: _tabSearchController,
+                style: const TextStyle(fontSize: 13),
+                textAlignVertical: TextAlignVertical.center,
+                textInputAction: TextInputAction.search,
+                onSubmitted: (_) => _onTabSearch(),
+                decoration: InputDecoration(
+                  isDense: true,
+                  hintText: '검색어 입력',
+                  contentPadding: EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: isDesktop ? 8 : 4,
+                  ),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(6),
+                    borderSide: const BorderSide(color: Color(0xFFCED4DA)),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(6),
+                    borderSide: const BorderSide(color: Color(0xFFCED4DA)),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(6),
+                    borderSide: const BorderSide(color: Color(0xFF3B82F6)),
+                  ),
                 ),
               ),
             ),
           ),
           const SizedBox(width: 8),
-          SizedBox(
-            height: fieldHeight - 10,
-            child: FilledButton.icon(
-              onPressed: _onTabSearch,
-              icon: Icon(Icons.search, size: 14, color: onButtonColor),
-              label: Text(
-                '검색',
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: onButtonColor,
+          Transform.translate(
+            offset: const Offset(0, -1),
+            child: SizedBox(
+              height: fieldHeight - 10,
+              child: FilledButton.icon(
+                onPressed: _onTabSearch,
+                icon: Icon(Icons.search, size: 14, color: onButtonColor),
+                label: Text(
+                  '검색',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: onButtonColor,
+                  ),
                 ),
-              ),
-              style: FilledButton.styleFrom(
-                backgroundColor: buttonColor,
-                padding: const EdgeInsets.symmetric(horizontal: 10),
-                minimumSize: const Size(0, fieldHeight - 10),
-                maximumSize: const Size(double.infinity, fieldHeight - 10),
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(6),
+                style: FilledButton.styleFrom(
+                  backgroundColor: buttonColor,
+                  padding: const EdgeInsets.symmetric(horizontal: 10),
+                  minimumSize: const Size(0, fieldHeight - 10),
+                  maximumSize: const Size(double.infinity, fieldHeight - 10),
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(6),
+                  ),
                 ),
               ),
             ),
