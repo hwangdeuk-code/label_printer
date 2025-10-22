@@ -65,6 +65,7 @@ dependencies:
 
   r_get_ip:
     path: ./pub.dev/r_get_ip
+  synchronized: ^3.4.0
 
 dev_dependencies:
   flutter_test:

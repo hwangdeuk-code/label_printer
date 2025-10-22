@@ -2,7 +2,7 @@
 // 로컬 DB: dmServerConnectInfo.db (테이블: DB_SERVER_CONNECT_INFO)
 // 기능: 생성, 오픈, 조회, 업데이트
 
-// ignore_for_file: constant_identifier_names
+// ignore_for_file: constant_identifier_names, body_might_complete_normally_catch_error
 
 import 'dart:async';
 import 'dart:io';
@@ -11,6 +11,7 @@ import 'package:device_info_plus/device_info_plus.dart';
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import 'package:synchronized/synchronized.dart';
 import 'package:label_printer/core/app.dart';
 import 'package:path/path.dart' as p;
 import 'package:permission_handler/permission_handler.dart' as ph;
@@ -84,6 +85,7 @@ class DbServerConnectInfoHelper {
   static int? _cachedAndroidSdkInt;
   static String? _cachedAndroidDocumentsDir;
   static const String _prefsAndroidDocumentsDirKey = 'db_server_connect_info_android_documents_dir';
+  static final _dbInitLock = Lock(); // 동시성 방지
 
   /// 데스크톱(Windows/macOS/Linux)에서 sqflite_ffi 초기화
   static void _ensureDesktopInit() {
@@ -96,7 +98,7 @@ class DbServerConnectInfoHelper {
   }
 
   /// 앱의 쓰기 가능한 디렉터리 하위에 assets/data 경로 보장
-  static Future<String> _dbPath() async {
+  static Future<String> _dbPath() => _dbInitLock.synchronized(() async {
     const fn = '_dbPath';
     debugPrint('$cn.$fn: $START');
 
@@ -118,47 +120,41 @@ class DbServerConnectInfoHelper {
       debugPrint('DB baseDir (iOS): ${baseDir.path}');
     }
     else if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
-			if (kDebugMode) {
-				baseDir = Directory.current;
-			} else {
-      	baseDir = await getApplicationSupportDirectory();
-			}
+      if (kDebugMode) {
+        baseDir = Directory.current;
+      } else {
+        baseDir = await getApplicationSupportDirectory();
+      }
     }
     else {
       baseDir = await getTemporaryDirectory();
     }
 
     final dir = Directory(p.join(baseDir.path, 'assets', 'data'));
-    if (!await dir.exists()) { await dir.create(recursive: true); }
+    await dir.create(recursive: true);
 
     if (Platform.isAndroid) {
-      // Android에서는 공개 문서 디렉터리에 생성된 폴더가 미디어 스캔에서 누락될 수 있으므로,
-      // .nomedia 파일을 생성해 다른 미디어 스캔이 이 폴더를 스캔하지 않도록 합니다.
-      final noMediaFile = File(p.join(dir.path, '.nomedia'));
-
-      if (!await noMediaFile.exists()) {
-        try {
-          await noMediaFile.create();
-        } on PathExistsException {
-          // 동시 생성된 경우에는 무시
-        } catch (e) {
-          debugPrint('$cn.$fn: .nomedia 파일 생성 오류: $e');
-        }
-      }
-
       // labelmanager_server_connect_info.db 파일을 assets/data 경로에 복사합니다.
-      final dbFile = File(p.join(dir.path, _dbName));
+      final dbPath = p.join(dir.path, _dbName);
+      final dbFile = File(dbPath);
+
+      // 이미 있으면 그냥 사용 (복사 생략)
       if (!await dbFile.exists()) {
-        final dbAssetPath = p.join('assets', 'data', _dbName);
-        final byteData = await rootBundle.load(dbAssetPath);
-        final bytes = byteData.buffer.asUint8List();
-        await dbFile.writeAsBytes(bytes, flush: true);
+        final bytes = (await rootBundle.load(p.join('assets', 'data', _dbName)))
+            .buffer
+            .asUint8List();
+
+        // 덮어쓰기(없으면 생성, 있으면 truncate). 배타 생성 금지!
+        final sink = dbFile.openWrite(); // FileMode.write
+        sink.add(bytes);
+        await sink.flush();
+        await sink.close();
       }
     }
 
     debugPrint('$cn.$fn: $END, path=${dir.path}');
     return p.join(dir.path, _dbName);
-  }
+  });
 
   //////////////////////////////////////////////////////////////////////////////
   /// 안드로이드 전용: 공용 Documents 디렉터리 접근 권한 처리
