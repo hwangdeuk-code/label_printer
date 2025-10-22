@@ -1,11 +1,12 @@
 // UTF-8 인코딩
 // 로컬 DB: dmServerConnectInfo.db (테이블: DB_SERVER_CONNECT_INFO)
-// 기능: 생성, 오픈, 조회, 업데이트
+// 기능: 생성, 오픈
 
 // ignore_for_file: constant_identifier_names, body_might_complete_normally_catch_error
 
 import 'dart:async';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:file_selector/file_selector.dart';
@@ -84,7 +85,9 @@ class DbServerConnectInfoHelper {
   static Completer<void>? _androidPermissionLock;
   static int? _cachedAndroidSdkInt;
   static String? _cachedAndroidDocumentsDir;
+  static String? _cachedAndroidDocumentsSafUri;
   static const String _prefsAndroidDocumentsDirKey = 'db_server_connect_info_android_documents_dir';
+  static const String _prefsAndroidDocumentsSafUriKey = 'db_server_connect_info_android_documents_saf_uri';
   static final _dbInitLock = Lock(); // 동시성 방지
 
   /// 데스크톱(Windows/macOS/Linux)에서 sqflite_ffi 초기화
@@ -105,6 +108,7 @@ class DbServerConnectInfoHelper {
     // 앱의 쓰기 가능한 디렉터리 하위에 assets/data 경로를 생성하고,
     // 해당 경로에 DB 파일을 복사한다.
     Directory baseDir;
+    
     if (kIsWeb) {
       // Web은 sqflite 미지원. 여기선 예외를 던집니다.
       throw UnsupportedError('sqflite is not supported on Web');
@@ -134,21 +138,35 @@ class DbServerConnectInfoHelper {
     await dir.create(recursive: true);
 
     if (Platform.isAndroid) {
-      // labelmanager_server_connect_info.db 파일을 assets/data 경로에 복사합니다.
       final dbPath = p.join(dir.path, _dbName);
       final dbFile = File(dbPath);
 
-      // 이미 있으면 그냥 사용 (복사 생략)
       if (!await dbFile.exists()) {
-        final bytes = (await rootBundle.load(p.join('assets', 'data', _dbName)))
+        final Uint8List bytes = (await rootBundle.load(p.join('assets', 'data', _dbName)))
             .buffer
             .asUint8List();
 
-        // 덮어쓰기(없으면 생성, 있으면 truncate). 배타 생성 금지!
-        final sink = dbFile.openWrite(); // FileMode.write
-        sink.add(bytes);
-        await sink.flush();
-        await sink.close();
+        final safUri = await _getCachedAndroidSafUri();
+        if (safUri != null && safUri.isNotEmpty) {
+          String relativePath = '';
+          if (dir.path.length > baseDir.path.length && dir.path.startsWith(baseDir.path)) {
+            relativePath = dir.path.substring(baseDir.path.length);
+            if (relativePath.startsWith('/') || relativePath.startsWith('\\')) {
+              relativePath = relativePath.substring(1);
+            }
+          }
+          await _writeFileToSaf(
+            directoryUri: safUri,
+            relativePath: relativePath,
+            fileName: _dbName,
+            bytes: bytes,
+          );
+        } else {
+          final sink = dbFile.openWrite();
+          sink.add(bytes);
+          await sink.flush();
+          await sink.close();
+        }
       }
     }
 
@@ -171,6 +189,7 @@ class DbServerConnectInfoHelper {
     }
 
     await _ensureAndroidLegacyPermission();
+    _cachedAndroidDocumentsSafUri = null;
     final docs = await _getAndroidPublicDocumentsDir();
     await _ensureDirectoryExists(docs);
     return docs;
@@ -195,6 +214,7 @@ class DbServerConnectInfoHelper {
   static Future<String> _ensureAndroidSafDirectory() async {
     if (_cachedAndroidDocumentsDir != null &&
         _cachedAndroidDocumentsDir!.isNotEmpty) {
+      await _getCachedAndroidSafUri();
       return _cachedAndroidDocumentsDir!;
     }
 
@@ -225,7 +245,7 @@ class DbServerConnectInfoHelper {
       );
 
       if (selected == null || selected.isEmpty) {
-        throw Exception('공용 Documents 폴더의 하위 경로를 선택해야 합니다.');
+        throw Exception('공용 Documents 폴더 경로를 선택해야 합니다.');
       }
 
       resolved = await normalizeAndCache(selected);
@@ -240,28 +260,72 @@ class DbServerConnectInfoHelper {
       return cached;
     }
 
-    throw StateError('SAF Documents 경로 확보에 실패했습니다.');
+    throw StateError('SAF Documents 경로 확인에 실패하였습니다.');
   }
 
   static Future<String> _normalizeAndCacheSafPath(
     String raw, {
     SharedPreferences? prefs,
   }) async {
+    final storage = prefs ?? await SharedPreferences.getInstance();
+
+    String? safUri;
     var resolved = raw;
     if (raw.startsWith('content://')) {
+      safUri = raw;
       final converted = _materializeSafUriToPath(raw);
       if (converted == null || converted.isEmpty) {
         throw Exception(
-          '선택한 경로를 파일 시스템 경로로 변환할 수 없습니다. Documents 루트를 선택하거나 다른 폴더를 선택해주세요.',
+          '선택한 경로를 시스템 경로로 변환할 수 없습니다. Documents 선택을 다시 수행해주세요.',
         );
       }
       resolved = converted;
     }
 
     _cachedAndroidDocumentsDir = resolved;
-    final storage = prefs ?? await SharedPreferences.getInstance();
     await storage.setString(_prefsAndroidDocumentsDirKey, resolved);
+
+    if (safUri != null) {
+      _cachedAndroidDocumentsSafUri = safUri;
+      await storage.setString(_prefsAndroidDocumentsSafUriKey, safUri);
+    } else {
+      if (_cachedAndroidDocumentsSafUri == null ||
+          _cachedAndroidDocumentsSafUri!.isEmpty) {
+        final storedUri = storage.getString(_prefsAndroidDocumentsSafUriKey);
+        if (storedUri != null && storedUri.isNotEmpty) {
+          _cachedAndroidDocumentsSafUri = storedUri;
+        }
+      }
+    }
     return resolved;
+  }
+
+  static Future<String?> _getCachedAndroidSafUri() async {
+    if (_cachedAndroidDocumentsSafUri != null &&
+        _cachedAndroidDocumentsSafUri!.isNotEmpty) {
+      return _cachedAndroidDocumentsSafUri;
+    }
+    final prefs = await SharedPreferences.getInstance();
+    final stored = prefs.getString(_prefsAndroidDocumentsSafUriKey);
+    if (stored != null && stored.isNotEmpty) {
+      _cachedAndroidDocumentsSafUri = stored;
+      return stored;
+    }
+    return null;
+  }
+
+  static Future<void> _writeFileToSaf({
+    required String directoryUri,
+    String? relativePath,
+    required String fileName,
+    required Uint8List bytes,
+  }) async {
+    await _filesChannel.invokeMethod<void>('writeFileToSaf', {
+      'directoryUri': directoryUri,
+      'relativePath': relativePath ?? '',
+      'fileName': fileName,
+      'bytes': bytes,
+    });
   }
 
   static String? _materializeSafUriToPath(String uri) {
