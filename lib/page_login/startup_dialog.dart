@@ -272,7 +272,7 @@ class _DialogBodyState extends State<_DialogBody> {
                                       child: DefaultTextStyle.merge(
                                         style: const TextStyle(
                                           fontFamily: 'monospace',
-                                          fontSize: 13,
+                                          fontSize: 14,
                                           color: Color(0xFF1F1F1F),
                                         ),
                                         child: Text(widget.noticeContent),
@@ -577,7 +577,7 @@ class _LoginPanelState extends State<_LoginPanel> {
                           fontWeight: FontWeight.w700,
                           color: const Color(0xFF202020),
                         ) ??
-                        const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                        const TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
                   ),
                   const SizedBox(height: 8),
                   _LabeledField(
@@ -932,3 +932,4 @@ class _AdBannerState extends State<_AdBanner> {
 }
 
 // no-op
+

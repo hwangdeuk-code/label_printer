@@ -15,7 +15,7 @@ class TextSettings {
 
   /// Creates a [TextSettings] with the given [textStyle] and [focusNode].
   const TextSettings({
-    this.textStyle = const TextStyle(fontSize: 14, color: Colors.black),
+    this.textStyle = const TextStyle(fontSize: 15, color: Colors.black),
     this.focusNode,
   });
 
@@ -27,3 +27,4 @@ class TextSettings {
     );
   }
 }
+

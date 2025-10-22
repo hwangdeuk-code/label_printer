@@ -71,7 +71,7 @@ class _DbReconnectOverlayState extends State<DbReconnectOverlay> {
                                   mainAxisSize: MainAxisSize.min,
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    const Text('서버 연결 재시도 중', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
+                                    const Text('서버 연결 재시도 중', style: TextStyle(fontSize: 19, fontWeight: FontWeight.w600)),
                                     const SizedBox(height: 12),
                                     Row(
                                       children: const [
@@ -116,3 +116,4 @@ class _DbReconnectOverlayState extends State<DbReconnectOverlay> {
     );
   }
 }
+

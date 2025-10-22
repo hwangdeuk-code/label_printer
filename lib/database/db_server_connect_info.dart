@@ -356,6 +356,9 @@ class DbServerConnectInfoHelper {
   /// DB 오픈 (필요 시 생성 및 마이그레이션)
 
   static Future<Database> open() async {
+    const fn = 'open';
+    debugPrint('$cn.$fn: $START');
+
     _ensureDesktopInit();
 
     if (_db != null && _db!.isOpen) return _db!;
@@ -407,6 +410,7 @@ class DbServerConnectInfoHelper {
       },
     );
 
+    debugPrint('$cn.$fn: $END, path=${_db!.path}, isOpen=${_db!.isOpen}');
     return _db!;
   }
 

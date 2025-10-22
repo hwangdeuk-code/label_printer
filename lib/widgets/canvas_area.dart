@@ -11,7 +11,7 @@ const double _rulerThickness = 24;
 const Color _rulerBackground = Color(0xFFEDEDED);
 const Color _rulerBorder = Color(0xFFBDBDBD);
 const TextStyle _rulerLabelStyle = TextStyle(
-  fontSize: 8,
+  fontSize: 9,
   color: Colors.black87,
 );
 
@@ -331,7 +331,7 @@ class _RulerCorner extends StatelessWidget {
       alignment: Alignment.center,
       child: const Text(
         'cm',
-        style: TextStyle(fontSize: 10, color: Colors.black54),
+        style: TextStyle(fontSize: 11, color: Colors.black54),
       ),
     );
   }
@@ -627,3 +627,4 @@ class _InsetClipper extends CustomClipper<Rect> {
   bool shouldReclip(covariant _InsetClipper oldClipper) =>
       oldClipper.inset != inset;
 }
+

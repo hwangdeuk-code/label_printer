@@ -18,7 +18,7 @@ class ConstrainedTextDrawable extends ObjectDrawable {
     required this.text,
     required super.position,
     required super.rotationAngle,
-    this.style = const TextStyle(fontSize: 14, color: Colors.black),
+    this.style = const TextStyle(fontSize: 15, color: Colors.black),
     this.direction = TextDirection.ltr,
     this.align = TxtAlign.left,
     this.maxWidth = 300,
@@ -92,3 +92,4 @@ class ConstrainedTextDrawable extends ObjectDrawable {
     tp.paint(canvas, topLeft);
   }
 }
+

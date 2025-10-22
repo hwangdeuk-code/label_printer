@@ -422,7 +422,7 @@ class _LeftPalettes extends StatelessWidget {
                         "저장된 색상이 없습니다.\n우측의 ‘현재 색 저장’ 버튼을 사용해 추가하세요.",
                         textAlign: TextAlign.center,
                         style: const TextStyle(
-                          fontSize: 12,
+                          fontSize: 13,
                           color: Colors.black54,
                         ),
                       ),
@@ -697,14 +697,14 @@ class _PreviewRow extends StatelessWidget {
         const SizedBox(width: 12),
         Column(
           children: [
-            const Text('원본', style: TextStyle(fontSize: 12)),
+            const Text('원본', style: TextStyle(fontSize: 13)),
             swatch(original),
           ],
         ),
         const SizedBox(width: 12),
         Column(
           children: [
-            const Text('현재', style: TextStyle(fontSize: 12)),
+            const Text('현재', style: TextStyle(fontSize: 13)),
             swatch(current),
           ],
         ),
@@ -745,3 +745,4 @@ class _NumField extends StatelessWidget {
     );
   }
 }
+

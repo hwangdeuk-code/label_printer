@@ -1,4 +1,4 @@
-import 'package:dropdown_button2/dropdown_button2.dart';
+﻿import 'package:dropdown_button2/dropdown_button2.dart';
 import 'package:flutter/material.dart';
 import 'package:tabbed_view/tabbed_view.dart';
 
@@ -203,7 +203,7 @@ class _HomePageManagerState extends State<HomePageManager> {
     final theme = TabbedViewThemeData.minimalist(
       brightness: Brightness.light,
       colorSet: Colors.grey,
-      fontSize: 13,
+      fontSize: 14,
       tabRadius: 3,
     );
 
@@ -224,7 +224,7 @@ class _HomePageManagerState extends State<HomePageManager> {
         vertical: 10,
       )
       ..textStyle = const TextStyle(
-        fontSize: 13,
+        fontSize: 14,
         fontWeight: FontWeight.w600,
         color: Color(0xFF1F2429),
       )
@@ -274,7 +274,7 @@ class _HomePageManagerState extends State<HomePageManager> {
             width: fieldWidth,
             child: TextField(
               controller: _tabSearchController,
-              style: const TextStyle(fontSize: 12),
+              style: const TextStyle(fontSize: 13),
               textAlignVertical: TextAlignVertical.center,
               textInputAction: TextInputAction.search,
               onSubmitted: (_) => _onTabSearch(),
@@ -309,7 +309,7 @@ class _HomePageManagerState extends State<HomePageManager> {
               label: Text(
                 '검색',
                 style: TextStyle(
-                  fontSize: 12,
+                  fontSize: 13,
                   fontWeight: FontWeight.w600,
                   color: onButtonColor,
                 ),
@@ -442,7 +442,7 @@ class _TopControlArea extends StatelessWidget {
                 alignment: Alignment.centerLeft,
                 child: Text(
                   '${Customer.instance?.customerName ?? ''} (${User.instance?.userId ?? ''})',
-                  style: const TextStyle(fontSize: 12),
+                  style: const TextStyle(fontSize: 14),
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
@@ -468,7 +468,7 @@ class _TopControlArea extends StatelessWidget {
                       minimumSize: const Size(60, 36),
                       padding: const EdgeInsets.symmetric(horizontal: 8),
                     ),
-                    child: const Text('관리', style: TextStyle(fontSize: 13)),
+                    child: const Text('관리', style: TextStyle(fontSize: 14)),
                   ),
                 ),
                 const SizedBox(width: 10),
@@ -489,7 +489,7 @@ class _TopControlArea extends StatelessWidget {
                       minimumSize: const Size(60, 36),
                       padding: const EdgeInsets.symmetric(horizontal: 8),
                     ),
-                    child: const Text('관리', style: TextStyle(fontSize: 13)),
+                    child: const Text('관리', style: TextStyle(fontSize: 14)),
                   ),
                 ),
               ],
@@ -556,7 +556,7 @@ class _DropdownField extends StatelessWidget {
           child: Text(
             '$label:',
             textAlign: TextAlign.right,
-            style: const TextStyle(fontSize: 12),
+            style: const TextStyle(fontSize: 13),
           ),
         ),
         const SizedBox(width: 6),
@@ -568,7 +568,7 @@ class _DropdownField extends StatelessWidget {
             onChanged: (onChanged != null && items.isNotEmpty)
                 ? onChanged
                 : null,
-            style: const TextStyle(fontSize: 13, color: Colors.black),
+            style: const TextStyle(fontSize: 14, color: Colors.black),
             isExpanded: true,
             buttonStyleData: const ButtonStyleData(
               height: 28,
@@ -709,3 +709,4 @@ class _PlaceholderTab extends StatelessWidget {
     return Center(child: Text('$title (준비 중)'));
   }
 }
+

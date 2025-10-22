@@ -255,7 +255,7 @@ class InspectorPanel extends StatelessWidget {
     Colors.orange,
   ];
 
-  final small = const TextStyle(fontSize: 12.0);
+  final small = const TextStyle(fontSize: 13.0);
 
   // 연속 회전 지원을 위한 넓은 슬라이더 범위
   static const double _angleMin = -8 * math.pi;
@@ -1186,7 +1186,7 @@ class InspectorPanel extends StatelessWidget {
       const SizedBox(height: 4),
       const Text(
         'TextDrawable는 크기박스/정렬/최대폭을 지원하지 않습니다.\n폭 제어는 ConstrainedText를 사용하세요.',
-        style: TextStyle(fontSize: 12, color: Colors.black54),
+        style: TextStyle(fontSize: 13, color: Colors.black54),
       ),
     ];
   }
@@ -1693,7 +1693,7 @@ class InspectorPanel extends StatelessWidget {
       children: [
         SizedBox(
           width: 48,
-          child: const Text('행 높이', style: TextStyle(fontSize: 12.0)),
+          child: const Text('행 높이', style: TextStyle(fontSize: 13.0)),
         ),
         const SizedBox(width: 8),
         SizedBox(
@@ -1707,7 +1707,7 @@ class InspectorPanel extends StatelessWidget {
             ],
             decoration: const InputDecoration(
               suffixText: 'cm',
-              suffixStyle: TextStyle(fontSize: 12.0),
+              suffixStyle: TextStyle(fontSize: 13.0),
               isDense: true,
               border: OutlineInputBorder(),
             ),
@@ -1767,7 +1767,7 @@ class InspectorPanel extends StatelessWidget {
       children: [
         SizedBox(
           width: 48,
-          child: const Text('열 너비', style: TextStyle(fontSize: 12.0)),
+          child: const Text('열 너비', style: TextStyle(fontSize: 13.0)),
         ),
         const SizedBox(width: 8),
         SizedBox(
@@ -1781,7 +1781,7 @@ class InspectorPanel extends StatelessWidget {
             ],
             decoration: const InputDecoration(
               suffixText: 'cm',
-              suffixStyle: TextStyle(fontSize: 12.0),
+              suffixStyle: TextStyle(fontSize: 13.0),
               isDense: true,
               border: OutlineInputBorder(),
             ),
@@ -2056,7 +2056,7 @@ class InspectorPanel extends StatelessWidget {
       const labelStyle = TextStyle(
         color: Colors.black54,
         fontWeight: FontWeight.w500,
-        fontSize: 12.0,
+        fontSize: 13.0,
       );
       return Row(
         children: [
@@ -2098,7 +2098,7 @@ class InspectorPanel extends StatelessWidget {
         children: [
           SizedBox(
             width: 48,
-            child: Text(label, style: const TextStyle(fontSize: 12.0)),
+            child: Text(label, style: const TextStyle(fontSize: 13.0)),
           ),
           const SizedBox(width: 8),
           // 안쪽 여백(cm)
@@ -2117,7 +2117,7 @@ class InspectorPanel extends StatelessWidget {
                 isDense: true,
                 border: OutlineInputBorder(),
                 suffixText: 'cm',
-                suffixStyle: TextStyle(fontSize: 12.0),
+                suffixStyle: TextStyle(fontSize: 13.0),
               ),
               onSubmitted: (_) => submitPad(),
               onEditingComplete: submitPad,
@@ -2140,7 +2140,7 @@ class InspectorPanel extends StatelessWidget {
                 isDense: true,
                 border: OutlineInputBorder(),
                 suffixText: 'px',
-                suffixStyle: TextStyle(fontSize: 12.0),
+                suffixStyle: TextStyle(fontSize: 13.0),
               ),
               onSubmitted: (_) => submitThickness(),
               onEditingComplete: submitThickness,
@@ -2151,15 +2151,15 @@ class InspectorPanel extends StatelessWidget {
             child: DropdownButton<CellBorderStyle>(
               isExpanded: true,
               value: uniformStyle,
-              hint: const Text('혼합', style: TextStyle(fontSize: 12.0)),
+              hint: const Text('혼합', style: TextStyle(fontSize: 13.0)),
               items: const [
                 DropdownMenuItem(
                   value: CellBorderStyle.solid,
-                  child: Text('실선', style: TextStyle(fontSize: 12.0)),
+                  child: Text('실선', style: TextStyle(fontSize: 13.0)),
                 ),
                 DropdownMenuItem(
                   value: CellBorderStyle.dashed,
-                  child: Text('점선', style: TextStyle(fontSize: 12.0)),
+                  child: Text('점선', style: TextStyle(fontSize: 13.0)),
                 ),
               ],
               onChanged: (v) {
@@ -2469,7 +2469,7 @@ class InspectorPanel extends StatelessWidget {
             child: ColorDot(color: current ?? const Color(0x00000000)),
           ),
           const SizedBox(width: 8),
-          Text(label, style: const TextStyle(fontSize: 12.0)),
+          Text(label, style: const TextStyle(fontSize: 13.0)),
           const Spacer(),
           OutlinedButton(
             onPressed: () async {
@@ -2533,7 +2533,7 @@ class _BarcodeValidationHint extends StatelessWidget {
         Expanded(
           child: Text(
             message,
-            style: const TextStyle(fontSize: 12, color: Colors.orange),
+            style: const TextStyle(fontSize: 13, color: Colors.orange),
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
           ),
@@ -2542,3 +2542,4 @@ class _BarcodeValidationHint extends StatelessWidget {
     );
   }
 }
+

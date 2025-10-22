@@ -20,7 +20,7 @@ Widget? buildInlineEditor(_PainterPageState state) {
         builder: (context) {
           final mq = MediaQuery.of(context);
           TextStyle baseStyle = const TextStyle(
-            fontSize: 12.0,
+            fontSize: 13.0,
             height: 1.2,
             color: Colors.black,
           );
@@ -431,3 +431,4 @@ tool.TxtAlign _alignFromCellStyle(dynamic align) {
       return tool.TxtAlign.left;
   }
 }
+

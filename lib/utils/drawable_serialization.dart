@@ -620,7 +620,7 @@ class DrawableSerializer {
 
   static TextStyle _jsonToTextStyle(dynamic value) {
     if (value is! Map)
-      return const TextStyle(fontSize: 14, color: Colors.black);
+      return const TextStyle(fontSize: 15, color: Colors.black);
     return TextStyle(
       color: value['color'] != null ? Color(value['color'] as int) : null,
       fontSize: (value['fontSize'] as num?)?.toDouble(),
@@ -785,3 +785,4 @@ class DrawableSerializer {
     return list.map((v) => (v.isFinite && v > 0) ? (v / sum) : 0.0).toList();
   }
 }
+
