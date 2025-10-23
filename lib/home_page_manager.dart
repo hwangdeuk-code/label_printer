@@ -3,11 +3,11 @@ import 'package:flutter/material.dart';
 import 'package:tabbed_view/tabbed_view.dart';
 
 import 'package:label_printer/core/app.dart';
-import 'package:label_printer/models/brand.dart';
 import 'package:label_printer/home_page_manager_logic.dart';
+import 'package:label_printer/models/brand.dart';
 import 'package:label_printer/models/customer.dart';
-import 'package:label_printer/models/user.dart';
 import 'package:label_printer/models/label_size.dart';
+import 'package:label_printer/models/user.dart';
 import 'package:label_printer/utils/on_messages.dart';
 
 /// 로그인 이후 표시되는 본문 UI를 별도 파일로 분리한 위젯
@@ -40,8 +40,14 @@ class _HomePageManagerState extends State<HomePageManager> {
   @override
   void initState() {
     super.initState();
+    const String fn = 'initState';
+    debugPrint('$cn.$fn');
+
     _tabController = TabbedViewController(_buildInitialTabs());
+
     WidgetsBinding.instance.addPostFrameCallback((_) async {
+      const String fn = 'initState.initState callback';
+      debugPrint('$cn.$fn: isMounted=$mounted');
       if (mounted) {
         _loadBrands();
       }
