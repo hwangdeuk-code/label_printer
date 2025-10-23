@@ -1,31 +1,27 @@
 // UTF-8 인코딩
 // 로컬 DB: dmServerConnectInfo.db (테이블: DB_SERVER_CONNECT_INFO)
-// 기능: 생성, 오픈
+// 기능: 생성, 오픈, 조회, 업데이트
 
 // ignore_for_file: constant_identifier_names, body_might_complete_normally_catch_error
 
 import 'dart:async';
 import 'dart:io';
-import 'dart:typed_data';
 
-import 'package:device_info_plus/device_info_plus.dart';
-import 'package:file_selector/file_selector.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
-import 'package:synchronized/synchronized.dart';
-import 'package:label_printer/core/app.dart';
 import 'package:path/path.dart' as p;
-import 'package:permission_handler/permission_handler.dart' as ph;
 import 'package:path_provider/path_provider.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart' as ffi;
+import 'package:synchronized/synchronized.dart';
+
+import 'package:label_printer/core/app.dart';
 
 enum CustomerType {
 	CUST_TYPE_NORMAL(0),
 	CUST_SHINSEGAE(1),
 	CUST_GS_RETAIL(2);
-	
+
   final int code;
   const CustomerType(this.code);
   static CustomerType fromCode(int code) => CustomerType.values.firstWhere((e) => e.code == code);
@@ -75,53 +71,74 @@ class ServerConnectInfo {
 /// DB 헬퍼: 생성/오픈/조회/업데이트
 class DbServerConnectInfoHelper {
   static const cn = 'DbServerConnectInfoHelper';
+  static const _data = 'data';
   static const _dbName = 'labelmanager_server_connect_info.db';
   static const _table = 'BM_DB_SERVER_CONNECT_INFO';
   static const _lastTable = 'BM_LAST_CONNECT_DB_SERVER';
   static const _dbVersion = 2;
 
   static Database? _db;
-  static final DeviceInfoPlugin _deviceInfo = DeviceInfoPlugin();
-  static Completer<void>? _androidPermissionLock;
-  static int? _cachedAndroidSdkInt;
-  static String? _cachedAndroidDocumentsDir;
-  static String? _cachedAndroidDocumentsSafUri;
-  static const String _prefsAndroidDocumentsDirKey = 'db_server_connect_info_android_documents_dir';
-  static const String _prefsAndroidDocumentsSafUriKey = 'db_server_connect_info_android_documents_saf_uri';
+  static MethodChannel? _channel;
   static final _dbInitLock = Lock(); // 동시성 방지
 
   /// 데스크톱(Windows/macOS/Linux)에서 sqflite_ffi 초기화
   static void _ensureDesktopInit() {
-    const fn = '_ensureDesktopInit';
-    debugPrint('$cn.$fn: $START');
-
     if (!kIsWeb && (Platform.isWindows || Platform.isLinux || Platform.isMacOS)) {
-      // 데스크톱 환경에서 sqflite_common_ffi를 초기화한다.
-      // 이 초기화는 데이터베이스 작업을 가능하게 한다.
       ffi.sqfliteFfiInit();
       databaseFactory = ffi.databaseFactoryFfi;
     }
-
-    debugPrint('$cn.$fn: $END');
   }
 
-  /// 앱의 쓰기 가능한 디렉터리 하위에 assets/data 경로 보장
-  static Future<String> _dbPath() async {
-    const fn = '_dbPath';
+  /// DB 파일의 최종 경로를 결정
+  static Future<String> _dbFullPath(String? internalDbPath) async {
+    const fn = '_dbFullPath';
     debugPrint('$cn.$fn: $START');
 
-    // 앱의 쓰기 가능한 디렉터리 하위에 assets/data 경로를 생성하고,
-    // 해당 경로에 DB 파일을 복사한다.
+    // Android: SAF/Legacy 권한을 처리한 뒤 선택된 Documents 하위 경로를 사용한다.
+    // 앱의 쓰기 가능한 디렉터리 하위에 assets/data 경로를 생성하고, 해당 경로에 DB 파일을 복사한다.
+    if (Platform.isAndroid) {
+      _channel ??= MethodChannel('$appPackageName/storage');
+
+      String? dbPath = await _channel!.invokeMethod<String>(
+        'prepareDocumentsAndGetPath', {'isInternalDbExists': internalDbPath!=null});
+
+      if (dbPath != null && dbPath.isNotEmpty) {
+        debugPrint('$cn.$fn: Android SAF/Legacy Path = $dbPath');
+
+        // SAF URI인 경우, 내용을 로컬 파일로 복사
+        if (dbPath.startsWith('content://')) {
+          try {
+            _channel ??= MethodChannel('$appPackageName/storage');
+            final Uint8List? data = await _channel!.invokeMethod('readContentUri', {'uri': dbPath});
+
+            if (data != null) {
+              final docDir = await getApplicationDocumentsDirectory();
+              final localPath = p.join(docDir.path, _data, _dbName);
+              await File(localPath).writeAsBytes(data, flush: true);
+              debugPrint('$cn.$fn: Copied SAF content URI to local file: $localPath');
+              dbPath = localPath; // DB 열기 경로를 로컬 경로로 변경
+            } else {
+              debugPrint('$cn.$fn: Internal db file: $internalDbPath');
+              dbPath = internalDbPath;
+            }
+          }
+          catch (e) {
+            debugPrint('$cn.$fn: Failed to read/copy content URI: $e');
+            // 에러 발생 시 기존 경로(content://)로 시도하도록 둠 (실패하겠지만)
+          }
+        }
+
+        return dbPath!; // content://... 또는 실제 파일 경로
+      }
+
+      throw UnsupportedError('ERROR!!');
+    }
+
     Directory baseDir;
-    
+
     if (kIsWeb) {
       // Web은 sqflite 미지원. 여기선 예외를 던집니다.
       throw UnsupportedError('sqflite is not supported on Web');
-    }
-    else if (Platform.isAndroid) {
-      // Android: SAF/Legacy 권한을 처리한 뒤 선택된 Documents 하위 경로를 사용한다.
-      final docs = await _ensureAndroidDocumentsDirectory();
-      baseDir = Directory(p.join(docs, appPackageName));
     }
     else if (Platform.isIOS) {
       // iOS는 앱의 Documents 디렉터리를 사용합니다.
@@ -140,370 +157,36 @@ class DbServerConnectInfoHelper {
     }
 
     final dir = Directory(p.join(baseDir.path, 'assets', 'data'));
-    await dir.create(recursive: true);
-
-    if (Platform.isAndroid) {
-      final dbPath = p.join(dir.path, _dbName);
-      final dbFile = File(dbPath);
-
-      if (!await dbFile.exists()) {
-        final Uint8List bytes = (await rootBundle.load(p.join('assets', 'data', _dbName)))
-            .buffer
-            .asUint8List();
-
-        final safUri = await _getCachedAndroidSafUri();
-        if (safUri != null && safUri.isNotEmpty) {
-          String relativePath = '';
-          if (dir.path.length > baseDir.path.length && dir.path.startsWith(baseDir.path)) {
-            relativePath = dir.path.substring(baseDir.path.length);
-            if (relativePath.startsWith('/') || relativePath.startsWith('\\')) {
-              relativePath = relativePath.substring(1);
-            }
-          }
-          await _writeFileToSaf(
-            directoryUri: safUri,
-            relativePath: relativePath,
-            fileName: _dbName,
-            bytes: bytes,
-          );
-        } else {
-          final sink = dbFile.openWrite();
-          sink.add(bytes);
-          await sink.flush();
-          await sink.close();
-        }
-      }
-    }
 
     debugPrint('$cn.$fn: $END, path=${dir.path}');
     return p.join(dir.path, _dbName);
   }
 
   //////////////////////////////////////////////////////////////////////////////
-  /// 안드로이드 전용: 공용 Documents 디렉터리 접근 권한 처리
-
-  static const MethodChannel _filesChannel = MethodChannel('com.itsng.label_printer/files');
-
-  static Future<String> _ensureAndroidDocumentsDirectory() async {
-    const fn = '_ensureAndroidDocumentsDirectory';
-    debugPrint('$cn.$fn: $START');
-
-    if (await _getAndroidSdkInt() >= 33) {
-      final path = await _ensureAndroidSafDirectory();
-      await _ensureDirectoryExists(path);
-      debugPrint('$cn.$fn: $END, path=$path');
-      return path;
-    }
-
-    await _ensureAndroidLegacyPermission();
-    _cachedAndroidDocumentsSafUri = null;
-    final docs = await _getAndroidPublicDocumentsDir();
-    await _ensureDirectoryExists(docs);
-    debugPrint('$cn.$fn: $END, path=$docs');
-    return docs;
-  }
-
-  static Future<void> _ensureAndroidLegacyPermission() async {
-    await _runAndroidPermissionLock(() async {
-      const fn = '_ensureAndroidLegacyPermission';
-      debugPrint('$cn.$fn: $START');
-
-      final status = await ph.Permission.storage.status;
-      if (status.isGranted || status.isLimited) {
-        debugPrint('$cn.$fn: $END, already granted');
-        return;
-      }
-
-      final result = await ph.Permission.storage.request();
-      if (result.isGranted || result.isLimited) {
-        debugPrint('$cn.$fn: $END, already granted');
-        return;
-      }
-
-      debugPrint('$cn.$fn: $END, permission denied');
-      throw Exception('공용 Documents 폴더 접근을 위한 저장소 권한이 거부되었습니다.');
-    });
-  }
-
-  static Future<String> _ensureAndroidSafDirectory() async {
-    const fn = '_ensureAndroidSafDirectory';
-    debugPrint('$cn.$fn: $START');
-
-    if (_cachedAndroidDocumentsDir != null && _cachedAndroidDocumentsDir!.isNotEmpty) {
-      await _getCachedAndroidSafUri();
-      debugPrint('$cn.$fn: $END, path=${_cachedAndroidDocumentsDir!} (from cache)');
-      return _cachedAndroidDocumentsDir!;
-    }
-
-    String? resolved;
-
-    await _runAndroidPermissionLock(() async {
-      final prefs = await SharedPreferences.getInstance();
-      Future<String> normalizeAndCache(String raw) => _normalizeAndCacheSafPath(raw, prefs: prefs);
-
-      if (_cachedAndroidDocumentsDir != null && _cachedAndroidDocumentsDir!.isNotEmpty) {
-        resolved = await normalizeAndCache(_cachedAndroidDocumentsDir!);
-        debugPrint('$cn.$fn: $END, path=${resolved!}');
-        return;
-      }
-
-      final saved = prefs.getString(_prefsAndroidDocumentsDirKey);
-      if (saved != null && saved.isNotEmpty) {
-        resolved = await normalizeAndCache(saved);
-        debugPrint('$cn.$fn: $END, path=${resolved!}');
-        return;
-      }
-
-      final initialDir = await _getAndroidPublicDocumentsDir();
-      final selected = await getDirectoryPath(
-        initialDirectory: initialDir.isEmpty ? null : initialDir,
-        confirmButtonText: '선택',
-      );
-
-      if (selected == null || selected.isEmpty) {
-        debugPrint('$cn.$fn: $END, path=${_cachedAndroidDocumentsDir!} (user cancelled)');
-        throw Exception('공용 Documents 폴더 경로를 선택해야 합니다.');
-      }
-
-      resolved = await normalizeAndCache(selected);
-    });
-
-    if (resolved != null && resolved!.isNotEmpty) {
-      debugPrint('$cn.$fn: $END, path=$resolved');
-      return resolved!;
-    }
-
-    final cached = _cachedAndroidDocumentsDir;
-    if (cached != null && cached.isNotEmpty) {
-      debugPrint('$cn.$fn: $END, path=$cached (from cache)');
-      return cached;
-    }
-
-    debugPrint('$cn.$fn: $END, failed to resolve path');
-    throw StateError('SAF Documents 경로 확인에 실패하였습니다.');
-  }
-
-  static Future<String> _normalizeAndCacheSafPath(
-    String raw, {
-    SharedPreferences? prefs,
-  }) async {
-    const fn = '_normalizeAndCacheSafPath';
-    debugPrint('$cn.$fn: $START, raw=$raw');
-
-    final storage = prefs ?? await SharedPreferences.getInstance();
-
-    String? safUri;
-    var resolved = raw;
-
-    if (raw.startsWith('content://')) {
-      safUri = raw;
-      final converted = _materializeSafUriToPath(raw);
-      if (converted == null || converted.isEmpty) {
-        debugPrint('$cn.$fn: $END, failed to convert SAF URI to path');
-        throw Exception(
-          '선택한 경로를 시스템 경로로 변환할 수 없습니다. Documents 선택을 다시 수행해주세요.',
-        );
-      }
-      resolved = converted;
-    }
-
-    _cachedAndroidDocumentsDir = resolved;
-    await storage.setString(_prefsAndroidDocumentsDirKey, resolved);
-
-    if (safUri != null) {
-      _cachedAndroidDocumentsSafUri = safUri;
-      await storage.setString(_prefsAndroidDocumentsSafUriKey, safUri);
-    } else {
-      if (_cachedAndroidDocumentsSafUri == null ||
-          _cachedAndroidDocumentsSafUri!.isEmpty) {
-        final storedUri = storage.getString(_prefsAndroidDocumentsSafUriKey);
-        if (storedUri != null && storedUri.isNotEmpty) {
-          _cachedAndroidDocumentsSafUri = storedUri;
-        }
-      }
-    }
-    debugPrint('$cn.$fn: $END, path=$resolved');
-    return resolved;
-  }
-
-  static Future<String?> _getCachedAndroidSafUri() async {
-    const fn = '_getCachedAndroidSafUri';
-    debugPrint('$cn.$fn: $START');
-
-    if (_cachedAndroidDocumentsSafUri != null &&
-        _cachedAndroidDocumentsSafUri!.isNotEmpty) {
-      debugPrint('$cn.$fn: $END, path=${_cachedAndroidDocumentsSafUri!} (from cache)');
-      return _cachedAndroidDocumentsSafUri;
-    }
-    final prefs = await SharedPreferences.getInstance();
-    final stored = prefs.getString(_prefsAndroidDocumentsSafUriKey);
-    if (stored != null && stored.isNotEmpty) {
-      _cachedAndroidDocumentsSafUri = stored;
-      debugPrint('$cn.$fn: $END, path=$stored (from prefs)');
-      return stored;
-    }
-    debugPrint('$cn.$fn: $END, failed to resolve path');
-    return null;
-  }
-
-  static Future<void> _writeFileToSaf({
-    required String directoryUri,
-    String? relativePath,
-    required String fileName,
-    required Uint8List bytes,
-  }) async {
-    const fn = '_writeFileToSaf';
-    debugPrint('$cn.$fn: $START, directoryUri=$directoryUri, '
-        'relativePath=${relativePath ?? ''}, fileName=$fileName, bytes=${bytes.length}');
-    await _filesChannel.invokeMethod<void>('writeFileToSaf', {
-      'directoryUri': directoryUri,
-      'relativePath': relativePath ?? '',
-      'fileName': fileName,
-      'bytes': bytes,
-    });
-    debugPrint('$cn.$fn: $END');
-  }
-
-  static String? _materializeSafUriToPath(String uri) {
-    const fn = '_materializeSafUriToPath';
-    debugPrint('$cn.$fn: $START, uri=$uri');
-    try {
-      final parsed = Uri.parse(uri);
-      if (parsed.scheme != 'content') {
-        debugPrint('$cn.$fn: $END, scheme=${parsed.scheme}');
-        return null;
-      }
-      if (parsed.pathSegments.isEmpty) {
-        debugPrint('$cn.$fn: $END, pathSegments=${parsed.pathSegments}');
-        return null;
-      }
-
-      String docId;
-      if (parsed.pathSegments.first == 'tree' && parsed.pathSegments.length >= 2) {
-        docId = parsed.pathSegments[1];
-      } else {
-        docId = parsed.pathSegments.last;
-      }
-
-      docId = Uri.decodeComponent(docId);
-
-      const primaryPrefix = 'primary:';
-      if (docId.startsWith(primaryPrefix)) {
-        final relative = docId.substring(primaryPrefix.length).replaceAll(':', '/');
-        final cleaned = relative.isEmpty ? '' : '/$relative';
-        debugPrint('$cn.$fn: $END, path=$cleaned');
-        return '/storage/emulated/0$cleaned';
-      }
-
-      debugPrint('$cn.$fn: $END, path=null, non-primary volume not supported');
-      return null;
-    } catch (_) {
-      debugPrint('$cn.$fn: $END, path=null, exception occurred');
-      return null;
-    }
-  }
-
-  static Future<void> _ensureDirectoryExists(String path) async {
-    const fn = '_ensureDirectoryExists';
-    debugPrint('$cn.$fn: $START, path=$path');
-
-    final dir = Directory(path);
-    if (!await dir.exists()) {
-      await dir.create(recursive: true);
-    }
-
-    debugPrint('$cn.$fn: $END');
-  }
-
-  static Future<void> _runAndroidPermissionLock(Future<void> Function() action) {
-    const fn = '_runAndroidPermissionLock';
-    debugPrint('$cn.$fn: $START');
-
-    final existing = _androidPermissionLock;
-    if (existing != null) {
-      debugPrint('$cn.$fn: $END, waiting for existing lock');
-      return existing.future;
-    }
-
-    final completer = Completer<void>();
-    _androidPermissionLock = completer;
-
-    () async {
-      try {
-        await action();
-        if (!completer.isCompleted) {
-          completer.complete();
-        }
-      } catch (error, stackTrace) {
-        if (!completer.isCompleted) {
-          completer.completeError(error, stackTrace);
-        }
-      } finally {
-        if (identical(_androidPermissionLock, completer)) {
-          _androidPermissionLock = null;
-        }
-      }
-    }();
-
-    debugPrint('$cn.$fn: $END, lock acquired');
-    return completer.future;
-  }
-
-  static Future<int> _getAndroidSdkInt() async {
-    const fn = '_getAndroidSdkInt';
-    debugPrint('$cn.$fn: $START');
-
-    if (_cachedAndroidSdkInt != null) {
-      debugPrint('$cn.$fn: $END, sdkInt=${_cachedAndroidSdkInt!} (from cache)');
-      return _cachedAndroidSdkInt!;
-    }
-
-    final info = await _deviceInfo.androidInfo;
-    _cachedAndroidSdkInt = info.version.sdkInt;
-
-    debugPrint('$cn.$fn: $END, sdkInt=${_cachedAndroidSdkInt!}');
-    return _cachedAndroidSdkInt!;
-  }
-
-  static Future<String> _getAndroidPublicDocumentsDir() async {
-    const fn = '_getAndroidPublicDocumentsDir';
-    debugPrint('$cn.$fn: $START');
-
-    try {
-      final String? path = await _filesChannel.invokeMethod<String>('getPublicDocumentsDir');
-      if (path != null && path.isNotEmpty) {
-        debugPrint('$cn.$fn: $END, path=$path');
-        return path;
-      }
-    } catch (_) {}
-
-    // 폴백: 앱 전용 문서 디렉토리
-    final d = await getApplicationDocumentsDirectory();
-
-    debugPrint('$cn.$fn: $END, path=${d.path}');
-    return d.path;
-  }
-
-  //////////////////////////////////////////////////////////////////////////////
   /// DB 오픈 (필요 시 생성 및 마이그레이션)
 
-  static Future<Database> open() async {
+  static Future<Database> open() => _dbInitLock.synchronized(() async {
     const fn = 'open';
     debugPrint('$cn.$fn: $START');
 
+    if (_db != null && _db!.isOpen) return _db!;
+
     _ensureDesktopInit();
 
-    if (_db != null && _db!.isOpen) {
-      debugPrint('$cn.$fn: $END, path=${_db!.path}, isOpen=${_db!.isOpen}');
-      return _db!;
+    // 내부에 labelmanager_server_connect_info.db가 있는 지 판단 (안드로이드만)
+    String? internalDbPath;
+    if (Platform.isAndroid) {
+      final docDir = await getApplicationDocumentsDirectory();
+      final localPath = p.join(docDir.path, _data, _dbName);
+      if (await File(localPath).exists()) { internalDbPath = localPath; }
     }
 
-    final path = await _dbPath();
-    debugPrint('$cn.$fn: path=$path');
+    String dbPath = await _dbFullPath(internalDbPath);
+    debugPrint('$cn.$fn: Initial DB path = $dbPath');
 
     try {
       _db = await openDatabase(
-        path,
+        dbPath,
         version: _dbVersion,
         onCreate: (db, version) async {
           debugPrint('$cn.$fn: Creating database version $version');
@@ -536,33 +219,20 @@ class DbServerConnectInfoHelper {
         },
         onUpgrade: (db, oldVersion, newVersion) async {
           debugPrint('$cn.$fn: Upgrading database from $oldVersion to $newVersion');
-          // if (oldVersion < 2) {
-          //   await db.execute('''
-          //     CREATE TABLE IF NOT EXISTS $lastTable (
-          //       RICH_SERVER_IP     TEXT (0, 64) NOT NULL,
-          //       RICH_DATABASE_NAME TEXT (0, 256) NOT NULL,
-          //       LAST_CONNECTED_AT  INTEGER,
-          //       PRIMARY KEY (RICH_SERVER_IP, RICH_DATABASE_NAME)
-          //     )
-          //   ''');
-          // }
         },
       );
     }
     catch (e) {
-      debugPrint('$cn.$fn: Failed to open database at $path, error=$e');
+      debugPrint('$cn.$fn: Failed to open database at $dbPath, error=$e');
       rethrow;
     }
 
-    debugPrint('$cn.$fn: $END, path=${_db!.path}, isOpen=${_db!.isOpen}');
+    debugPrint('$cn.$fn: $END, isOpen=${_db!.isOpen}');
     return _db!;
-  }
+  });
 
   /// 마지막 접속 정보 조회
   static Future<ServerConnectInfo?> getLastConnectDBInfo() async {
-    const fn = 'getLastConnectDBInfo';
-    debugPrint('$cn.$fn: $START');
-
   	const sql = '''
 			SELECT
 				P2.RICH_SERVER_IP,
@@ -580,21 +250,12 @@ class DbServerConnectInfoHelper {
 
 		final db = await open();
     final rows = await db.rawQuery(sql);
-
-    if (rows.isEmpty) {
-      debugPrint('$cn.$fn: $END, rows.isEmpty');
-      return null;
-    }
-
-    debugPrint('$cn.$fn: $END, found one record');
+    if (rows.isEmpty) return null;
     return ServerConnectInfo.fromMap(rows.first);
   }
 
   /// upsert: 존재하면 업데이트, 없으면 삽입
   static Future<void> upsert(ServerConnectInfo info) async {
-    const fn = 'upsert';
-    debugPrint('$cn.$fn: $START, serverIp=${info.serverIp}, databaseName=${info.databaseName}');
-
     final db = await open();
     await db.insert(
       _table,
@@ -610,15 +271,10 @@ class DbServerConnectInfoHelper {
       },
       conflictAlgorithm: ConflictAlgorithm.replace,
     );
-
-    debugPrint('$cn.$fn: $END');
   }
 
   /// 마지막 접속 정보 수동 갱신 (필요 시 호출)
   static Future<void> setLastConnected(String serverIp, String databaseName) async {
-    const fn = 'setLastConnected';
-    debugPrint('$cn.$fn: $START, serverIp=$serverIp, databaseName=$databaseName');
-
     final db = await open();
     await db.insert(
       _lastTable,
@@ -628,20 +284,13 @@ class DbServerConnectInfoHelper {
       },
       conflictAlgorithm: ConflictAlgorithm.replace,
     );
-
-    debugPrint('$cn.$fn: $END');
   }
 
   /// DB 닫기
   static Future<void> close() async {
-    const fn = 'close';
-    debugPrint('$cn.$fn: $START');
-
     if (_db != null) {
       await _db!.close();
       _db = null;
     }
-
-    debugPrint('$cn.$fn: $END');
   }
 }
