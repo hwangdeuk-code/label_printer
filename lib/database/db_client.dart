@@ -1,6 +1,8 @@
 import 'dart:async';
 
+import 'package:flutter/material.dart';
 import 'package:label_printer/database/db_connection_service.dart';
+import 'package:label_printer/models/user.dart';
 import 'package:mssql_connection/mssql_connection.dart' as mssql;
 //import 'package:sql_connection/sql_connection.dart' as sqlconn;
 
@@ -151,6 +153,7 @@ class _SqlConnBackend implements _DbBackend {
 
 class DbClient {
   DbClient._();
+  static const String cn = 'DbClient';
   static final DbClient instance = DbClient._();
 //  final _DbBackend _backend = (Platform.isAndroid) ? _SqlConnBackend() : _MssqlBackend();
   final _DbBackend _backend = _MssqlBackend();
@@ -248,7 +251,13 @@ class DbClient {
   }
 
   /// 비정상일 때 재연결 유도.
-  void disconnect() {
-    _backend.disconnect();
+  void disconnect(String from) {
+    const String fn = 'disconnect';
+    debugPrint('$cn.$fn: from=$from');
+    if (_backend.isConnected) {
+      DbConnectionService.instance.detach();
+      _backend.disconnect();
+      debugPrint('$cn.$fn: Disconnected from database');
+    }
   }
 }

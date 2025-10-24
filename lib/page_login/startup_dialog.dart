@@ -361,6 +361,7 @@ class _LoginPanelState extends State<_LoginPanel> {
   final FocusNode _passwordFocus = FocusNode();
   final FocusNode _loginButtonFocus = FocusNode();
   bool _saveId = false;
+  User? _userInfo;
 
   @override
   void initState() {
@@ -402,14 +403,14 @@ class _LoginPanelState extends State<_LoginPanel> {
         widget.onUserIdCommit?.call(noticeMsg);
       }
 
-      User.setInstance(await UserDAO.getByUserId(inputId));
+      _userInfo = await UserDAO.getByUserId(inputId);
 
       if (!mounted) return;
 
-      if (User.instance != null) {
-        widget.customerName.text = User.instance!.customerName;
-        widget.marketName.text = User.instance!.marketName;
-        widget.userName.text = User.instance!.name;
+      if (_userInfo != null) {
+        widget.customerName.text = _userInfo!.customerName;
+        widget.marketName.text = _userInfo!.marketName;
+        widget.userName.text = _userInfo!.name;
 
         if (mounted) {
           setState(() => _infoText = '');
@@ -475,7 +476,7 @@ class _LoginPanelState extends State<_LoginPanel> {
     const String fn = '_onLoginButtonPressed';
     debugPrint('${_LoginPanel.cn}.$fn, $START');
 
-    if (User.instance == null) {
+    if (_userInfo == null) {
       if (mounted) {
         setState(() => _infoText = '아이디를 먼저 조회해주세요.');
         FocusScope.of(context).requestFocus(_userIdFocus);
@@ -483,7 +484,7 @@ class _LoginPanelState extends State<_LoginPanel> {
       debugPrint('${_LoginPanel.cn}.$fn, $END');
       return;
     }
-    else if (equalsIgnoreCase(User.instance!.userId, User.SYSTEM)) {
+    else if (equalsIgnoreCase(_userInfo!.userId, User.SYSTEM)) {
       if (inputPwd != _getDirectPassword() && inputPwd != _getSystemPassword()) {
         if (mounted) {
           setState(() => _infoText = '시스템 계정 패스워드가 올바르지 않습니다!');
@@ -493,7 +494,7 @@ class _LoginPanelState extends State<_LoginPanel> {
         return;
       }
     }
-    else if (User.instance!.pwd != inputPwd) {
+    else if (_userInfo!.pwd != inputPwd) {
       if (mounted) {
         setState(() => _infoText = '패스워드가 올바르지 않습니다!');
         FocusScope.of(context).requestFocus(_passwordFocus);
@@ -504,9 +505,10 @@ class _LoginPanelState extends State<_LoginPanel> {
 
     try {
       // Get Market,Customer,Cooperator info after login...
-      Market.setInstance(await MarketDAO.getByMarketId(User.instance!.marketId));
+      Market.setInstance(await MarketDAO.getByMarketId(_userInfo!.marketId));
       Customer.setInstance(await CustomerDAO.getByCustomerId(Market.instance!.customerId));
       Cooperator.setInstance(await CooperatorDAO.getByCooperatorId(Customer.instance!.cooperatorId));
+      User.setInstance(_userInfo!);
 
       // 로그인 정보를 저장한다.
       //if (!CLoginUser::IsLoginMasterKey()) {
@@ -529,6 +531,7 @@ class _LoginPanelState extends State<_LoginPanel> {
       });
     }
     catch (e) {
+      await _onCancelButtonPressed();
       final errmsg = e.toString();
       _infoText = stripLeadingBracketTags(errmsg);
       debugPrint('${_LoginPanel.cn}.$fn, ${DAO.exception}: $errmsg');
@@ -543,12 +546,21 @@ class _LoginPanelState extends State<_LoginPanel> {
   }
 
   Future<void> _onCancelButtonPressed() async {
-    widget.userId.clear();
+    User.setInstance(null);
+    Market.setInstance(null);
+    Customer.setInstance(null);
+    Cooperator.setInstance(null);
     widget.customerName.clear();
     widget.marketName.clear();
     widget.userName.clear();
     widget.password.clear();
     _infoText = '';
+    
+    if (!_saveId) {
+       widget.userId.clear();
+       _userIdFocus.requestFocus();
+    }
+
     if (mounted) Navigator.of(context).pop();
   }
 
@@ -556,7 +568,7 @@ class _LoginPanelState extends State<_LoginPanel> {
   Widget build(BuildContext context) {
     // 로그인 버튼 활성화 조건
     final bool canLogin =
-        widget.userId.text.trim().isNotEmpty && User.instance != null && widget.password.text.isNotEmpty;
+        widget.userId.text.trim().isNotEmpty && _userInfo != null && widget.password.text.isNotEmpty;
 
     InputDecoration _dec(String hint) => InputDecoration(
           isDense: true,

@@ -2,6 +2,9 @@
 
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+
+import 'core/lifecycle.dart';
 
 import 'package:label_printer/core/app.dart';
 import 'package:label_printer/database/db_client.dart';
@@ -35,6 +38,22 @@ class _HomePageState extends State<HomePage> {
   @override
   void initState() {
     super.initState();
+
+		LifecycleManager.instance.addObserver(LifecycleCallbacks(
+			onResumed: () {
+				const String fn = 'onResumed';
+				debugPrint('$cn.$fn: $START');
+
+				if (!DbClient.instance.isConnected) {
+					_loginToServerDB();
+				}
+
+				debugPrint('$cn.$fn: $END');
+			},
+			onDetached: () { _onLogout(true); },
+			onExitRequested: () { _onLogout(true); },
+		));
+
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (mounted) await _loginToServerDB();
     });
@@ -71,61 +90,85 @@ class _HomePageState extends State<HomePage> {
     setState(() { _loggedIn = true; });
   }
 
-  Future<void> _onLogout() async {
-    DbClient.instance.disconnect();
+  Future<void> _onLogout(bool isDisconnect) async {
+		const String fn = '_onLogout';
+    debugPrint('$cn.$fn: $START');
+
     User.instance = null;
     Market.instance = null;
     Customer.instance = null;
     Cooperator.instance = null;
-    if (!mounted) return;
-    setState(() { _loggedIn = false; });
+
+		if (isDisconnect == true) {
+			_db.dispose();
+    	DbClient.instance.disconnect('$cn.$fn');
+		}
+
+    if (mounted) {
+    	setState(() { _loggedIn = false; });
+		}
+
+		debugPrint('$cn.$fn: $END');
   }
 
   @override
   void dispose() {
+		const String fn = 'dispose';
+		debugPrint('$cn.$fn: $START');
     _searchCtrl.dispose();
-    _db.dispose();
     super.dispose();
+		debugPrint('$cn.$fn: $END');
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text('$APP_TITLE v$appVersion'),
-        centerTitle: false,
-        actions: [
-          const DbConnectionStatusIcon(),
-          if (_loggedIn)
-            IconButton(
-              icon: const Icon(Icons.logout),
-              tooltip: '로그아웃',
-              onPressed: _onLogout,
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (bool didPop, dynamic result) async {
+        if (didPop) return;
+        // 데스크톱의 창 닫기와 동일한 로직으로 종료 처리
+        LifecycleManager.instance.notifyExitRequested();
+        // 짧은 딜레이로 정리(예: DB연결 해제) 누락 완화
+        await Future.delayed(const Duration(milliseconds: 120));
+        await SystemNavigator.pop(); // 앱 완전 종료
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text('$APP_TITLE v$appVersion'),
+          centerTitle: false,
+          actions: [
+            const DbConnectionStatusIcon(),
+            if (_loggedIn)
+              IconButton(
+                icon: const Icon(Icons.logout),
+                tooltip: '로그아웃',
+                onPressed: () => _onLogout(false),
+              )
+            else
+              IconButton(
+                icon: const Icon(Icons.login),
+                tooltip: '로그인',
+                onPressed: () => DbClient.instance.isConnected
+                    ? _showStartupDialog()
+                    : _loginToServerDB(),
+              ),
+            // IconButton(
+            //   icon: const Icon(Icons.exit_to_app),
+            //   tooltip: '종료',
+            //   onPressed: _exitApp,
+            // ),
+            const SizedBox(width: 10),
+          ],
+        ),
+        body: _loggedIn
+            ? HomePageManager(
+                selectedBrand: _selectedBrand,
+                onBrandChanged: (v) => setState(() => _selectedBrand = v ?? _selectedBrand),
+                selectedLabelSize: _selectedLabelSize,
+                onLabelSizeChanged: (v) => setState(() => _selectedLabelSize = v ?? _selectedLabelSize),
             )
-          else
-            IconButton(
-              icon: const Icon(Icons.login),
-              tooltip: '로그인',
-              onPressed: () => DbClient.instance.isConnected
-                  ? _showStartupDialog()
-                  : _loginToServerDB(),
-            ),
-          // IconButton(
-          //   icon: const Icon(Icons.exit_to_app),
-          //   tooltip: '종료',
-          //   onPressed: _exitApp,
-          // ),
-          const SizedBox(width: 10),
-        ],
+            : _buildLoggedOutBackground(),
       ),
-      body: _loggedIn
-          ? HomePageManager(
-              selectedBrand: _selectedBrand,
-              onBrandChanged: (v) => setState(() => _selectedBrand = v ?? _selectedBrand),
-              selectedLabelSize: _selectedLabelSize,
-              onLabelSizeChanged: (v) => setState(() => _selectedLabelSize = v ?? _selectedLabelSize),
-          )
-          : _buildLoggedOutBackground(),
     );
   }
 

@@ -50,12 +50,6 @@ class StartupDbHelper {
         throw Exception('Failed to connect');
       }
 
-      // 앱 생명주기 종료/분리 시 DB 연결 해제
-      LifecycleManager.instance.addObserver(LifecycleCallbacks(
-        onDetached: () { DbClient.instance.disconnect(); },
-        onExitRequested: () { DbClient.instance.disconnect(); },
-      ));
-
       _startDatabaseMonitor();
       debugPrint('$cn.$fn: connected successfully');
       return true;
@@ -73,7 +67,7 @@ class StartupDbHelper {
           isError: true,
         );
 
-  errorOverlayShown = true;
+        errorOverlayShown = true;
       }
       
       return false;
@@ -83,6 +77,7 @@ class StartupDbHelper {
       if (!errorOverlayShown) {
         ScaffoldMessenger.of(context).hideCurrentSnackBar();
       }
+      
       debugPrint('$cn.$fn: $END');
     }
   }

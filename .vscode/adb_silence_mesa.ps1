@@ -46,11 +46,40 @@ function Wait-ForDeviceReady {
 
 if (-not (Wait-ForDeviceReady -serial $target -timeoutSec 30)) { exit 0 }
 
-# Try to set log tag with a couple of retries in case of transient races
+# 특정 태그를 침묵(Silent) 처리하는 헬퍼
+function Set-TagSilent {
+  param([string]$serial, [string]$tag, [int]$retries = 3)
+
+  # 비영구(log.tag.*) 우선 시도
+  for ($i = 0; $i -lt $retries; $i++) {
+    & adb -s $serial shell setprop "log.tag.$tag" S 2>$null | Out-Null
+    if ($LASTEXITCODE -eq 0) { return $true }
+    & adb -s $serial shell setprop "log.tag.$tag" SILENT 2>$null | Out-Null
+    if ($LASTEXITCODE -eq 0) { return $true }
+    Start-Sleep -Milliseconds 300
+  }
+
+  # 영구(persist.log.tag.*)도 시도 (에뮬레이터에선 허용되는 경우가 많음)
+  for ($i = 0; $i -lt $retries; $i++) {
+    & adb -s $serial shell setprop "persist.log.tag.$tag" S 2>$null | Out-Null
+    if ($LASTEXITCODE -eq 0) { return $true }
+    & adb -s $serial shell setprop "persist.log.tag.$tag" SILENT 2>$null | Out-Null
+    if ($LASTEXITCODE -eq 0) { return $true }
+    Start-Sleep -Milliseconds 300
+  }
+
+  return $false
+}
+
+# 기존: MESA 태그 침묵 처리 (유지)
 for ($i = 0; $i -lt 3; $i++) {
   & adb -s $target shell setprop log.tag.MESA S 2>$null | Out-Null
   if ($LASTEXITCODE -eq 0) { break }
   Start-Sleep -Milliseconds 300
 }
+
+# 추가: EGL_emulation 모든 로그 침묵 처리
+# - DEBUG/INFO 등 모든 레벨 출력 차단
+[void](Set-TagSilent -serial $target -tag 'EGL_emulation' -retries 3)
 
 exit 0
