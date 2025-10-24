@@ -5,7 +5,6 @@ import 'package:label_printer/core/lifecycle.dart';
 import 'package:label_printer/database/db_client.dart';
 import 'package:label_printer/database/db_connection_service.dart';
 import 'package:label_printer/database/db_server_connect_info.dart';
-import 'package:label_printer/utils/net_diag.dart';
 import 'package:label_printer/utils/on_messages.dart';
 
 /// 앱 시작 시 서버 DB 연결 및 재연결 모니터링을 담당하는 헬퍼
@@ -29,23 +28,13 @@ class StartupDbHelper {
         return true;
       }
 
-      BlockingOverlay.show(context, message: '서버 데이터베이스에 접속 중 입니다...');
+      showSnackBar(context, '서버 데이터베이스에 접속 중 입니다...');
       lastConnectInfo = await DbServerConnectInfoHelper.getLastConnectDBInfo();
 
       if (lastConnectInfo == null) {
         debugPrint('$cn.$fn: No previous server connect info found.');
         return false;
       }
-
-      // 안드로이드에서 네트워크/포트 도달성 문제를 먼저 진단
-      // final host = lastConnectInfo!.serverIp;
-      // final port = lastConnectInfo!.serverPort;
-      // final reachable = await NetDiag.probeTcp(host, port, timeout: const Duration(seconds: 3));
-      // if (!reachable) {
-      //   debugPrint('TCP not reachable to $host:$port (Android에서 방화벽/라우팅/SSL 문제 가능)');
-      // }
-
-      // debugPrint('Connecting to MSSQL {host:$host, port:$port, db:${lastConnectInfo!.databaseName}, user:${lastConnectInfo!.userId}}');
 
       final success = await dbConnection.connect(
         ip: lastConnectInfo!.serverIp,
@@ -76,14 +65,15 @@ class StartupDbHelper {
 
       if (context.mounted) {
         // 진행중 오버레이가 켜져 있을 수 있으니 먼저 닫고, 에러 오버레이를 띄운다.
-        BlockingOverlay.hide();
-        BlockingOverlay.show(
+        // 진행중 안내 스낵바 즉시 숨김
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+        showSnackBar(
           context,
-          message: '서버 접속에 실패하였습니다!!\n인터넷 연결상태를 먼저 확인해주시고 02)3274-1776으로 전화주세요!',
-          actions: [BlockingOverlayAction(label: '닫기')],
+          '서버 접속에 실패하였습니다!!\n인터넷 연결상태를 먼저 확인해주시고 02)3274-1776으로 전화주세요!',
+          isError: true,
         );
 
-        errorOverlayShown = true;
+  errorOverlayShown = true;
       }
       
       return false;
@@ -91,7 +81,7 @@ class StartupDbHelper {
     finally {
       // 에러 오버레이를 띄운 경우에는 사용자가 버튼을 누를 때까지 유지
       if (!errorOverlayShown) {
-        BlockingOverlay.hide();
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
       }
       debugPrint('$cn.$fn: $END');
     }

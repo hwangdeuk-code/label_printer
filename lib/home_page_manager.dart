@@ -141,7 +141,7 @@ class _HomePageManagerState extends State<HomePageManager> {
 
     try {
       debugPrint('$cn.$fn: $START');
-      BlockingOverlay.show(context, message: '사용자 데이터를 불러오고 있습니다...');
+      showSnackBar(context, '사용자 데이터를 불러오고 있습니다...');
 
       final brands = await _logic.fetchBrands(Customer.instance!.customerId);
 
@@ -165,7 +165,7 @@ class _HomePageManagerState extends State<HomePageManager> {
       _scheduleLabelSizeLoad(targetName);
     }
 	  finally {
-      BlockingOverlay.hide();
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
       debugPrint('$cn.$fn: $END');
     }
   }

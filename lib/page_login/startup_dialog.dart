@@ -3,6 +3,7 @@
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:label_printer/utils/on_messages.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:label_printer/core/bootstrap.dart';
@@ -225,88 +226,102 @@ class _DialogBodyState extends State<_DialogBody> {
       return loginPanel;
     }
 
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Expanded(flex: 3, child: loginPanel),
-        const SizedBox(width: 12),
-        Expanded(
-          flex: 7,
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              final keyboardOpen = MediaQuery.of(context).viewInsets.bottom > 0;
-              return CustomScrollView(
-                physics: const ClampingScrollPhysics(),
-                slivers: [
-                  SliverToBoxAdapter(
-                    child: Row(
-                      children: [
-                        Expanded(
-                          flex: 1,
-                          child: _LabeledField(
-                            label: '업데이트 버전',
-                            child: Text(widget.noticeVersion),
+    return Builder(
+      builder: (scaffoldContext) => Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Expanded(flex: 3, child: loginPanel),
+          const SizedBox(width: 12),
+          Expanded(
+            flex: 7,
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final keyboardOpen = MediaQuery.of(context).viewInsets.bottom > 0;
+                return CustomScrollView(
+                  physics: const ClampingScrollPhysics(),
+                  slivers: [
+                    SliverToBoxAdapter(
+                      child: Row(
+                        children: [
+                          Expanded(
+                            flex: 1,
+                            child: _LabeledField(
+                              label: '업데이트 버전',
+                              child: Text(widget.noticeVersion),
+                            ),
                           ),
-                        ),
-                        const Expanded(flex: 2, child: SizedBox.shrink()),
-                      ],
+                          const Expanded(flex: 2, child: SizedBox.shrink()),
+                        ],
+                      ),
                     ),
-                  ),
-                  const SliverToBoxAdapter(child: SizedBox(height: 12)),
-                  SliverFillRemaining(
-                    hasScrollBody: keyboardOpen,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Expanded(
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              Expanded(
-                                child: _InlayPanel(
-                                  margin: const EdgeInsets.only(top: 2),
-                                  child: ScrollConfiguration(
-                                    behavior: ScrollConfiguration.of(context).copyWith(scrollbars: true),
-                                    child: SingleChildScrollView(
-                                      physics: const ClampingScrollPhysics(),
-                                      child: DefaultTextStyle.merge(
-                                        style: const TextStyle(
-                                          fontFamily: 'monospace',
-                                          fontSize: 14,
-                                          color: Color(0xFF1F1F1F),
+                    const SliverToBoxAdapter(child: SizedBox(height: 12)),
+                    SliverFillRemaining(
+                      hasScrollBody: keyboardOpen,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Expanded(
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                Expanded(
+                                  child: _InlayPanel(
+                                    margin: const EdgeInsets.only(top: 2),
+                                    child: ScrollConfiguration(
+                                      behavior: ScrollConfiguration.of(context).copyWith(scrollbars: true),
+                                      child: SingleChildScrollView(
+                                        physics: const ClampingScrollPhysics(),
+                                        child: DefaultTextStyle.merge(
+                                          style: const TextStyle(
+                                            fontFamily: 'monospace',
+                                            fontSize: 14,
+                                            color: Color(0xFF1F1F1F),
+                                          ),
+                                          child: Text(widget.noticeContent),
                                         ),
-                                        child: Text(widget.noticeContent),
                                       ),
                                     ),
                                   ),
                                 ),
+                                const SizedBox(width: 12),
+                                const Expanded(child: _AdBanner()),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          Row(
+                            children: [
+                              Checkbox(
+                                value: widget.dontShow,
+                                onChanged: (v) => widget.onToggleDontShow(v ?? false),
                               ),
-                              const SizedBox(width: 12),
-                              const Expanded(child: _AdBanner()),
+                              const Text('다음 업데이트까지 이 창 보지 않음'),
+                              const Spacer(),
+                              ElevatedButton(
+                                onPressed: () {
+                                  showSnackBar(
+                                    scaffoldContext,
+                                    '공지사항 닫는 중...',
+                                    onVisible: () {
+                                      ScaffoldMessenger.of(scaffoldContext).hideCurrentSnackBar();
+                                      widget.onCloseNotice();
+                                    },
+                                  );
+                                },
+                                child: const Text('확인'),
+                              ),
                             ],
                           ),
-                        ),
-                        const SizedBox(height: 12),
-                        Row(
-                          children: [
-                            Checkbox(
-                              value: widget.dontShow,
-                              onChanged: (v) => widget.onToggleDontShow(v ?? false),
-                            ),
-                            const Text('다음 업데이트까지 이 창 보지 않음'),
-                            const Spacer(),
-                            ElevatedButton(onPressed: widget.onCloseNotice, child: const Text('확인')),
-                          ],
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
-                  ),
-                ],
-              );
-            },
+                  ],
+                );
+              },
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
@@ -728,13 +743,40 @@ class _LoginPanelState extends State<_LoginPanel> {
                   Row(
                     children: [
                       const Spacer(),
-                      ElevatedButton(
-                        onPressed: canLogin ? () => _onLoginButtonPressed(widget.password.text) : null,
-                        focusNode: _loginButtonFocus,
-                        child: const Text('로그인'),
+                      Builder(
+                        builder: (scaffoldContext) => ElevatedButton(
+                          onPressed: canLogin
+                              ? () {
+                                  showSnackBar(
+                                    scaffoldContext,
+                                    '로그인(Login) 처리 중 입니다...',
+                                    onVisible: () {
+                                      ScaffoldMessenger.of(scaffoldContext).hideCurrentSnackBar();
+                                      _onLoginButtonPressed(widget.password.text);
+                                    },
+                                  );
+                                }
+                              : null,
+                          focusNode: _loginButtonFocus,
+                          child: const Text('로그인'),
+                        ),
                       ),
                       const SizedBox(width: 8),
-                      OutlinedButton(onPressed: () => _onCancelButtonPressed(), child: const Text('취소')),
+                      Builder(
+                        builder: (scaffoldContext) => OutlinedButton(
+                          onPressed: () {
+                            showSnackBar(
+                              scaffoldContext,
+                              '취소 처리 중...',
+                              onVisible: () {
+                                ScaffoldMessenger.of(scaffoldContext).hideCurrentSnackBar();
+                                _onCancelButtonPressed();
+                              },
+                            );
+                          },
+                          child: const Text('취소'),
+                        ),
+                      ),
                     ],
                   ),
                 ],
