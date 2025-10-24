@@ -31,7 +31,7 @@ android {
 		resConfigs("en", "ko")
 
 		ndk {
-			abiFilters += setOf("arm64-v8a") // arm64만 포함
+			abiFilters += setOf("arm64-v8a", "x86_64")
 		}
 	}
 
@@ -52,6 +52,11 @@ android {
 			isShrinkResources = true
 		}
 	}
+
+	packagingOptions {
+		exclude("lib/x86/*")
+		exclude("lib/armeabi-v7a/*")
+	}	
 }
 
 dependencies {
