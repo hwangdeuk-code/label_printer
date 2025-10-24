@@ -90,36 +90,39 @@ class DbServerConnectInfoHelper {
   }
 
   /// DB 파일의 최종 경로를 결정
-  static Future<String> _dbFullPath(String? internalDbPath) async {
+  static Future<String> _dbFullPath() async {
     const fn = '_dbFullPath';
     debugPrint('$cn.$fn: $START');
 
     // Android: SAF/Legacy 권한을 처리한 뒤 선택된 Documents 하위 경로를 사용한다.
     // 앱의 쓰기 가능한 디렉터리 하위에 assets/data 경로를 생성하고, 해당 경로에 DB 파일을 복사한다.
     if (Platform.isAndroid) {
-      _channel ??= MethodChannel('$appPackageName/storage');
+      // 내부에 labelmanager_server_connect_info.db가 있는 지 판단한다.
+      final internalDocDir = await getApplicationDocumentsDirectory();
+      String? internalDbPath = p.join(internalDocDir.path, _data, _dbName);
+      if (!(await File(internalDbPath).exists())) { internalDbPath = null; }
 
-      String? dbPath = await _channel!.invokeMethod<String>(
+      _channel ??= MethodChannel('$appPackageName/storage');
+      String? externalDbPath = await _channel!.invokeMethod<String>(
         'prepareDocumentsAndGetPath', {'isInternalDbExists': internalDbPath!=null});
 
-      if (dbPath != null && dbPath.isNotEmpty) {
-        debugPrint('$cn.$fn: Android SAF/Legacy Path = $dbPath');
+      if (externalDbPath != null && externalDbPath.isNotEmpty) {
+        debugPrint('$cn.$fn: Android SAF/Legacy ExternalDbPath = $externalDbPath');
 
         // SAF URI인 경우, 내용을 로컬 파일로 복사
-        if (dbPath.startsWith('content://')) {
+        if (externalDbPath.startsWith('content://')) {
           try {
             _channel ??= MethodChannel('$appPackageName/storage');
-            final Uint8List? data = await _channel!.invokeMethod('readContentUri', {'uri': dbPath});
+            final Uint8List? data = await _channel!.invokeMethod('readContentUri', {'uri': externalDbPath});
 
             if (data != null) {
-              final docDir = await getApplicationDocumentsDirectory();
-              final localPath = p.join(docDir.path, _data, _dbName);
-              await File(localPath).writeAsBytes(data, flush: true);
-              debugPrint('$cn.$fn: Copied SAF content URI to local file: $localPath');
-              dbPath = localPath; // DB 열기 경로를 로컬 경로로 변경
+              final dir = Directory(p.join(internalDocDir.path, _data));
+              if (!await dir.exists()) { await dir.create(recursive: true); }
+              internalDbPath = p.join(internalDocDir.path, _data, _dbName);
+              await File(internalDbPath).writeAsBytes(data, flush: true);
+              debugPrint('$cn.$fn: Copied SAF content URI to local file: $internalDbPath');
             } else {
               debugPrint('$cn.$fn: Internal db file: $internalDbPath');
-              dbPath = internalDbPath;
             }
           }
           catch (e) {
@@ -128,7 +131,7 @@ class DbServerConnectInfoHelper {
           }
         }
 
-        return dbPath!; // content://... 또는 실제 파일 경로
+        return internalDbPath!;
       }
 
       throw UnsupportedError('ERROR!!');
@@ -172,21 +175,12 @@ class DbServerConnectInfoHelper {
     if (_db != null && _db!.isOpen) return _db!;
 
     _ensureDesktopInit();
-
-    // 내부에 labelmanager_server_connect_info.db가 있는 지 판단 (안드로이드만)
-    String? internalDbPath;
-    if (Platform.isAndroid) {
-      final docDir = await getApplicationDocumentsDirectory();
-      final localPath = p.join(docDir.path, _data, _dbName);
-      if (await File(localPath).exists()) { internalDbPath = localPath; }
-    }
-
-    String dbPath = await _dbFullPath(internalDbPath);
-    debugPrint('$cn.$fn: Initial DB path = $dbPath');
+    String dbFullPath = await _dbFullPath();
+    debugPrint('$cn.$fn: Initial DB path = $dbFullPath');
 
     try {
       _db = await openDatabase(
-        dbPath,
+        dbFullPath,
         version: _dbVersion,
         onCreate: (db, version) async {
           debugPrint('$cn.$fn: Creating database version $version');
@@ -223,7 +217,7 @@ class DbServerConnectInfoHelper {
       );
     }
     catch (e) {
-      debugPrint('$cn.$fn: Failed to open database at $dbPath, error=$e');
+      debugPrint('$cn.$fn: Failed to open database at $dbFullPath, error=$e');
       rethrow;
     }
 

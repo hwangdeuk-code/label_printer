@@ -66,9 +66,9 @@ class CooperatorDAO extends DAO {
   static const String SelectSql = '''
     SELECT
 			CONVERT(VARBINARY(100),
-			CONCAT_WS(N'${DAO.SPLITTER}',
-        CONVERT(NVARCHAR(30),RICH_COOP_ID COLLATE ${DAO.CP949}),
-        CONVERT(NVARCHAR(30),RICH_NAME COLLATE ${DAO.CP949})
+        CONCAT_WS(N'${DAO.SPLITTER}',
+          COALESCE(CONVERT(NVARCHAR(30), RICH_COOP_ID COLLATE ${DAO.CP949}), N''),
+          COALESCE(CONVERT(NVARCHAR(50), RICH_NAME COLLATE ${DAO.CP949}), N'')
 			)) AS ${DAO.LINE_U16LE}
     FROM BM_COOPERATOR
   ''';
@@ -99,7 +99,7 @@ class CooperatorDAO extends DAO {
       return Cooperator.fromPipe(decodeUtf16LeFromBase64String(base64Str));
     }
     catch (e) {
-      debugPrint('$cn.$fn: $e');
+      debugPrint('$cn.$fn: $END, $e');
       throw Exception('[$cn.$fn] $e');
     }
   }

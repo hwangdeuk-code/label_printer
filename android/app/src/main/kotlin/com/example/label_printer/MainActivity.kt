@@ -23,7 +23,7 @@ import kotlinx.coroutines.withContext
 
 class MainActivity : FlutterFragmentActivity() {
     companion object {
-        private const val cn = "DbServerConnectInfoHelper";
+        private const val cn = "DbServerConnectInfoHelper.MainActivity";
         private const val PREFS = "storage_prefs"
         private const val KEY_TREE_URI = "documents_tree_uri"
         private const val DB_FILE_NAME = "labelmanager_server_connect_info.db"

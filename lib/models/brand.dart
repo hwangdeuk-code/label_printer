@@ -56,11 +56,11 @@ class BrandDAO extends DAO {
   static const String SelectSql =
       '''
     SELECT
-			CONVERT(VARBINARY(MAX),
-			CONCAT_WS(N'${DAO.SPLITTER}',
-        RICH_BRAND_ID,
-        RICH_CUSTOMER_ID,
-        CONVERT(NVARCHAR(50),RICH_BRAND_NAME COLLATE ${DAO.CP949})
+			CONVERT(VARBINARY(300),
+        CONCAT_WS(N'${DAO.SPLITTER}',
+          COALESCE(CONVERT(NVARCHAR(20), RICH_BRAND_ID), N''),
+          COALESCE(CONVERT(NVARCHAR(20), RICH_CUSTOMER_ID), N''),
+          COALESCE(CONVERT(NVARCHAR(50), RICH_BRAND_NAME COLLATE ${DAO.CP949}), N'')
 			)) AS ${DAO.LINE_U16LE}
     FROM BM_RICH_BRAND
   ''';
@@ -108,7 +108,7 @@ class BrandDAO extends DAO {
       return Brand.fromPipeLines(lines);
     }
     catch (e) {
-      debugPrint('$cn.$fn: $e');
+      debugPrint('$cn.$fn: $END, $e');
       throw Exception('[$cn.$fn] $e');
     }
   }

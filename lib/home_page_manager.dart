@@ -511,7 +511,7 @@ class _TopControlArea extends StatelessWidget {
             // 미리보기
             ConstrainedBox(
               constraints: BoxConstraints(
-                maxWidth: isDesktop ? 450 : 400,
+                maxWidth: isDesktop ? 450 : 370,
               ), // 최대 너비 제한
               child: Container(
                 padding: EdgeInsets.zero,

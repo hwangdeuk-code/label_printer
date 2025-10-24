@@ -2,6 +2,7 @@
 // ignore_for_file: constant_identifier_names, non_constant_identifier_names
 
 import 'package:flutter/material.dart';
+import 'package:label_printer/core/app.dart';
 import 'package:label_printer/database/db_client.dart';
 import 'package:label_printer/database/db_result_utils.dart';
 import 'dao.dart';
@@ -148,33 +149,32 @@ class LabelSizeDAO extends DAO {
       CONVERT(VARBINARY(MAX),
         CONCAT_WS(N'${DAO.SPLITTER}',
           COALESCE(CONVERT(NVARCHAR(50), RICH_LABELSIZE_ID), N''),
-          COALESCE(CONVERT(NVARCHAR(50), RICH_BRAND_ID),     N''),
+          COALESCE(CONVERT(NVARCHAR(50), RICH_BRAND_ID), N''),
           COALESCE(CONVERT(NVARCHAR(50), RICH_LABELSIZE_NAME COLLATE ${DAO.CP949}), N''),
-          COALESCE(CONVERT(NVARCHAR(50), RICH_FORM_WIDTH),   N''),
-          COALESCE(CONVERT(NVARCHAR(50), RICH_FORM_HEIGHT),  N''),
+          COALESCE(CONVERT(NVARCHAR(50), RICH_FORM_WIDTH), N''),
+          COALESCE(CONVERT(NVARCHAR(50), RICH_FORM_HEIGHT), N''),
           COALESCE(CONVERT(NVARCHAR(MAX), RICH_FORM_DATA COLLATE ${DAO.CP949}), N''),
-          COALESCE(CONVERT(NVARCHAR(10), RICH_SETUP_READONLY),         N''),
-          COALESCE(CONVERT(NVARCHAR(10), RICH_SETUP_USE_MAKEDATE),     N''),
-          COALESCE(CONVERT(NVARCHAR(10), RICH_SETUP_USE_MAKETIME),     N''),
-          COALESCE(CONVERT(NVARCHAR(10), RICH_SETUP_USE_VALIDDATE),    N''),
-          COALESCE(CONVERT(NVARCHAR(10), RICH_SETUP_USE_VALIDTIME),    N''),
-          COALESCE(CONVERT(NVARCHAR(10), RICH_SETUP_MAKEDATE_TYPE),    N''),
-          COALESCE(CONVERT(NVARCHAR(10), RICH_SETUP_MAKETIME_TYPE),    N''),
-          COALESCE(CONVERT(NVARCHAR(10), RICH_SETUP_VALIDDATE_TYPE),   N''),
-          COALESCE(CONVERT(NVARCHAR(10), RICH_SETUP_VALIDTIME_TYPE),   N''),
-          COALESCE(CONVERT(NVARCHAR(50), RICH_USER_MAKEDATE  COLLATE ${DAO.CP949}), N''),
-          COALESCE(CONVERT(NVARCHAR(50), RICH_USER_MAKETIME  COLLATE ${DAO.CP949}), N''),
+          COALESCE(CONVERT(NVARCHAR(10), RICH_SETUP_READONLY), N''),
+          COALESCE(CONVERT(NVARCHAR(10), RICH_SETUP_USE_MAKEDATE), N''),
+          COALESCE(CONVERT(NVARCHAR(10), RICH_SETUP_USE_MAKETIME), N''),
+          COALESCE(CONVERT(NVARCHAR(10), RICH_SETUP_USE_VALIDDATE), N''),
+          COALESCE(CONVERT(NVARCHAR(10), RICH_SETUP_USE_VALIDTIME), N''),
+          COALESCE(CONVERT(NVARCHAR(10), RICH_SETUP_MAKEDATE_TYPE), N''),
+          COALESCE(CONVERT(NVARCHAR(10), RICH_SETUP_MAKETIME_TYPE), N''),
+          COALESCE(CONVERT(NVARCHAR(10), RICH_SETUP_VALIDDATE_TYPE), N''),
+          COALESCE(CONVERT(NVARCHAR(10), RICH_SETUP_VALIDTIME_TYPE), N''),
+          COALESCE(CONVERT(NVARCHAR(50), RICH_USER_MAKEDATE COLLATE ${DAO.CP949}), N''),
+          COALESCE(CONVERT(NVARCHAR(50), RICH_USER_MAKETIME COLLATE ${DAO.CP949}), N''),
           COALESCE(CONVERT(NVARCHAR(50), RICH_USER_VALIDDATE COLLATE ${DAO.CP949}), N''),
           COALESCE(CONVERT(NVARCHAR(50), RICH_USER_VALIDTIME COLLATE ${DAO.CP949}), N''),
-          COALESCE(CONVERT(NVARCHAR(10), RICH_SETUP_USE_SCALE),        N'')
-        )
-      ) AS ${DAO.LINE_U16LE}
+          COALESCE(CONVERT(NVARCHAR(10), RICH_SETUP_USE_SCALE), N'')
+      )) AS ${DAO.LINE_U16LE}
     FROM BM_RICH_LABELSIZE_FORM
   ''';
 
   // WHERE 절: Brand ID로 조회 (Integer)
   static const String WhereSqlBrandId = '''
-	  WHERE RICH_BRAND_ID=@brandID
+	  WHERE RICH_BRAND_ID=@brandId
   ''';
 
   static const String OrderSqlByLabelSize = '''
@@ -183,6 +183,7 @@ class LabelSizeDAO extends DAO {
 
   static Future<List<LabelSize>?> getByBrandIdByLabelSizeOrder(int brandId) async {
     const String fn = 'getByBrandIdByLabelSizeOrder';
+    debugPrint('$cn.$fn: $START, brandId:$brandId');
 
     try {
       final res = await DbClient.instance.getDataWithParams(
@@ -194,23 +195,24 @@ class LabelSizeDAO extends DAO {
       final base64Rows = extractJsonDBResults(DAO.LINE_U16LE, res);
 
       if (base64Rows.isEmpty) {
-        debugPrint('$cn.$fn: ${DAO.query_no_data}');
+        debugPrint('$cn.$fn: $END, ${DAO.query_no_data}');
         return null;
       }
 
       final lines = base64Rows
-          .map(decodeUtf16LeFromBase64String)
-          .where((line) => line.isNotEmpty)
-          .toList();
+        .map(decodeUtf16LeFromBase64String)
+        .where((line) => line.isNotEmpty)
+        .toList();
 
       if (lines.isEmpty) {
-        debugPrint('$cn.$fn: decoded lines empty');
+        debugPrint('$cn.$fn: $END, decoded lines empty');
         return null;
       }
 
       return LabelSize.fromPipeLines(lines);
     }
     catch (e) {
+      debugPrint('$cn.$fn: $END, $e');
       throw Exception('[$cn.$fn] $e');
     }
   }

@@ -53,10 +53,10 @@ class CustomerDAO extends DAO {
   static const String SelectSql = '''
 		SELECT
 			CONVERT(VARBINARY(300),
-			CONCAT_WS(N'${DAO.SPLITTER}',
-        RICH_CUSTOMER_ID,
-        CONVERT(NVARCHAR(30),RICH_COOP_ID COLLATE ${DAO.CP949}),
-        CONVERT(NVARCHAR(50),RICH_NAME COLLATE ${DAO.CP949})
+        CONCAT_WS(N'${DAO.SPLITTER}',
+          COALESCE(CONVERT(NVARCHAR(20), RICH_CUSTOMER_ID), N''),
+          COALESCE(CONVERT(NVARCHAR(30), RICH_COOP_ID COLLATE ${DAO.CP949}), N''),
+          COALESCE(CONVERT(NVARCHAR(50), RICH_NAME COLLATE ${DAO.CP949}), N'')
 			)) AS ${DAO.LINE_U16LE}
 		FROM BM_CUSTOMER
   ''';
@@ -87,7 +87,7 @@ class CustomerDAO extends DAO {
       return Customer.fromPipe(decodeUtf16LeFromBase64String(base64Str));
     }
     catch (e) {
-      debugPrint('$cn.$fn: $e');
+      debugPrint('$cn.$fn: $END, $e');
       throw Exception('[$cn.$fn] $e');
     }
   }

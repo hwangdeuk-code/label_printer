@@ -2,6 +2,7 @@
 // ignore_for_file: constant_identifier_names, non_constant_identifier_names
 
 import 'package:flutter/material.dart';
+import 'package:label_printer/core/app.dart';
 import 'package:label_printer/models/dao.dart';
 import 'package:label_printer/database/db_client.dart';
 import 'package:label_printer/database/db_result_utils.dart';
@@ -11,7 +12,8 @@ class NoticeDAO extends DAO {
   static const String Sql = '''
     SELECT
       CONVERT(VARBINARY(6000),
-      CONVERT(NVARCHAR(3000),UN_MSG COLLATE ${DAO.CP949})) AS ${DAO.LINE_U16LE}
+        COALESCE(CONVERT(NVARCHAR(3000), UN_MSG COLLATE ${DAO.CP949}), N'')
+      ) AS ${DAO.LINE_U16LE}
     FROM
       BM_UPDATE_NOTICE
     WHERE
@@ -21,6 +23,7 @@ class NoticeDAO extends DAO {
 
   static Future<String> getByUserId(String userId) async {
     const String fn = 'getByUserId';
+    debugPrint('$cn.$fn: $START, userId:$userId');
 
     try {
 			final res = await DbClient.instance.getDataWithParams(
@@ -30,13 +33,14 @@ class NoticeDAO extends DAO {
       final base64Str = extractJsonDBResult(DAO.LINE_U16LE, res);
 
       if (base64Str.isEmpty) {
-			  debugPrint('$cn.$fn: ${DAO.query_no_data}');
+			  debugPrint('$cn.$fn: $END ${DAO.query_no_data}');
         return '';
       }
 
       return decodeUtf16LeFromBase64String(base64Str);
     }
     catch (e) {
+      debugPrint('$cn.$fn: $END, $e');
       throw Exception('[$cn.$fn] $e');
     }
   }

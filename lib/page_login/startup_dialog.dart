@@ -712,7 +712,7 @@ class _LoginPanelState extends State<_LoginPanel> {
                     ],
                   ),
                   const SizedBox(height: 12),
-                  _LabeledField(height: 170, child: Text(_infoText)),
+                  _LabeledField(height: isDesktop ? 170 : 150, child: Text(_infoText)),
                   const SizedBox(height: 12),
                   Row(
                     children: [

@@ -2,6 +2,7 @@
 // ignore_for_file: constant_Identifier_names, non_constant_Identifier_names
 
 import 'package:flutter/material.dart';
+import 'package:label_printer/core/app.dart';
 import 'package:label_printer/database/db_client.dart';
 import 'package:label_printer/database/db_result_utils.dart';
 import 'dao.dart';
@@ -93,14 +94,14 @@ class UserDAO extends DAO {
   static const String SelectSql = '''
     SELECT
 			CONVERT(VARBINARY(1000),
-			CONCAT_WS(N'${DAO.SPLITTER}',
-				CONVERT(NVARCHAR(30),P1.RICH_USER_ID COLLATE ${DAO.CP949}),
-				P1.RICH_MARKET_ID,
-				CONVERT(NVARCHAR(50),P1.RICH_NAME COLLATE ${DAO.CP949}),
-				CONVERT(NVARCHAR(20),P1.RICH_PWD COLLATE ${DAO.CP949}),
-				P1.RICH_USER_GRADE,
-				CONVERT(NVARCHAR(50),P2.RICH_NAME COLLATE ${DAO.CP949}),
-				CONVERT(NVARCHAR(50),P3.RICH_NAME COLLATE ${DAO.CP949})
+        CONCAT_WS(N'${DAO.SPLITTER}',
+          COALESCE(CONVERT(NVARCHAR(30), P1.RICH_USER_ID COLLATE ${DAO.CP949}), N''),
+          COALESCE(CONVERT(NVARCHAR(20), P1.RICH_MARKET_ID), N''),
+          COALESCE(CONVERT(NVARCHAR(50), P1.RICH_NAME COLLATE ${DAO.CP949}), N''),
+          COALESCE(CONVERT(NVARCHAR(20), P1.RICH_PWD COLLATE ${DAO.CP949}), N''),
+          COALESCE(CONVERT(NVARCHAR(20), P1.RICH_USER_GRADE), N''),
+          COALESCE(CONVERT(NVARCHAR(50), P2.RICH_NAME COLLATE ${DAO.CP949}), N''),
+          COALESCE(CONVERT(NVARCHAR(50), P3.RICH_NAME COLLATE ${DAO.CP949}), N'')
 			)) AS ${DAO.LINE_U16LE}
 		FROM
       BM_USER P1
@@ -119,6 +120,7 @@ class UserDAO extends DAO {
 
   static Future<User?> getByUserId(String userId) async {
     const String fn = 'getByUserId';
+    debugPrint('$cn.$fn: $START, userId:$userId');
 
     try {
 			final res = await DbClient.instance.getDataWithParams(
@@ -129,13 +131,14 @@ class UserDAO extends DAO {
       final base64Str = extractJsonDBResult(DAO.LINE_U16LE, res);
 
       if (base64Str.isEmpty) {
-			  debugPrint('$cn.$fn: ${DAO.query_no_data}');
+			  debugPrint('$cn.$fn: $END, ${DAO.query_no_data}');
         return null;
       }
 
       return User.fromPipe(decodeUtf16LeFromBase64String(base64Str));
     }
     catch (e) {
+      debugPrint('$cn.$fn: $END, $e');
       throw Exception('[$cn.$fn] $e');
     }
   }
