@@ -74,7 +74,7 @@ class StartupDbHelper {
     }
     finally {
       // 에러 오버레이를 띄운 경우에는 사용자가 버튼을 누를 때까지 유지
-      if (!errorOverlayShown) {
+      if (!errorOverlayShown && context.mounted) {
         ScaffoldMessenger.of(context).hideCurrentSnackBar();
       }
       

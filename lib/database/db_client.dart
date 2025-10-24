@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:label_printer/database/db_connection_service.dart';
-import 'package:label_printer/models/user.dart';
 import 'package:mssql_connection/mssql_connection.dart' as mssql;
 //import 'package:sql_connection/sql_connection.dart' as sqlconn;
 
