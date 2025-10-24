@@ -1049,14 +1049,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.4.0"
-  sql_connection:
-    dependency: "direct main"
-    description:
-      name: sql_connection
-      sha256: "4ca23e71734d601466e2b595ff96ba488382ec4368cf93bed4366d5cfc2af992"
-      url: "https://pub.dev"
-    source: hosted
-    version: "1.0.1"
   sqlite3:
     dependency: transitive
     description:

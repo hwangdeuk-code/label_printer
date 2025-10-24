@@ -1,9 +1,8 @@
 import 'dart:async';
-import 'dart:io';
 
 import 'package:label_printer/database/db_connection_service.dart';
 import 'package:mssql_connection/mssql_connection.dart' as mssql;
-import 'package:sql_connection/sql_connection.dart' as sqlconn;
+//import 'package:sql_connection/sql_connection.dart' as sqlconn;
 
 /// 앱 전역에서 DB 액세스를 단일 경로로 제공하는 클라이언트.
 /// - 폴링 일시중지/재개를 내부에서 처리하여 세션 충돌을 방지한다.
@@ -52,7 +51,6 @@ class _MssqlBackend implements _DbBackend {
       timeoutInSeconds: timeoutInSeconds,
     );
     if (!ok) return false;
-    await _db.writeData('SET TEXTSIZE 2147483647;');
     await _db.writeData('SET NOCOUNT ON;');
     return true;
   }
@@ -75,6 +73,7 @@ class _MssqlBackend implements _DbBackend {
   Future<bool> disconnect() => _db.disconnect();
 }
 
+/*
 class _SqlConnBackend implements _DbBackend {
   final sqlconn.SqlConnection _db = sqlconn.SqlConnection.getInstance();
 
@@ -148,11 +147,13 @@ class _SqlConnBackend implements _DbBackend {
     return "N'$s'";
   }
 }
+*/
 
 class DbClient {
   DbClient._();
   static final DbClient instance = DbClient._();
-  final _DbBackend _backend = (Platform.isAndroid) ? _SqlConnBackend() : _MssqlBackend();
+//  final _DbBackend _backend = (Platform.isAndroid) ? _SqlConnBackend() : _MssqlBackend();
+  final _DbBackend _backend = _MssqlBackend();
   Future<void> _operationSerial = Future<void>.value();
 
   bool get isConnected => _backend.isConnected;
@@ -251,5 +252,3 @@ class DbClient {
     _backend.disconnect();
   }
 }
-
-
