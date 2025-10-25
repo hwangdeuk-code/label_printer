@@ -617,7 +617,7 @@ class _LoginPanelState extends State<_LoginPanel> {
                         ) ??
                         const TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
                   ),
-                  const SizedBox(height: 8),
+                  SizedBox(height: isDesktop ? 16 : 6),
                   _LabeledField(
                     label: '접속 서버',
                     labelWidth: _fieldLabelWidth,
@@ -648,7 +648,7 @@ class _LoginPanelState extends State<_LoginPanel> {
                       },
                     ),
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 8),
                   Row(
                     children: [
                       _kLabel('아이디'),
@@ -739,9 +739,9 @@ class _LoginPanelState extends State<_LoginPanel> {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 12),
-                  _LabeledField(height: isDesktop ? 170 : 80, child: Text(_infoText)),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 8),
+                  _LabeledField(height: isDesktop ? 160 : 76, child: Text(_infoText)),
+                  const SizedBox(height: 0),
                   Row(
                     children: [
                       Checkbox(
@@ -752,7 +752,7 @@ class _LoginPanelState extends State<_LoginPanel> {
                       const Spacer(),
                     ],
                   ),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 0),
                   Row(
                     children: [
                       const Spacer(),
