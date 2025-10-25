@@ -12,7 +12,7 @@ String appLocale = 'ko_KR';
 String appPackageName = '';
 String appVersion = '';
 bool isDesktop = false;
-bool isShowLogo = false;
+bool isShowLogo = true;
 
 // Android
 int? androidSdkInt;

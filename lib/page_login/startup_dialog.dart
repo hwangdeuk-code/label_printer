@@ -99,7 +99,7 @@ class _StartupDialogState extends State<StartupDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final fHeight = isDesktop ? 0.8 : 0.9;
+    final fHeight = isDesktop ? 0.8 : 0.8;
     final dialogBody = _DialogBody(
       noticeClosed: _noticeClosed,
       onCloseNotice: () => setState(() => _noticeClosed = true),
@@ -740,7 +740,7 @@ class _LoginPanelState extends State<_LoginPanel> {
                     ],
                   ),
                   const SizedBox(height: 12),
-                  _LabeledField(height: isDesktop ? 170 : 150, child: Text(_infoText)),
+                  _LabeledField(height: isDesktop ? 170 : 80, child: Text(_infoText)),
                   const SizedBox(height: 12),
                   Row(
                     children: [

@@ -433,7 +433,7 @@ class _TopControlArea extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       color: Colors.transparent,
-      padding: const EdgeInsets.fromLTRB(8, 8, 8, 8), // 위젯 여백
+      padding: EdgeInsets.all(8),
       child: IntrinsicHeight(
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.stretch,
