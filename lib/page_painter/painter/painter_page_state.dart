@@ -360,10 +360,10 @@ class _PainterPageState extends State<PainterPage> {
       // 저장 후 시그니처 최신화
       _lastSavedSignature = await _computeSceneSignature();
       _isDirty = false;
-      showSnackBar(context, '저장 완료: ${objects.length}개 객체');
+      showSnackBar(context, '저장 완료: ${objects.length}개 객체', type: SnackBarType.info);
     } catch (e, stack) {
       debugPrint('Save project error: $e\n$stack');
-      showSnackBar(context, '저장 실패: $e', isError: true);
+      showSnackBar(context, '저장 실패: $e', type: SnackBarType.error);
     }
   }
 
@@ -418,9 +418,9 @@ class _PainterPageState extends State<PainterPage> {
         added++;
       }
       if (added > 0) {
-        showSnackBar(context, '불러오기 완료: $added개 객체 추가');
+        showSnackBar(context, '불러오기 완료: $added개 객체 추가', type: SnackBarType.info);
       } else {
-        showSnackBar(context, '불러온 객체가 없습니다.');
+        showSnackBar(context, '불러온 객체가 없습니다.', type: SnackBarType.warning);
       }
       _lastProjectPath = file.path;
       try { final prefs = await SharedPreferences.getInstance();
@@ -430,7 +430,7 @@ class _PainterPageState extends State<PainterPage> {
       _isDirty = false; // 새로 로드된 상태를 기준으로 깨끗함
     } catch (e, stack) {
       debugPrint('Load project error: $e\n$stack');
-        showSnackBar(context, '불러오기 실패: $e', isError: true);
+        showSnackBar(context, '불러오기 실패: $e', type: SnackBarType.error);
     }
   }
 

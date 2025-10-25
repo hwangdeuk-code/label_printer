@@ -302,6 +302,7 @@ class _DialogBodyState extends State<_DialogBody> {
                                   showSnackBar(
                                     scaffoldContext,
                                     '공지사항 닫는 중...',
+                                    type: SnackBarType.inProgress,
                                     onVisible: () {
                                       ScaffoldMessenger.of(scaffoldContext).hideCurrentSnackBar();
                                       widget.onCloseNotice();
@@ -762,6 +763,7 @@ class _LoginPanelState extends State<_LoginPanel> {
                                   showSnackBar(
                                     scaffoldContext,
                                     '로그인(Login) 처리 중 입니다...',
+                                    type: SnackBarType.inProgress,
                                     onVisible: () {
                                       ScaffoldMessenger.of(scaffoldContext).hideCurrentSnackBar();
                                       _onLoginButtonPressed(widget.password.text);
@@ -780,6 +782,7 @@ class _LoginPanelState extends State<_LoginPanel> {
                             showSnackBar(
                               scaffoldContext,
                               '취소 처리 중...',
+                              type: SnackBarType.inProgress,
                               onVisible: () {
                                 ScaffoldMessenger.of(scaffoldContext).hideCurrentSnackBar();
                                 _onCancelButtonPressed();

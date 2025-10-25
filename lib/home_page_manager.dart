@@ -141,7 +141,7 @@ class _HomePageManagerState extends State<HomePageManager> {
 
     try {
       debugPrint('$cn.$fn: $START');
-      showSnackBar(context, '사용자 데이터를 불러오고 있습니다...');
+      showSnackBar(context, '사용자 데이터를 불러오고 있습니다...', type: SnackBarType.inProgress);
 
       final brands = await _logic.fetchBrands(Customer.instance!.customerId);
 

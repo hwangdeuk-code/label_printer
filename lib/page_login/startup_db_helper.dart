@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:label_printer/core/app.dart';
 
-import 'package:label_printer/core/lifecycle.dart';
 import 'package:label_printer/database/db_client.dart';
 import 'package:label_printer/database/db_connection_service.dart';
 import 'package:label_printer/database/db_server_connect_info.dart';
@@ -28,7 +27,7 @@ class StartupDbHelper {
         return true;
       }
 
-      showSnackBar(context, '서버 데이터베이스에 접속 중 입니다...');
+      showSnackBar(context, '서버 데이터베이스에 접속 중 입니다...', type: SnackBarType.inProgress);
       lastConnectInfo = await DbServerConnectInfoHelper.getLastConnectDBInfo();
 
       if (lastConnectInfo == null) {
@@ -64,7 +63,7 @@ class StartupDbHelper {
         showSnackBar(
           context,
           '서버 접속에 실패하였습니다!!\n인터넷 연결상태를 먼저 확인해주시고 02)3274-1776으로 전화주세요!',
-          isError: true,
+          type: SnackBarType.error,
         );
 
         errorOverlayShown = true;
