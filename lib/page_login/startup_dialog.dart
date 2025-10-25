@@ -536,10 +536,7 @@ class _LoginPanelState extends State<_LoginPanel> {
       final errmsg = e.toString();
       _infoText = stripLeadingBracketTags(errmsg);
       debugPrint('${_LoginPanel.cn}.$fn, ${DAO.exception}: $errmsg');
-
-      if (mounted) {
-        setState(() => _infoText = stripLeadingBracketTags(errmsg));
-      }
+      if (mounted) { setState(() => _infoText = stripLeadingBracketTags(errmsg)); }
     }
     finally {
       debugPrint('${_LoginPanel.cn}.$fn, $END');
@@ -569,14 +566,14 @@ class _LoginPanelState extends State<_LoginPanel> {
   Widget build(BuildContext context) {
     // 로그인 버튼 활성화 조건
     final bool canLogin =
-        widget.userId.text.trim().isNotEmpty && _userInfo != null && widget.password.text.isNotEmpty;
+			widget.userId.text.trim().isNotEmpty && _userInfo != null && widget.password.text.isNotEmpty;
 
     InputDecoration _dec(String hint) => InputDecoration(
-          isDense: true,
-          hintText: hint,
-          border: const OutlineInputBorder(),
-          contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-        );
+				isDense: true,
+				hintText: hint,
+				border: const OutlineInputBorder(),
+				contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+			);
 
     double _measureCharWidth(TextStyle style, {String sample = '가'}) {
       final painter = TextPainter(
